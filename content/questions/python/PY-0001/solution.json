@@ -1,0 +1,53 @@
+{
+  "question_id": "PY-0001",
+  "question_version": "0.1.0",
+  "reference_solution": "Use an OrderedDict from key to an entry containing value and absolute expires_at. `get` checks expiration, deletes stale state, and moves a live key to the most-recent end. `set` validates TTL, purges expired entries using one clock reading, overwrites and moves the key, then evicts from the least-recent end until within capacity. `len` purges expired entries before returning the count. The executable implementation is `reference.py`.",
+  "explanation": "A dictionary gives key lookup while OrderedDict provides deterministic least-to-most-recent order. Injecting a monotonic clock makes expiration testable and immune to civil-time changes. A single `now` value per operation prevents inconsistent boundary decisions inside that operation. Purging before capacity eviction ensures expired entries never cause a live entry to be discarded.",
+  "alternatives": [
+    {
+      "name": "Hash map plus custom doubly linked list",
+      "solution": "Store nodes in a dict and splice nodes on access; maintain head and tail sentinels.",
+      "advantages": ["full control over node layout", "portable beyond OrderedDict"],
+      "disadvantages": ["more invariants and implementation failure modes", "no benefit for this standard-library exercise"]
+    },
+    {
+      "name": "Expiration min-heap plus LRU order",
+      "solution": "Maintain a heap of expiration records alongside recency order and discard stale heap generations lazily.",
+      "advantages": ["avoids full scans when expiration is sparse", "can support scheduled cleanup"],
+      "disadvantages": ["set becomes O(log n)", "stale heap records require generations and memory controls"]
+    }
+  ],
+  "trade_off_analysis": [
+    "Scanning the bounded cache during set and len is simple but O(capacity) in the worst case.",
+    "Lazy removal makes get O(1) but leaves unrelated expired entries until a purge operation.",
+    "A single instance lock can protect invariants, but get_or_load needs per-key coalescing and must not call external loaders while holding the global lock."
+  ],
+  "complexity": {
+    "expected_time": "get is O(1) average; set and len are O(capacity) worst case because they purge expired entries; final LRU eviction is O(1) per entry.",
+    "expected_space": "O(capacity).",
+    "explanation": "OrderedDict lookup, deletion, move_to_end, and popitem are constant average time; the explicit expiry scan dominates purge operations."
+  },
+  "testing_and_debugging": [
+    "Use a mutable fake clock; never sleep.",
+    "Test immediately before and exactly at expires_at.",
+    "Verify overwrite changes both value and TTL and moves recency.",
+    "Check internal order only while debugging; public tests should assert behavior."
+  ],
+  "production_follow_ups": [
+    "Add hit, miss, expired, eviction, load latency, and current-weight metrics with bounded key cardinality.",
+    "Define thread/async ownership and per-key request coalescing.",
+    "Add weighted capacity, memory-pressure behavior, and safe shutdown only when requirements justify them."
+  ],
+  "critical_omissions": [
+    "No expiration boundary definition.",
+    "No invalid TTL handling.",
+    "No concurrency or loader-stampede discussion in the production follow-up."
+  ],
+  "strong_response_example": "I will use an OrderedDict and an injected monotonic clock. Expiration is `now >= expires_at`. Before evicting for capacity, I will remove expired entries so stale data cannot evict a live key. This makes get O(1) average and set O(capacity) worst case because of the simple purge; I would consider a generation-tagged heap only if measurements justify the extra complexity.",
+  "interviewer_follow_up_tree": {
+    "correct_base": ["Introduce concurrent get_or_load", "Ask for weighted capacity"],
+    "misses_expiration": ["Probe exact-boundary behavior", "Ask how tests avoid sleeping"],
+    "claims_constant_time": ["Ask which line removes unrelated expired entries"]
+  },
+  "source_content_hash": "sha256:c498b6aa941cb0fcea349a8c98ebbe4d7d1f89bbad538d2dfc9bb1e8ffad91a0"
+}

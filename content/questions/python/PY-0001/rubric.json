@@ -1,0 +1,51 @@
+{
+  "dimensions": [
+    {
+      "name": "Correctness",
+      "description": "Implements lookup, expiration, overwrite, eviction, and validation semantics.",
+      "weight": 30,
+      "evidence_required": ["public and hidden test outcomes", "expiration-boundary explanation"],
+      "strong_indicators": ["all deterministic cases pass", "state stays consistent after errors"],
+      "weak_indicators": ["expired entries leak", "wrong entry is evicted"]
+    },
+    {
+      "name": "Data-structure selection",
+      "description": "Chooses and uses structures that match lookup and recency requirements.",
+      "weight": 20,
+      "evidence_required": ["operation-level reasoning"],
+      "strong_indicators": ["hash lookup and ordered recency are explicit"],
+      "weak_indicators": ["linear recency search without acknowledging cost"]
+    },
+    {
+      "name": "Testing",
+      "description": "Covers boundary time, overwrite, capacity, invalid TTL, and expired-length behavior.",
+      "weight": 20,
+      "evidence_required": ["candidate tests or stated test matrix"],
+      "strong_indicators": ["uses a fake monotonic clock", "tests exact expiration timestamp"],
+      "weak_indicators": ["relies on sleep", "tests only happy paths"]
+    },
+    {
+      "name": "Complexity and trade-offs",
+      "description": "Reports honest complexity and explains alternative expiration indexes.",
+      "weight": 15,
+      "evidence_required": ["time and space analysis"],
+      "strong_indicators": ["distinguishes get from purge-heavy set"],
+      "weak_indicators": ["claims unconditional O(1) operations"]
+    },
+    {
+      "name": "Production judgment",
+      "description": "Identifies concurrency, observability, stampede, and memory concerns.",
+      "weight": 15,
+      "evidence_required": ["production follow-up discussion"],
+      "strong_indicators": ["does not hold a global lock across an external loader", "proposes hit/expiry/eviction metrics"],
+      "weak_indicators": ["equates a lock with a complete production design"]
+    }
+  ],
+  "score_bands": {
+    "90-100": "Correct, well-tested implementation with precise reasoning and mature production follow-ups.",
+    "75-89": "Correct core implementation with minor gaps in testing or production depth.",
+    "60-74": "Partially correct with material edge-case or complexity omissions.",
+    "0-59": "Incorrect cache invariants or insufficient evidence of required behavior."
+  }
+}
+

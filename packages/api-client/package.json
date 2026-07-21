@@ -1,0 +1,21 @@
+{
+  "name": "@rigor/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./schema": "./src/schema.d.ts"
+  },
+  "scripts": {
+    "generate": "openapi-typescript openapi.json -o src/schema.d.ts && prettier --write src/schema.d.ts",
+    "build": "pnpm generate",
+    "lint": "prettier --check src/schema.d.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "prettier": "3.9.5",
+    "typescript": "5.9.3"
+  }
+}

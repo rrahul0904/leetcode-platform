@@ -1,0 +1,30 @@
+#!/usr/bin/env sh
+set -eu
+
+repository_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+cd "$repository_root"
+
+if [ ! -s .docker-build-ca.pem ]; then
+  echo "Missing .docker-build-ca.pem build trust bundle." >&2
+  echo "Follow docs/DOCKER_RELEASE.md; do not disable TLS verification." >&2
+  exit 1
+fi
+
+docker compose config --quiet
+docker compose up --build -d
+
+attempt=0
+while [ "$attempt" -lt 30 ]; do
+  if curl -fsS http://127.0.0.1:8002/livez >/dev/null \
+    && curl -fsS http://127.0.0.1:3001/ >/dev/null; then
+    echo "Rigor local release is healthy: http://localhost:3001"
+    exit 0
+  fi
+  attempt=$((attempt + 1))
+  sleep 1
+done
+
+echo "Rigor containers did not become healthy within 30 seconds." >&2
+docker compose ps >&2
+exit 1
+

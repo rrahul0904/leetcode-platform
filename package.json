@@ -1,0 +1,21 @@
+{
+  "name": "rigor-platform",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.10.0",
+  "engines": {
+    "node": ">=24.18.0 <25"
+  },
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test"
+  },
+  "devDependencies": {
+    "prettier": "3.9.5",
+    "turbo": "2.10.5",
+    "typescript": "5.9.3"
+  }
+}

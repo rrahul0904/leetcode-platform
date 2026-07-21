@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+set -eu
+exec "$(dirname "$0")/../.venv/bin/python" "$(dirname "$0")/execute_solutions.py" "$@"
+

@@ -1,0 +1,21 @@
+{
+  "provenance": {
+    "originality_statement": "Independently authored for Rigor from general public computer-science and production-engineering concepts; not sourced from or claimed to be an employer interview question.",
+    "authoring_method": "Human-directed original scenario and deterministic implementation authored in a controlled batch.",
+    "source_classes": ["general data-structure knowledge", "Python standard-library behavior", "production cache design principles"],
+    "source_notes": ["No proprietary question bank or interview report used."],
+    "content_hash": "sha256:c498b6aa941cb0fcea349a8c98ebbe4d7d1f89bbad538d2dfc9bb1e8ffad91a0",
+    "authored_at": "2026-07-20T12:00:00Z",
+    "author_id": "rigor-founding-editor"
+  },
+  "version": "0.1.0",
+  "review_status": "awaiting_technical_review",
+  "validation": {
+    "schema_valid": true,
+    "references_valid": false,
+    "executable_tests_passed": true,
+    "duplicate_check_passed": true,
+    "rubric_check_passed": true,
+    "last_run_id": "local-foundation-20260720"
+  }
+}

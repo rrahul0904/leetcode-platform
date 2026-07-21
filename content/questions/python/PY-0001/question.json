@@ -1,0 +1,114 @@
+{
+  "id": "PY-0001",
+  "title": "Build a Bounded TTL-Aware LRU Cache",
+  "slug": "py-0001-bounded-cache",
+  "primary_track": "python-engineering",
+  "secondary_skills": ["data-structures", "api-design", "testing", "time-semantics"],
+  "role_families": ["backend-engineer", "data-engineer", "ml-engineer"],
+  "expected_seniority": "senior",
+  "difficulty": "foundational",
+  "difficulty_dimensions": {
+    "conceptual": 2,
+    "implementation": 2,
+    "scale": 1,
+    "ambiguity": 2,
+    "prerequisite_depth": 2
+  },
+  "company_style_tags": [
+    {
+      "slug": "google-style",
+      "relevance_rationale": "Exercises general coding correctness, data-structure selection, and edge-case communication rather than claiming interview provenance.",
+      "public_theme_sources": [],
+      "disclaimer": "independent-content"
+    },
+    {
+      "slug": "meta-style",
+      "relevance_rationale": "Practices implementation fluency and complexity reasoning relevant to large product engineering environments.",
+      "public_theme_sources": [],
+      "disclaimer": "independent-content"
+    }
+  ],
+  "learning_objectives": [
+    "Combine a hash map and recency ordering to meet cache bounds.",
+    "Make expiration behavior deterministic through clock injection.",
+    "Explain correctness, complexity, and production concurrency trade-offs."
+  ],
+  "prerequisites": ["python-mappings", "exception-semantics", "big-o-analysis"],
+  "estimated_duration_minutes": 30,
+  "problem_statement": "Implement `BoundedTTLCache`, an in-memory cache with a fixed positive capacity and per-entry time-to-live. `get(key)` returns an unexpired value and makes the key most recently used. It raises `KeyError` for missing or expired keys and removes an expired key before raising. `set(key, value, ttl_seconds)` rejects non-positive TTLs, overwrites an existing key, removes expired entries, and evicts the least recently used live entry until the cache is within capacity. The constructor receives a zero-argument monotonic clock so tests do not depend on wall time. `len(cache)` returns the number of live entries.",
+  "candidate_instructions": [
+    "Use only the Python standard library.",
+    "Do not read the wall clock directly; use the injected clock.",
+    "State the worst-case time and space complexity of every public operation.",
+    "Discuss, but do not implement, a thread-safe production variant."
+  ],
+  "interviewer_instructions": [
+    "Reveal overwrite semantics only if the candidate asks.",
+    "Ask how the implementation behaves when every entry expires simultaneously.",
+    "Do not reveal the OrderedDict reference approach before the candidate commits to a design."
+  ],
+  "constraints": [
+    "1 <= capacity <= 100000",
+    "ttl_seconds must be greater than zero",
+    "Keys are hashable and values may be any Python object",
+    "The clock is monotonic and returns seconds as a float"
+  ],
+  "assumptions": [
+    "A single cache instance is used by one thread for the base exercise.",
+    "Expiration occurs when clock() is greater than or equal to expires_at.",
+    "Refreshing recency on get is required; set also makes the key most recent."
+  ],
+  "expected_clarifying_questions": [
+    "Does get refresh the TTL or only recency?",
+    "Is an item expired at exactly its expiration timestamp?",
+    "What should happen when set overwrites an existing key?",
+    "Must expired entries count toward capacity or length?"
+  ],
+  "hints": [
+    {"reveal_level": 1, "text": "Separate O(1) lookup from recency ordering.", "penalty_points": 3},
+    {"reveal_level": 2, "text": "The standard library has an ordered mapping with move-to-end behavior.", "penalty_points": 7},
+    {"reveal_level": 3, "text": "Store an absolute expiration time and compare with >=, not >.", "penalty_points": 12}
+  ],
+  "common_mistakes": [
+    "Using wall-clock time, which can move backward.",
+    "Counting expired entries in len or capacity decisions.",
+    "Forgetting to update recency when overwriting or reading.",
+    "Treating an entry as live at exactly expires_at.",
+    "Claiming all set operations are O(1) while scanning for expired entries."
+  ],
+  "strong_answer_indicators": [
+    "Defines expiration boundary semantics before coding.",
+    "Keeps lookup and recency changes localized and testable.",
+    "Reports the O(capacity) worst-case purge honestly.",
+    "Explains lock granularity and loader stampede concerns for production."
+  ],
+  "weak_answer_indicators": [
+    "Uses sleep-based tests.",
+    "Evicts a live key while expired keys remain.",
+    "Silently accepts a zero or negative TTL.",
+    "Adds a global lock without discussing contention or callback boundaries."
+  ],
+  "follow_up_questions": [
+    "How would you prevent duplicate concurrent loads for the same key?",
+    "How would you make expiration cleanup sublinear without unbounded stale heap entries?",
+    "What metrics would distinguish a capacity problem from a TTL-selection problem?"
+  ],
+  "harder_variants": [
+    "Add an async get_or_load operation with per-key request coalescing and cancellation-safe cleanup.",
+    "Support weighted capacity while preserving deterministic eviction and metrics."
+  ],
+  "easier_variants": [
+    "Remove TTL and implement a capacity-only LRU cache.",
+    "Provide get and set but omit len and overwrite-specific tests."
+  ],
+  "related_question_ids": ["PY-0002", "DS-0009"],
+  "mode_specification": {
+    "runtime": "3.13",
+    "input_specification": "Construct with `(capacity, clock)`, then call `set`, `get`, and `len` directly.",
+    "output_specification": "Methods return stored values or None as documented and raise ValueError/KeyError for invalid or unavailable data.",
+    "starter_code": "class BoundedTTLCache:\n    def __init__(self, capacity, clock):\n        ...\n\n    def get(self, key):\n        ...\n\n    def set(self, key, value, ttl_seconds):\n        ...\n\n    def __len__(self):\n        ...",
+    "time_limit_ms": 1000,
+    "memory_limit_mb": 128
+  }
+}
+

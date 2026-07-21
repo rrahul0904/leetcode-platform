@@ -1,0 +1,17 @@
+[
+  {
+    "id": "PY-0001-P01",
+    "name": "evicts least recently used live entry",
+    "visibility": "public",
+    "input": {"capacity": 2, "operations": [["set", "a", 1, 10], ["set", "b", 2, 10], ["get", "a"], ["set", "c", 3, 10]]},
+    "expected_output": {"a": 1, "b": "KeyError", "c": 3}
+  },
+  {
+    "id": "PY-0001-P02",
+    "name": "expires at exact boundary",
+    "visibility": "edge",
+    "input": {"capacity": 1, "ttl": 5, "advance": 5},
+    "expected_output": "KeyError"
+  }
+]
+

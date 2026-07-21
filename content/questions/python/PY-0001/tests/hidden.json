@@ -1,0 +1,17 @@
+[
+  {
+    "id": "PY-0001-H01",
+    "name": "expired entries do not evict live entries",
+    "visibility": "hidden",
+    "input": {"capacity": 2, "scenario": "mixed-expiration"},
+    "expected_output": {"live": "retained", "expired": "removed"}
+  },
+  {
+    "id": "PY-0001-H02",
+    "name": "operation sequence preserves bounded invariant",
+    "visibility": "property",
+    "input": {"generated_sequences": 250},
+    "property_name": "live entry count never exceeds capacity"
+  }
+]
+

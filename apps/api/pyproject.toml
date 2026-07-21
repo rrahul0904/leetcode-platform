@@ -1,0 +1,30 @@
+[project]
+name = "rigor-api"
+version = "0.1.0"
+description = "Rigor modular-monolith API"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "alembic==1.18.5",
+  "fastapi==0.139.2",
+  "opentelemetry-sdk==1.44.0",
+  "pgvector==0.5.0",
+  "psycopg[binary]==3.3.4",
+  "pyjwt[crypto]==2.10.1",
+  "pydantic-settings==2.14.2",
+  "rigor-question-schema",
+  "sqlalchemy==2.0.51",
+  "structlog==26.1.0",
+  "temporalio==1.30.0",
+  "uvicorn==0.51.0",
+  "python-multipart==0.0.22",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rigor_api"]
+
+[tool.uv.sources]
+rigor-question-schema = { workspace = true }

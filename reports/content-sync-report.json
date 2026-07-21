@@ -1,0 +1,23 @@
+{
+  "mode": "validate",
+  "started_at": "2026-07-20T21:05:25.625783+00:00",
+  "completed_at": "2026-07-20T21:05:26.008608+00:00",
+  "source_revision": "working-tree",
+  "discovered": 1,
+  "valid": 0,
+  "invalid": 1,
+  "inserted": 0,
+  "updated": 0,
+  "unchanged": 0,
+  "results": [
+    {
+      "question_id": "PY-0001",
+      "version": "0.1.0",
+      "status": "invalid",
+      "content_hash": "c498b6aa941cb0fcea349a8c98ebbe4d7d1f89bbad538d2dfc9bb1e8ffad91a0",
+      "findings": [
+        "related packages are not authored: DS-0009, PY-0002"
+      ]
+    }
+  ]
+}
