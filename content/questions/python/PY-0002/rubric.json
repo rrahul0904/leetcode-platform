@@ -1,0 +1,9 @@
+{
+  "dimensions": [
+    {"name": "Graph correctness", "description": "Validates dependencies and preserves earlier-batch ordering.", "weight": 35, "evidence_required": ["chain and diamond tests"], "strong_indicators": ["no same-batch dependency"], "weak_indicators": ["partial invalid schedules"]},
+    {"name": "Capacity and determinism", "description": "Respects the capacity and produces stable output.", "weight": 25, "evidence_required": ["exact-bound and tie tests"], "strong_indicators": ["explicit lexicographic rule"], "weak_indicators": ["set-order output"]},
+    {"name": "Failure handling", "description": "Rejects malformed input and cycles clearly.", "weight": 20, "evidence_required": ["negative tests"], "strong_indicators": ["up-front validation"], "weak_indicators": ["late KeyError"]},
+    {"name": "Production judgment", "description": "Explains persistence, retries, and estimate drift.", "weight": 20, "evidence_required": ["follow-up reasoning"], "strong_indicators": ["idempotent durable state"], "weak_indicators": ["in-memory scheduler claimed production-ready"]}
+  ],
+  "score_bands": {"90-100": "Correct, deterministic, well-tested plan with mature operational reasoning.", "75-89": "Correct core plan with minor validation or scale gaps.", "60-74": "Material dependency, capacity, or cycle weaknesses.", "0-59": "Does not produce a safe dependency-aware plan."}
+}

@@ -26,9 +26,12 @@ describe("AppShell", () => {
     const navigation = screen.getByRole("navigation", {
       name: "Primary navigation",
     });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(4);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(5);
     expect(
       within(navigation).getByRole("link", { name: "Content" }),
+    ).toBeInTheDocument();
+    expect(
+      within(navigation).getByRole("link", { name: "Catalog status" }),
     ).toBeInTheDocument();
     expect(
       within(navigation).queryByRole("link", { name: "Learning paths" }),

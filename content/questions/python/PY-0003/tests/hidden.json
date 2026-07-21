@@ -1,0 +1,4 @@
+[
+  {"id": "PY-0003-H01", "name": "keeps exact replay idempotent after watermark advancement", "visibility": "hidden", "input": {"scenario": "old-exact-retry"}, "expected_output": false},
+  {"id": "PY-0003-H02", "name": "never double-counts accepted identities", "visibility": "property", "input": {"generated_deliveries": 300}, "property_name": "exact retries do not change query sums"}
+]

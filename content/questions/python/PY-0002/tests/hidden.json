@@ -1,0 +1,4 @@
+[
+  {"id": "PY-0002-H01", "name": "rejects dependency cycles", "visibility": "hidden", "input": {"scenario": "two-node-cycle"}, "expected_output": "ValueError"},
+  {"id": "PY-0002-H02", "name": "preserves dependency and capacity invariants", "visibility": "property", "input": {"generated_dags": 200}, "property_name": "every dependency is in an earlier capacity-bounded batch"}
+]

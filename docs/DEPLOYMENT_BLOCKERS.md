@@ -2,11 +2,11 @@
 
 ## Product-completion blockers
 
-1. Only one schema-complete authored question exists; zero questions have independent technical/editorial approval or publication. The public-release threshold remains 1,000.
-2. Cognito authentication, onboarding persistence, permissions, RLS policies, and a controlled mock OIDC issuer are not implemented.
-3. Candidate Python and SQL execution planes do not exist. Production requires a separate EKS/gVisor boundary and security evidence; Docker Compose is not that boundary.
-4. Submission, interview, AI gateway, Temporal workflow, learning-plan, design-canvas, billing, and portfolio features remain unimplemented.
-5. Human technical and editorial reviewers—and a separation-of-duties workflow—are required for content acceptance.
+1. Four schema-complete authored questions exist; zero have independent technical/editorial approval or publication. The public-release threshold remains 1,000 reviewed questions, not generated placeholders.
+2. Local OIDC, onboarding persistence, permissions, and question RLS exist; production Cognito configuration, MFA, session hardening, and production authorization testing remain.
+3. Local candidate execution adapters are not a production sandbox. Production requires a separate EKS/gVisor boundary and security evidence; Docker Compose is not that boundary.
+4. The source-backed corpus has 2,534 external references, but broader commercial/forum coverage requires written permission, approved APIs, credentials, retention controls, and ongoing rights review.
+5. Human technical and editorial reviewers—and enforced separation of duties—are required before the new hosted packages can be published.
 
 ## AWS deployment inputs
 
@@ -24,4 +24,3 @@
 ## Local publication blockers
 
 No external blocker remains for the implemented foundation. A registry push still needs the user to choose Docker Hub, GHCR, or ECR and provide an authenticated destination. Local Docker publication does not need registry credentials.
-

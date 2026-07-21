@@ -8,11 +8,14 @@ export function QuestionCard({ question }: { question: CatalogQuestion }) {
   return (
     <Link className="question-card" href={`/question-bank/${question.slug}`}>
       <div className="question-card__topline">
-        <span className="question-id">v{question.publication_version}</span>
+        <span className="practice-type practice-type--hosted">HOSTED</span>
         <span className={`difficulty difficulty--${question.difficulty}`}>
           {question.difficulty}
         </span>
       </div>
+      <span className="question-id">
+        {question.external_id} · v{question.publication_version}
+      </span>
       <h3>{question.title}</h3>
       <p>
         {question.learning_objectives[0] ??

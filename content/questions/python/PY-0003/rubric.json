@@ -1,0 +1,9 @@
+{
+  "dimensions": [
+    {"name": "Event semantics", "description": "Implements watermark and half-open window boundaries correctly.", "weight": 30, "evidence_required": ["boundary tests"], "strong_indicators": ["event-time watermark is explicit"], "weak_indicators": ["arrival time substituted"]},
+    {"name": "Idempotency", "description": "Distinguishes exact retries from conflicting identities.", "weight": 30, "evidence_required": ["duplicate tests"], "strong_indicators": ["identity check precedes lateness"], "weak_indicators": ["double counting"]},
+    {"name": "Validation and testing", "description": "Rejects non-finite input and invalid intervals.", "weight": 20, "evidence_required": ["negative tests"], "strong_indicators": ["NaN and infinity considered"], "weak_indicators": ["implicit coercion"]},
+    {"name": "Production judgment", "description": "Explains indexing, retention, and distributed state.", "weight": 20, "evidence_required": ["follow-up reasoning"], "strong_indicators": ["explicit replay horizon"], "weak_indicators": ["claims in-memory exactly once"]}
+  ],
+  "score_bands": {"90-100": "Precise event semantics, complete tests, and mature retention reasoning.", "75-89": "Correct base behavior with minor validation or scale gaps.", "60-74": "Material watermark or retry errors.", "0-59": "Cannot preserve idempotent event-time counts."}
+}

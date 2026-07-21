@@ -24,10 +24,31 @@ The universal ingestion CLI is available as `./scripts/content`. Its verified co
 
 AI-assisted packages enter through controlled factory batches of at most ten questions. A batch is single-track unless mixed mode is explicitly enabled, every result receives a durable generation trace, and no batch can publish automatically.
 
+The source-backed competency catalog is populated before original content generation. Run the reviewed metadata-only connectors with:
+
+```bash
+SSL_CERT_FILE="$PWD/infra/certs/local-build-ca.pem" ./scripts/collect-external-references \
+  --ca-file "$PWD/infra/certs/local-build-ca.pem"
+```
+
+The current legal backfill contains 2,534 external references and 5,990 competency mappings from official APIs or explicitly licensed repositories. Prohibited, credentialed, and unlicensed sources are blocked or paused rather than scraped. See [docs/SOURCE_CATALOG.md](docs/SOURCE_CATALOG.md).
+
 The implemented foundation is published locally as hardened Docker images:
 
 - Web: `http://localhost:3001`
 - API: `http://localhost:8002`
+
+Start the complete populated application with one idempotent command:
+
+```bash
+./scripts/start-populated-local
+```
+
+The command builds the images, migrates and seeds PostgreSQL, runs approved
+collectors, validates and imports hosted packages, exercises the distinct local
+review roles, publishes PY-0002 through PY-0004, verifies non-zero counts, and
+prints the browser URL. It fails if fewer than 2,000 external references or
+three published hosted questions are present.
 
 See [docs/DOCKER_RELEASE.md](docs/DOCKER_RELEASE.md) for lifecycle and build-trust instructions.
 
@@ -51,4 +72,4 @@ The application plane never executes candidate code. Production execution is des
 
 Commands are added only after they have been exercised against the locked versions. See `docs/LOCAL_DEVELOPMENT.md` for verified and pending commands.
 
-For the local Docker release, run `scripts/publish-local` after configuring the build-only CA secret described in `docs/DOCKER_RELEASE.md`.
+For the populated local Docker release, run `./scripts/start-populated-local`.

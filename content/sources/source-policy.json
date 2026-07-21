@@ -1,0 +1,140 @@
+{
+  "reviewed_at": "2026-07-21",
+  "policy_version": "2026-07-21.1",
+  "principle": "Collect only metadata exposed by an official API or an explicitly licensed public repository. Never copy problem statements, solutions, tests, premium fields, or user-private content.",
+  "sources": [
+    {
+      "domain": "leetcode.com",
+      "rights_status": "blocked",
+      "coverage_level": "BLOCKED",
+      "collection_mode": "none",
+      "connector_status": "disabled",
+      "connector_type": "none",
+      "evidence_urls": ["https://leetcode.com/terms/"],
+      "review_notes": "Automated collection is disabled because LeetCode Terms of Service expressly prohibit crawling, scraping, and spidering any part of the service."
+    },
+    {
+      "domain": "hackerrank.com",
+      "rights_status": "blocked",
+      "coverage_level": "BLOCKED",
+      "collection_mode": "none",
+      "connector_status": "disabled",
+      "connector_type": "none",
+      "evidence_urls": ["https://www.hackerrank.com/about-us/terms-of-service"],
+      "review_notes": "Automated collection is disabled because HackerRank reserves its service content and prohibits copying, derivative use, and competitive analysis."
+    },
+    {
+      "domain": "neetcode.io",
+      "rights_status": "unreviewed",
+      "coverage_level": "DISCOVERY_ONLY",
+      "collection_mode": "manual-legal-review",
+      "connector_status": "disabled",
+      "connector_type": "none",
+      "evidence_urls": ["https://neetcode.io/terms"],
+      "review_notes": "No approved bulk metadata API or reusable content license has been verified, so automated collection remains disabled pending written permission."
+    },
+    {
+      "domain": "datalemur.com",
+      "rights_status": "unreviewed",
+      "coverage_level": "DISCOVERY_ONLY",
+      "collection_mode": "manual-legal-review",
+      "connector_status": "disabled",
+      "connector_type": "none",
+      "evidence_urls": ["https://datalemur.com/terms"],
+      "review_notes": "No approved bulk metadata API or reusable content license has been verified, so automated collection remains disabled pending written permission."
+    },
+    {
+      "domain": "stratascratch.com",
+      "rights_status": "unreviewed",
+      "coverage_level": "DISCOVERY_ONLY",
+      "collection_mode": "manual-legal-review",
+      "connector_status": "disabled",
+      "connector_type": "none",
+      "evidence_urls": ["https://www.stratascratch.com/terms-of-service"],
+      "review_notes": "No approved bulk metadata API or reusable content license has been verified, so automated collection remains disabled pending written permission."
+    },
+    {
+      "domain": "interviewquery.com",
+      "rights_status": "unreviewed",
+      "coverage_level": "DISCOVERY_ONLY",
+      "collection_mode": "manual-legal-review",
+      "connector_status": "disabled",
+      "connector_type": "none",
+      "evidence_urls": ["https://www.interviewquery.com/terms"],
+      "review_notes": "No approved bulk metadata API or reusable content license has been verified, so automated collection remains disabled pending written permission."
+    },
+    {
+      "domain": "reddit.com",
+      "rights_status": "unreviewed",
+      "coverage_level": "DISCOVERY_ONLY",
+      "collection_mode": "credentialed-official-api",
+      "connector_status": "paused",
+      "connector_type": "reddit-data-api",
+      "evidence_urls": ["https://redditinc.com/policies/data-api-terms"],
+      "review_notes": "Reddit requires registered API access and approved-use compliance. Collection is paused until credentials, use-case approval, retention controls, and deletion handling are configured."
+    },
+    {
+      "domain": "codewars.com",
+      "rights_status": "metadata_permitted",
+      "coverage_level": "METADATA_ONLY",
+      "collection_mode": "official-api-seeded",
+      "connector_status": "approved",
+      "connector_type": "codewars-v1-metadata",
+      "evidence_urls": ["https://dev.codewars.com/"],
+      "review_notes": "The official Codewars API exposes individual kata metadata. Store only name, URL, rank, tags, languages, and aggregate counters; omit descriptions and solutions."
+    },
+    {
+      "domain": "github.com",
+      "rights_status": "open_license_verified",
+      "coverage_level": "METADATA_ONLY",
+      "collection_mode": "official-api-license-allowlist",
+      "connector_status": "approved",
+      "connector_type": "github-open-license-metadata",
+      "evidence_urls": [
+        "https://docs.github.com/en/rest/repos/contents",
+        "https://docs.github.com/en/rest/licenses"
+      ],
+      "review_notes": "GitHub collection is restricted to repository metadata and per-exercise paths from an explicit allowlist whose license is verified through the official API. No unlicensed file content is stored."
+    },
+    {
+      "domain": "exercism.org",
+      "rights_status": "open_license_verified",
+      "coverage_level": "METADATA_ONLY",
+      "collection_mode": "official-open-source-track-config",
+      "connector_status": "approved",
+      "connector_type": "exercism-track-metadata",
+      "evidence_urls": [
+        "https://github.com/exercism/python",
+        "https://github.com/exercism/problem-specifications"
+      ],
+      "review_notes": "Exercise names, slugs, concepts, prerequisites, status, and difficulty are collected from Exercism's MIT-licensed official track repositories; no exercise statements or solutions are copied."
+    },
+    {
+      "domain": "stackoverflow.com",
+      "rights_status": "open_license_verified",
+      "coverage_level": "METADATA_ONLY",
+      "collection_mode": "official-stack-exchange-api",
+      "connector_status": "approved",
+      "connector_type": "stack-exchange-api-v2.3",
+      "evidence_urls": [
+        "https://api.stackexchange.com/docs/questions",
+        "https://stackoverflow.com/legal/api-terms-of-use",
+        "https://stackoverflow.com/help/licensing"
+      ],
+      "review_notes": "Collect question title, canonical link, tags, license identifier, and aggregate metadata through the official Stack Exchange API with source attribution. Bodies, answers, and user profiles are excluded."
+    },
+    {
+      "domain": "stackexchange.com",
+      "rights_status": "open_license_verified",
+      "coverage_level": "METADATA_ONLY",
+      "collection_mode": "official-stack-exchange-api",
+      "connector_status": "approved",
+      "connector_type": "stack-exchange-api-v2.3",
+      "evidence_urls": [
+        "https://api.stackexchange.com/docs/questions",
+        "https://stackoverflow.com/legal/api-terms-of-use"
+      ],
+      "review_notes": "Collect Software Engineering question title, canonical link, tags, license identifier, and aggregate metadata through the official Stack Exchange API. Bodies, answers, and user profiles are excluded."
+    }
+  ]
+}

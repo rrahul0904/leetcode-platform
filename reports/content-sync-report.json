@@ -1,23 +1,19 @@
 {
   "mode": "validate",
-  "started_at": "2026-07-20T21:05:25.625783+00:00",
-  "completed_at": "2026-07-20T21:05:26.008608+00:00",
-  "source_revision": "working-tree",
-  "discovered": 1,
-  "valid": 0,
-  "invalid": 1,
+  "started_at": "2026-07-21T14:02:30.293516+00:00",
+  "completed_at": "2026-07-21T14:02:31.652472+00:00",
+  "source_revision": "working-tree-source-backed-batch-20260721",
+  "discovered": 4,
+  "valid": 4,
+  "invalid": 0,
   "inserted": 0,
   "updated": 0,
   "unchanged": 0,
+  "rolled_back": 0,
   "results": [
-    {
-      "question_id": "PY-0001",
-      "version": "0.1.0",
-      "status": "invalid",
-      "content_hash": "c498b6aa941cb0fcea349a8c98ebbe4d7d1f89bbad538d2dfc9bb1e8ffad91a0",
-      "findings": [
-        "related packages are not authored: DS-0009, PY-0002"
-      ]
-    }
+    {"question_id": "PY-0001", "version": "0.1.0", "status": "valid", "content_hash": "ee9b3595c44d5cf0e7c5ffa48da8eccb8e7b56e4e47e066ad7b2c1290e4b33fe", "findings": []},
+    {"question_id": "PY-0002", "version": "0.1.0", "status": "valid", "content_hash": "b0aca5a6b2c013197b05ecc34b57d6e00c498c1c3af4e51fa7996d5d37dc993f", "findings": []},
+    {"question_id": "PY-0003", "version": "0.1.0", "status": "valid", "content_hash": "3595fca73a207a127ef21bc59a3324f44dd233c9d30e0c5445db424c3e9c536f", "findings": []},
+    {"question_id": "PY-0004", "version": "0.1.0", "status": "valid", "content_hash": "7e5030a6e17f48495ae2a1c0e543da513f97ec8457b6005c86328ae291104fd0", "findings": []}
   ]
 }

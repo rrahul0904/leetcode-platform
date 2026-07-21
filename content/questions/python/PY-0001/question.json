@@ -101,7 +101,7 @@
     "Remove TTL and implement a capacity-only LRU cache.",
     "Provide get and set but omit len and overwrite-specific tests."
   ],
-  "related_question_ids": ["PY-0002", "DS-0009"],
+  "related_question_ids": ["PY-0002"],
   "mode_specification": {
     "runtime": "3.13",
     "input_specification": "Construct with `(capacity, clock)`, then call `set`, `get`, and `len` directly.",
@@ -111,4 +111,3 @@
     "memory_limit_mb": 128
   }
 }
-

@@ -1,0 +1,15 @@
+{
+  "question_id": "PY-0004",
+  "question_version": "0.1.0",
+  "reference_solution": "Store sorted starts and parallel immutable window records. Bisect on start for insertion. The predecessor overlaps when its end is greater than the new start; the successor overlaps when its start is less than the new end. For lookup, bisect-right on starts and inspect the predecessor using `start <= timestamp < end`.",
+  "explanation": "Sorted non-overlapping intervals mean only neighboring entries can conflict with a new interval. Half-open boundaries allow adjacent windows without ambiguity and let consecutive evaluation cohorts share a boundary timestamp safely.",
+  "alternatives": [{"name": "Interval tree", "solution": "Use an augmented balanced tree keyed by starts and maximum ends.", "advantages": ["supports overlapping intervals and richer queries"], "disadvantages": ["unnecessary complexity for non-overlapping windows", "not in the Python standard library"]}],
+  "trade_off_analysis": ["List insertion is O(n), while point lookup is O(log n).", "Returning immutable tuples protects invariants but copies the outer collection.", "A production schedule should be versioned for reproducible evaluation reports."],
+  "complexity": {"expected_time": "add is O(n) due to list insertion after O(log n) search; find is O(log n).", "expected_space": "O(n).", "explanation": "Shifting list elements dominates insertion."},
+  "testing_and_debugging": ["Test touching, nested, partial, and exact duplicate intervals.", "Test start inclusion, end exclusion, gaps, infinities, and NaN."],
+  "production_follow_ups": ["Version complete schedules and attach evaluation runs to a version.", "Use a persistent tree if updates and snapshots dominate."],
+  "critical_omissions": ["Incorrect end inclusivity.", "No label uniqueness.", "Linear lookup despite sorted state."],
+  "strong_response_example": "I will use two parallel lists sorted by start. Bisect gives the insertion point; only predecessor.end > start and successor.start < end can overlap. Lookup uses bisect_right and checks the predecessor with a half-open comparison.",
+  "interviewer_follow_up_tree": {"correct_base": ["Add schedule versioning", "Allow prioritized overlaps"], "touching_rejected": ["Clarify half-open intervals"], "linear_lookup": ["Ask what sorted starts enable"]},
+  "source_content_hash": "sha256:7e5030a6e17f48495ae2a1c0e543da513f97ec8457b6005c86328ae291104fd0"
+}

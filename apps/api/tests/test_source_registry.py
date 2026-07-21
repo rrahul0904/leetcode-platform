@@ -115,6 +115,8 @@ def test_source_review_incremental_sync_external_separation_and_coverage() -> No
                         "abstract": "A permitted high-level competency description.",
                         "difficulty": "advanced",
                         "topic_metadata": ["distributed-systems"],
+                        "patterns": ["replication"],
+                        "competency_slugs": ["distributed-systems", "reliability"],
                     },
                     {
                         "source_external_id": "beta",
@@ -123,6 +125,8 @@ def test_source_review_incremental_sync_external_separation_and_coverage() -> No
                         "abstract": "A second permitted high-level competency description.",
                         "difficulty": "staff",
                         "topic_metadata": ["reliability"],
+                        "patterns": ["failure-recovery"],
+                        "competency_slugs": ["reliability"],
                     },
                 ],
             },
@@ -139,6 +143,41 @@ def test_source_review_incremental_sync_external_separation_and_coverage() -> No
         assert references.json()["total"] == 2
         assert all("problem_statement" not in item for item in references.json()["items"])
         assert all("reference_solution" not in item for item in references.json()["items"])
+        assert references.json()["items"][0]["competency_slugs"]
+        assert references.json()["items"][0]["patterns"]
+
+        filtered = client.get(
+            "/api/v1/external-references",
+            headers=candidate_headers,
+            params={"source_id": source_id, "difficulty": "advanced"},
+        )
+        assert filtered.status_code == 200
+        assert filtered.json()["total"] == 1
+        competency_filtered = client.get(
+            "/api/v1/external-references",
+            headers=candidate_headers,
+            params={"source_id": source_id, "competency": "reliability"},
+        )
+        assert competency_filtered.status_code == 200
+        assert competency_filtered.json()["total"] == 2
+
+        facets = client.get("/api/v1/external-reference-facets", headers=candidate_headers)
+        assert facets.status_code == 200
+        assert any(item["value"] == source_id for item in facets.json()["sources"])
+        assert any(item["value"] == "reliability" for item in facets.json()["competencies"])
+
+        summary = client.get("/api/v1/practice/summary", headers=candidate_headers)
+        assert summary.status_code == 200
+        assert summary.json()["external_references"] >= 2
+        assert "planned_questions" not in summary.json()
+        assert any(item["source_id"] == source_id for item in summary.json()["source_counts"])
+
+        assert client.get(
+            "/api/v1/admin/catalog/status", headers=candidate_headers
+        ).status_code == 403
+        catalog_status = client.get("/api/v1/admin/catalog/status", headers=admin_headers)
+        assert catalog_status.status_code == 200
+        assert any(item["source_id"] == source_id for item in catalog_status.json())
 
         second_sync = client.post(
             f"/api/v1/admin/sources/{source_id}/sync",
@@ -156,6 +195,8 @@ def test_source_review_incremental_sync_external_separation_and_coverage() -> No
                         "abstract": "A permitted high-level competency description.",
                         "difficulty": "advanced",
                         "topic_metadata": ["distributed-systems"],
+                        "patterns": ["replication"],
+                        "competency_slugs": ["distributed-systems", "reliability"],
                     }
                 ],
             },

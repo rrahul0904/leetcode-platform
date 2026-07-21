@@ -25,6 +25,12 @@ export type SourceSyncResult = components["schemas"]["SourceSyncResult"];
 export type CompetencyCoverage = components["schemas"]["CompetencyCoverage"];
 export type ExternalReferencePage =
   components["schemas"]["Page_ExternalReference_"];
+export type ExternalReference = components["schemas"]["ExternalReference"];
+export type ExternalReferenceFacets =
+  components["schemas"]["ExternalReferenceFacets"];
+export type PracticeCatalogSummary =
+  components["schemas"]["PracticeCatalogSummary"];
+export type CatalogSourceStatus = components["schemas"]["CatalogSourceStatus"];
 export type ContentImportReport = components["schemas"]["ContentImportReport"];
 export type ContentImportSummary =
   components["schemas"]["ContentImportSummary"];
@@ -298,6 +304,8 @@ export function getExternalReferences(
   filters: {
     query?: string;
     sourceId?: string;
+    difficulty?: string;
+    competency?: string;
     page?: number;
     pageSize?: number;
   },
@@ -309,10 +317,41 @@ export function getExternalReferences(
   });
   if (filters.query) params.set("query", filters.query);
   if (filters.sourceId) params.set("source_id", filters.sourceId);
+  if (filters.difficulty) params.set("difficulty", filters.difficulty);
+  if (filters.competency) params.set("competency", filters.competency);
   return requestJson<ExternalReferencePage>(
     `/api/v1/external-references?${params.toString()}`,
     signal ? { signal } : {},
   );
+}
+
+export function getExternalReferenceFacets(signal?: AbortSignal) {
+  return requestJson<ExternalReferenceFacets>(
+    "/api/v1/external-reference-facets",
+    signal ? { signal } : {},
+  );
+}
+
+export function getPracticeSummary(signal?: AbortSignal) {
+  return requestJson<PracticeCatalogSummary>(
+    "/api/v1/practice/summary",
+    signal ? { signal } : {},
+  );
+}
+
+export function getCatalogStatus(signal?: AbortSignal) {
+  return requestJson<CatalogSourceStatus[]>(
+    "/api/v1/admin/catalog/status",
+    signal ? { signal } : {},
+  );
+}
+
+export function runApprovedCollectors() {
+  return requestJson<{
+    status: "completed";
+    external_references: number;
+    completed_at: string;
+  }>("/api/v1/admin/catalog/collect", { method: "POST" });
 }
 
 export function getContentImports(signal?: AbortSignal) {

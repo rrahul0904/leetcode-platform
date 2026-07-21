@@ -29,20 +29,16 @@ def test_question_intelligence_inventory_and_idempotent_gap_recompute() -> None:
             assert response.status_code == 200
             assert isinstance(response.json(), list)
 
-        first = client.post(
-            "/api/v1/admin/questions/gaps/recompute", headers=admin_headers
-        )
+        first = client.post("/api/v1/admin/questions/gaps/recompute", headers=admin_headers)
         assert first.status_code == 200
-        assert first.json()["open_gap_count"] >= 28
+        assert first.json()["open_gap_count"] >= 1
 
-        second = client.post(
-            "/api/v1/admin/questions/gaps/recompute", headers=admin_headers
-        )
+        second = client.post("/api/v1/admin/questions/gaps/recompute", headers=admin_headers)
         assert second.status_code == 200
         assert second.json()["created_count"] == 0
         assert second.json()["open_gap_count"] == first.json()["open_gap_count"]
 
         gaps = client.get("/api/v1/admin/questions/gaps", headers=admin_headers)
         assert gaps.status_code == 200
-        assert len(gaps.json()) >= 28
+        assert len(gaps.json()) >= first.json()["open_gap_count"]
         assert all(gap["recommended_question_count"] > 0 for gap in gaps.json())

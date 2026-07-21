@@ -1,0 +1,14 @@
+{
+  "provenance": {
+    "originality_statement": "Independently authored from the measured data-architecture coverage gap after indexing permitted external metadata; no external problem statement or solution was used.",
+    "authoring_method": "Human-directed original scenario created after competency coverage analysis.",
+    "source_classes": ["source-backed competency aggregate", "general graph theory", "production backfill operations"],
+    "source_notes": ["Selected because data-architecture had zero mapped external references in the first legal catalog backfill.", "External references were used only as aggregate coverage signals."],
+    "content_hash": "sha256:b0aca5a6b2c013197b05ecc34b57d6e00c498c1c3af4e51fa7996d5d37dc993f",
+    "authored_at": "2026-07-21T14:00:00Z",
+    "author_id": "rigor-founding-editor"
+  },
+  "version": "0.1.0",
+  "review_status": "awaiting_technical_review",
+  "validation": {"schema_valid": true, "references_valid": true, "executable_tests_passed": true, "duplicate_check_passed": true, "rubric_check_passed": true, "last_run_id": "source-backed-batch-20260721"}
+}

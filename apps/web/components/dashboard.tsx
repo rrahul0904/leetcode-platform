@@ -5,6 +5,7 @@ import {
   ArrowRight,
   BookOpen,
   FileCheck2,
+  Link2,
   Route,
   ShieldCheck,
   Sparkles,
@@ -17,16 +18,26 @@ import {
   LoadingState,
   SectionHeading,
 } from "@/components/page-ui";
-import { getContentStats, getProfile, getPublishedQuestions } from "@/lib/api";
+import {
+  getPracticeSummary,
+  getProfile,
+  getPublishedQuestions,
+} from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { titleCaseSlug } from "@/lib/product-data";
 
 const candidateDestinations = [
   [
     "Explore the bank",
-    "Practice currently published hosted questions; the catalog expands continuously.",
+    "Browse published hosted questions and the full external practice catalog.",
     "/question-bank",
     BookOpen,
+  ],
+  [
+    "External practice",
+    "Search source-backed references and continue to their canonical source.",
+    "/external-practice",
+    Link2,
   ],
   [
     "Choose a path",
@@ -72,8 +83,8 @@ export function Dashboard() {
     ? administratorDestinations
     : candidateDestinations;
   const stats = useQuery({
-    queryKey: ["content-stats"],
-    queryFn: ({ signal }) => getContentStats(signal),
+    queryKey: ["practice-summary"],
+    queryFn: ({ signal }) => getPracticeSummary(signal),
   });
   const profile = useQuery({
     queryKey: ["candidate-profile"],
@@ -135,12 +146,14 @@ export function Dashboard() {
         <div className="release-gate">
           <span>PUBLISHED HOSTED QUESTIONS</span>
           <strong>
-            {stats.data?.published_questions ?? 0}
+            {stats.data?.published_hosted_questions ?? 0}
             <small> live</small>
           </strong>
           <div className="progress-track">
             <i
-              style={{ width: stats.data?.published_questions ? "100%" : "0%" }}
+              style={{
+                width: stats.data?.published_hosted_questions ? "100%" : "0%",
+              }}
             />
           </div>
           <p>Continuous growth has no final question-count ceiling.</p>
@@ -156,27 +169,33 @@ export function Dashboard() {
           <section className="status-strip" aria-label="Question bank status">
             {[
               [
-                "Foundation briefs",
-                stats.data.planned_questions,
-                "launch benchmark, not a ceiling",
+                "External references",
+                stats.data.external_references,
+                "canonical source links",
                 "accent",
               ],
               [
-                "Complete packages",
-                stats.data.complete_questions,
-                "automated gates passed",
+                "Hosted records",
+                stats.data.hosted_records,
+                "original question packages",
                 "",
               ],
               [
-                "Validated",
-                stats.data.validated_questions,
-                "technical + editorial",
+                "Awaiting review",
+                stats.data.awaiting_review,
+                "technical or editorial",
                 "",
               ],
               [
-                "Published",
-                stats.data.published_questions,
-                "runtime catalog",
+                "Published hosted",
+                stats.data.published_hosted_questions,
+                "candidate-ready",
+                "",
+              ],
+              [
+                "Approved sources",
+                stats.data.approved_sources,
+                "collection permitted",
                 "",
               ],
             ].map(([label, value, note, accent]) => (
@@ -201,6 +220,32 @@ export function Dashboard() {
           appear as candidate practice.
         </span>
       </EvidenceNote>
+      {stats.data && (
+        <section className="panel source-counts section-block">
+          <SectionHeading
+            eyebrow="POSTGRESQL CATALOG"
+            title="References by source"
+            aside={
+              <span className="status-chip">
+                Last collection{" "}
+                {stats.data.last_successful_collection
+                  ? new Date(
+                      stats.data.last_successful_collection,
+                    ).toLocaleString()
+                  : "not run"}
+              </span>
+            }
+          />
+          <div className="source-count-grid">
+            {stats.data.source_counts.map((source) => (
+              <Link href={`/external-practice`} key={source.source_id}>
+                <span>{source.source_name}</span>
+                <strong>{source.reference_count.toLocaleString()}</strong>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
       {profile.data && (
         <section className="personalization-strip">
           <div>

@@ -1,0 +1,46 @@
+#!/usr/bin/env sh
+set -eu
+
+docker compose up -d --build
+
+attempt=0
+until curl --fail --silent http://localhost:8002/readyz >/dev/null 2>&1 \
+  && curl --fail --silent http://localhost:3001 >/dev/null 2>&1; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge 120 ]; then
+    docker compose ps --all
+    docker compose logs --tail=120 catalog-init content-sync local-release api web
+    echo "Populated Docker stack did not become ready." >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+external_count=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SELECT count(*) FROM external_question_references;")
+hosted_count=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SELECT count(*) FROM questions;")
+published_count=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SELECT count(*) FROM question_versions WHERE state='published'::content_state;")
+sync_count=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SELECT count(*) FROM source_sync_runs WHERE status='completed';")
+
+if [ "$external_count" -lt 2000 ]; then
+  echo "Expected at least 2,000 external references; found $external_count." >&2
+  exit 1
+fi
+if [ "$hosted_count" -lt 3 ]; then
+  echo "Expected at least 3 hosted questions; found $hosted_count." >&2
+  exit 1
+fi
+if [ "$published_count" -lt 3 ]; then
+  echo "Expected at least 3 published hosted questions; found $published_count." >&2
+  exit 1
+fi
+if [ "$sync_count" -lt 1 ]; then
+  echo "No completed source synchronization runs were recorded." >&2
+  exit 1
+fi
+
+echo "Rigor is populated and ready: http://localhost:3001"
+echo "External references: $external_count | Hosted: $hosted_count | Published: $published_count"

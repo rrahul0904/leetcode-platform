@@ -33,10 +33,13 @@ RUN groupadd --gid 10001 rigor \
 
 WORKDIR /app
 COPY --from=builder --chown=rigor:rigor /app/.venv /app/.venv
-COPY --chown=rigor:rigor content/question-bank-manifest.json content/question-bank-manifest.json
+COPY --chown=rigor:rigor content content
 COPY --chown=rigor:rigor alembic.ini alembic.ini
 COPY --chown=rigor:rigor database/migrations database/migrations
 COPY --chown=rigor:rigor scripts/seed_database.py scripts/seed_database.py
+COPY --chown=rigor:rigor scripts/collect_external_references.py scripts/collect_external_references.py
+COPY --chown=rigor:rigor scripts/sync_content.py scripts/sync_content.py
+COPY --chown=rigor:rigor scripts/publish_local_catalog.py scripts/publish_local_catalog.py
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \

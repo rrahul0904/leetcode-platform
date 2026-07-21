@@ -1,0 +1,15 @@
+{
+  "question_id": "PY-0003",
+  "question_version": "0.1.0",
+  "reference_solution": "Keep an event-ID dictionary containing the immutable accepted payload and a list of accepted events. Validate values, then check the ID dictionary first so exact replays remain idempotent. For a new ID, reject timestamps below the current watermark, accept the event, and advance the maximum timestamp. Sum half-open windows over accepted records.",
+  "explanation": "Deduplication must precede lateness evaluation because a previously accepted retry is not a new late event. The watermark is based on the greatest event time observed, not wall time. Half-open intervals compose without double-counting boundaries.",
+  "alternatives": [{"name": "Sorted timestamp index", "solution": "Insert accepted events into a bisectable timestamp index with prefix sums.", "advantages": ["faster repeated range queries"], "disadvantages": ["more complex updates", "duplicate timestamps require careful ordering"]}],
+  "trade_off_analysis": ["The reference gives simple O(n) queries and unbounded retention.", "A production dedupe horizon can save memory but changes replay guarantees.", "Distributed exactly-once effects require durable identity state, not only an in-process dictionary."],
+  "complexity": {"expected_time": "record is O(1) average and sum_between is O(n).", "expected_space": "O(n) accepted events.", "explanation": "The explicit list favors semantic clarity; an indexed design can optimize query load."},
+  "testing_and_debugging": ["Test exact and conflicting duplicates before and after watermark advancement.", "Test exact watermark, just-below watermark, and exclusive window end."],
+  "production_follow_ups": ["Partition watermark and identity state by key.", "Persist dedupe entries with a retention contract and audit late-event loss."],
+  "critical_omissions": ["Retries counted twice.", "Duplicate check performed after lateness rejection.", "Unspecified boundary semantics."],
+  "strong_response_example": "I will validate, check the event ID first, and return False for an exact replay regardless of the current watermark. Only a new ID is compared with max_event_time minus allowed_lateness. Queries use [start, end) so adjacent windows do not overlap.",
+  "interviewer_follow_up_tree": {"correct_base": ["Ask for bounded retention", "Add partitioned watermarks"], "retry_rejected": ["Replay an old accepted event"], "boundary_error": ["Use an event exactly at the watermark"]},
+  "source_content_hash": "sha256:3595fca73a207a127ef21bc59a3324f44dd233c9d30e0c5445db424c3e9c536f"
+}

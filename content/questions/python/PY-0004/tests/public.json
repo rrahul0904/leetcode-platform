@@ -1,0 +1,4 @@
+[
+  {"id": "PY-0004-P01", "name": "accepts touching half-open windows", "visibility": "public", "input": {"windows": [[0, 1, "a"], [1, 2, "b"]], "queries": [0, 1, 2]}, "expected_output": ["a", "b", null]},
+  {"id": "PY-0004-P02", "name": "sorts arbitrary insertion order", "visibility": "edge", "input": {"windows": [[2, 3, "c"], [0, 1, "a"]]}, "expected_output": [[0, 1, "a"], [2, 3, "c"]]}
+]

@@ -1,0 +1,4 @@
+[
+  {"id": "PY-0004-H01", "name": "rejects predecessor and successor overlaps", "visibility": "hidden", "input": {"scenario": "neighbor-overlaps"}, "expected_output": "ValueError"},
+  {"id": "PY-0004-H02", "name": "point queries match half-open containment", "visibility": "property", "input": {"generated_non_overlapping_windows": 300}, "property_name": "find returns the unique containing label or None"}
+]

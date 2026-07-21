@@ -42,7 +42,7 @@ export function QuestionDetail({ slug }: { slug: string }) {
         <div>
           <div className="question-card__topline">
             <span className="question-id">
-              Version {item.publication_version}
+              {item.external_id} · Version {item.publication_version}
             </span>
             <span className={`difficulty difficulty--${item.difficulty}`}>
               {item.difficulty}
@@ -137,6 +137,15 @@ export function QuestionDetail({ slug }: { slug: string }) {
           ))
         )}
       </section>
+      {item.starter_code && (
+        <section className="panel section-block">
+          <span className="eyebrow">STARTER CODE</span>
+          <h2>Begin your implementation</h2>
+          <pre className="starter-code">
+            <code>{item.starter_code}</code>
+          </pre>
+        </section>
+      )}
     </div>
   );
 }

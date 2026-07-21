@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
@@ -52,7 +57,9 @@ from .schemas import (
     CandidateProfile,
     CandidateProfileInput,
     CandidateQuestionDetail,
+    CatalogCollectionRunResult,
     CatalogQuestion,
+    CatalogSourceStatus,
     CompetencyCoverage,
     ConnectorStatus,
     ContentFactoryBatchInput,
@@ -66,6 +73,7 @@ from .schemas import (
     DuplicateCandidateRecord,
     ErrorResponse,
     ExternalReference,
+    ExternalReferenceFacets,
     FieldError,
     GapRecomputeResult,
     HealthResponse,
@@ -78,6 +86,7 @@ from .schemas import (
     Page,
     PageNumber,
     PageSize,
+    PracticeCatalogSummary,
     ProvenanceInventoryRecord,
     QuestionFamilyRecord,
     QuestionFreshnessRecord,
@@ -829,11 +838,15 @@ def external_references(
     page_size: PageSize = 24,
     query: Annotated[str | None, Query(max_length=120)] = None,
     source_id: UUID | None = None,
+    difficulty: Annotated[str | None, Query(max_length=40)] = None,
+    competency: Annotated[str | None, Query(max_length=100)] = None,
 ) -> Page[ExternalReference]:
     del principal
     items, total = SourceRegistryRepository(engine).external_references(
         query=query,
         source_id=source_id,
+        difficulty=difficulty,
+        competency=competency,
         page=page,
         page_size=page_size,
     )
@@ -843,6 +856,82 @@ def external_references(
         page_size=page_size,
         total=total,
         has_next=page * page_size < total,
+    )
+
+
+@app.get(
+    "/api/v1/external-reference-facets",
+    response_model=ExternalReferenceFacets,
+    tags=["content-intelligence"],
+)
+def external_reference_facets(
+    principal: Annotated[AuthenticatedPrincipal, Depends(require_permissions("catalog:read"))],
+    engine: DatabaseEngine,
+) -> ExternalReferenceFacets:
+    del principal
+    return SourceRegistryRepository(engine).external_reference_facets()
+
+
+@app.get(
+    "/api/v1/practice/summary",
+    response_model=PracticeCatalogSummary,
+    tags=["catalog"],
+)
+def practice_summary(
+    principal: Annotated[AuthenticatedPrincipal, Depends(require_permissions("catalog:read"))],
+    engine: DatabaseEngine,
+) -> PracticeCatalogSummary:
+    del principal
+    return SourceRegistryRepository(engine).practice_summary()
+
+
+@app.get(
+    "/api/v1/admin/catalog/status",
+    response_model=list[CatalogSourceStatus],
+    tags=["source-registry"],
+)
+def catalog_status(
+    principal: Annotated[AuthenticatedPrincipal, Depends(require_permissions("source:read"))],
+    engine: DatabaseEngine,
+) -> list[CatalogSourceStatus]:
+    del principal
+    return SourceRegistryRepository(engine).catalog_status()
+
+
+@app.post(
+    "/api/v1/admin/catalog/collect",
+    response_model=CatalogCollectionRunResult,
+    tags=["source-registry"],
+)
+def run_approved_collectors(
+    principal: Annotated[AuthenticatedPrincipal, Depends(require_permissions("source:manage"))],
+    engine: DatabaseEngine,
+) -> CatalogCollectionRunResult:
+    del principal
+    if settings.environment not in {"local", "development", "test"}:
+        raise HTTPException(status_code=403, detail="Interactive collection is local-only")
+    collector = Path("/app/scripts/collect_external_references.py")
+    if not collector.exists():
+        collector = Path(__file__).resolve().parents[4] / "scripts/collect_external_references.py"
+    command = [sys.executable, str(collector)]
+    ca_file = Path("/run/secrets/build_ca")
+    if ca_file.exists():
+        command.extend(["--ca-file", str(ca_file)])
+    completed = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        timeout=180,
+        check=False,
+        env={**os.environ, "RIGOR_DATABASE_URL": settings.database_url},
+    )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "Collector failed").strip()[-2000:]
+        raise HTTPException(status_code=502, detail=detail)
+    summary = SourceRegistryRepository(engine).practice_summary()
+    return CatalogCollectionRunResult(
+        external_references=summary.external_references,
+        completed_at=datetime.now(UTC),
     )
 
 

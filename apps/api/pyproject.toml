@@ -6,11 +6,13 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
   "alembic==1.18.5",
   "fastapi==0.139.2",
+  "hypothesis==6.157.1",
   "opentelemetry-sdk==1.44.0",
   "pgvector==0.5.0",
   "psycopg[binary]==3.3.4",
   "pyjwt[crypto]==2.10.1",
   "pydantic-settings==2.14.2",
+  "pytest==9.1.1",
   "rigor-question-schema",
   "sqlalchemy==2.0.51",
   "structlog==26.1.0",

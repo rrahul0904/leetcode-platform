@@ -102,7 +102,7 @@ class PublishedCatalogRepository:
                 connection.execute(
                     text(
                         f"""
-                        SELECT v.title, q.slug, t.slug AS track, v.difficulty,
+                        SELECT q.external_id, v.title, q.slug, t.slug AS track, v.difficulty,
                                v.expected_seniority AS role_level,
                                v.duration_minutes AS estimated_duration_minutes,
                                v.version AS publication_version,
@@ -146,7 +146,7 @@ class PublishedCatalogRepository:
                 connection.execute(
                     text(
                         """
-                        SELECT v.title, q.slug, t.slug AS track, v.difficulty,
+                        SELECT q.external_id, v.title, q.slug, t.slug AS track, v.difficulty,
                                v.expected_seniority AS role_level,
                                v.duration_minutes AS estimated_duration_minutes,
                                v.version AS publication_version,
@@ -156,6 +156,8 @@ class PublishedCatalogRepository:
                         v.structured_content->
                             'candidate_instructions' AS candidate_instructions,
                                v.structured_content->'constraints' AS public_constraints,
+                               v.structured_content#>>'{mode_specification,starter_code}'
+                                   AS starter_code,
                                COALESCE((
                                    SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
                                        'id', candidate_test->>'id',

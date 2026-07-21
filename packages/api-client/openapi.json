@@ -2083,6 +2083,40 @@
               ],
               "title": "Source Id"
             }
+          },
+          {
+            "name": "difficulty",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Difficulty"
+            }
+          },
+          {
+            "name": "competency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Competency"
+            }
           }
         ],
         "responses": {
@@ -2107,6 +2141,114 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/external-reference-facets": {
+      "get": {
+        "tags": [
+          "content-intelligence"
+        ],
+        "summary": "External Reference Facets",
+        "operationId": "external_reference_facets_api_v1_external_reference_facets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalReferenceFacets"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/practice/summary": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Practice Summary",
+        "operationId": "practice_summary_api_v1_practice_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeCatalogSummary"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/catalog/status": {
+      "get": {
+        "tags": [
+          "source-registry"
+        ],
+        "summary": "Catalog Status",
+        "operationId": "catalog_status_api_v1_admin_catalog_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogSourceStatus"
+                  },
+                  "type": "array",
+                  "title": "Response Catalog Status Api V1 Admin Catalog Status Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/catalog/collect": {
+      "post": {
+        "tags": [
+          "source-registry"
+        ],
+        "summary": "Run Approved Collectors",
+        "operationId": "run_approved_collectors_api_v1_admin_catalog_collect_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogCollectionRunResult"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/v1/admin/coverage": {
@@ -3804,6 +3946,10 @@
       },
       "CandidateQuestionDetail": {
         "properties": {
+          "external_id": {
+            "type": "string",
+            "title": "External Id"
+          },
           "title": {
             "type": "string",
             "title": "Title"
@@ -3889,11 +4035,23 @@
             },
             "type": "array",
             "title": "Public Examples"
+          },
+          "starter_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starter Code"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
+          "external_id",
           "title",
           "slug",
           "track",
@@ -3912,8 +4070,62 @@
         ],
         "title": "CandidateQuestionDetail"
       },
+      "CatalogCollectionRunResult": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "completed",
+            "title": "Status",
+            "default": "completed"
+          },
+          "external_references": {
+            "type": "integer",
+            "title": "External References"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Completed At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "external_references",
+          "completed_at"
+        ],
+        "title": "CatalogCollectionRunResult"
+      },
+      "CatalogFilterOption": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "label",
+          "count"
+        ],
+        "title": "CatalogFilterOption"
+      },
       "CatalogQuestion": {
         "properties": {
+          "external_id": {
+            "type": "string",
+            "title": "External Id"
+          },
           "title": {
             "type": "string",
             "title": "Title"
@@ -3972,6 +4184,7 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
+          "external_id",
           "title",
           "slug",
           "track",
@@ -3984,6 +4197,91 @@
           "publication_version"
         ],
         "title": "CatalogQuestion"
+      },
+      "CatalogSourceStatus": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Source Id"
+          },
+          "source_name": {
+            "type": "string",
+            "title": "Source Name"
+          },
+          "canonical_domain": {
+            "type": "string",
+            "title": "Canonical Domain"
+          },
+          "connector_status": {
+            "type": "string",
+            "title": "Connector Status"
+          },
+          "last_run": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run"
+          },
+          "references_collected": {
+            "type": "integer",
+            "title": "References Collected"
+          },
+          "references_updated": {
+            "type": "integer",
+            "title": "References Updated"
+          },
+          "failures": {
+            "type": "integer",
+            "title": "Failures"
+          },
+          "rights_status": {
+            "type": "string",
+            "title": "Rights Status"
+          },
+          "coverage_level": {
+            "type": "string",
+            "title": "Coverage Level"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "next_available_action": {
+            "type": "string",
+            "title": "Next Available Action"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_id",
+          "source_name",
+          "canonical_domain",
+          "connector_status",
+          "last_run",
+          "references_collected",
+          "references_updated",
+          "failures",
+          "rights_status",
+          "coverage_level",
+          "last_error",
+          "next_available_action"
+        ],
+        "title": "CatalogSourceStatus"
       },
       "CompanyStyleTag": {
         "properties": {
@@ -5079,6 +5377,20 @@
             "type": "array",
             "title": "Topic Metadata"
           },
+          "patterns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Patterns"
+          },
+          "competency_slugs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Competency Slugs"
+          },
           "source_availability": {
             "type": "string",
             "title": "Source Availability"
@@ -5139,6 +5451,8 @@
           "abstract",
           "difficulty",
           "topic_metadata",
+          "patterns",
+          "competency_slugs",
           "source_availability",
           "access_tier",
           "technology_freshness",
@@ -5148,6 +5462,39 @@
           "review_due_at"
         ],
         "title": "ExternalReference"
+      },
+      "ExternalReferenceFacets": {
+        "properties": {
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogFilterOption"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "difficulties": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogFilterOption"
+            },
+            "type": "array",
+            "title": "Difficulties"
+          },
+          "competencies": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogFilterOption"
+            },
+            "type": "array",
+            "title": "Competencies"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "sources",
+          "difficulties",
+          "competencies"
+        ],
+        "title": "ExternalReferenceFacets"
       },
       "ExternalReferenceInput": {
         "properties": {
@@ -5212,6 +5559,22 @@
             "type": "array",
             "maxItems": 100,
             "title": "Topic Metadata"
+          },
+          "patterns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 40,
+            "title": "Patterns"
+          },
+          "competency_slugs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 40,
+            "title": "Competency Slugs"
           },
           "source_metadata": {
             "additionalProperties": true,
@@ -5761,6 +6124,86 @@
           "has_next"
         ],
         "title": "Page[ManifestQuestion]"
+      },
+      "PracticeCatalogSummary": {
+        "properties": {
+          "external_references": {
+            "type": "integer",
+            "title": "External References"
+          },
+          "hosted_records": {
+            "type": "integer",
+            "title": "Hosted Records"
+          },
+          "awaiting_review": {
+            "type": "integer",
+            "title": "Awaiting Review"
+          },
+          "published_hosted_questions": {
+            "type": "integer",
+            "title": "Published Hosted Questions"
+          },
+          "approved_sources": {
+            "type": "integer",
+            "title": "Approved Sources"
+          },
+          "last_successful_collection": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Successful Collection"
+          },
+          "source_counts": {
+            "items": {
+              "$ref": "#/components/schemas/PracticeSourceCount"
+            },
+            "type": "array",
+            "title": "Source Counts"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "external_references",
+          "hosted_records",
+          "awaiting_review",
+          "published_hosted_questions",
+          "approved_sources",
+          "last_successful_collection",
+          "source_counts"
+        ],
+        "title": "PracticeCatalogSummary"
+      },
+      "PracticeSourceCount": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Source Id"
+          },
+          "source_name": {
+            "type": "string",
+            "title": "Source Name"
+          },
+          "reference_count": {
+            "type": "integer",
+            "title": "Reference Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_id",
+          "source_name",
+          "reference_count"
+        ],
+        "title": "PracticeSourceCount"
       },
       "PreferredProgrammingLanguage": {
         "type": "string",

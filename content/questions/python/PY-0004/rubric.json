@@ -1,0 +1,9 @@
+{
+  "dimensions": [
+    {"name": "Interval correctness", "description": "Implements half-open containment and overlap rules.", "weight": 35, "evidence_required": ["boundary tests"], "strong_indicators": ["touching intervals accepted"], "weak_indicators": ["end treated as inclusive"]},
+    {"name": "Index design", "description": "Uses binary search and neighbor checks appropriately.", "weight": 25, "evidence_required": ["operation analysis"], "strong_indicators": ["predecessor and successor reasoning"], "weak_indicators": ["full scan after bisect"]},
+    {"name": "Validation and encapsulation", "description": "Rejects invalid values and protects internal state.", "weight": 20, "evidence_required": ["negative tests"], "strong_indicators": ["finite checks and immutable output"], "weak_indicators": ["NaN accepted"]},
+    {"name": "Evaluation-system judgment", "description": "Explains schedule versioning and reproducibility.", "weight": 20, "evidence_required": ["follow-up reasoning"], "strong_indicators": ["runs pinned to schedule versions"], "weak_indicators": ["mutable global cohort schedule"]}
+  ],
+  "score_bands": {"90-100": "Precise index with complete boundaries and mature evaluation reasoning.", "75-89": "Correct core index with minor validation or production gaps.", "60-74": "Material overlap or lookup errors.", "0-59": "Cannot maintain an unambiguous interval index."}
+}

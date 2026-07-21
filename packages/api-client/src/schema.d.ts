@@ -654,6 +654,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/external-reference-facets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** External Reference Facets */
+    get: operations["external_reference_facets_api_v1_external_reference_facets_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/practice/summary": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Practice Summary */
+    get: operations["practice_summary_api_v1_practice_summary_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/admin/catalog/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Catalog Status */
+    get: operations["catalog_status_api_v1_admin_catalog_status_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/admin/catalog/collect": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Run Approved Collectors */
+    post: operations["run_approved_collectors_api_v1_admin_catalog_collect_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/admin/coverage": {
     parameters: {
       query?: never;
@@ -1215,6 +1283,8 @@ export interface components {
     };
     /** CandidateQuestionDetail */
     CandidateQuestionDetail: {
+      /** External Id */
+      external_id: string;
       /** Title */
       title: string;
       /** Slug */
@@ -1250,9 +1320,38 @@ export interface components {
       public_constraints: string[];
       /** Public Examples */
       public_examples: components["schemas"]["PublicExample"][];
+      /** Starter Code */
+      starter_code?: string | null;
+    };
+    /** CatalogCollectionRunResult */
+    CatalogCollectionRunResult: {
+      /**
+       * Status
+       * @default completed
+       * @constant
+       */
+      status: "completed";
+      /** External References */
+      external_references: number;
+      /**
+       * Completed At
+       * Format: date-time
+       */
+      completed_at: string;
+    };
+    /** CatalogFilterOption */
+    CatalogFilterOption: {
+      /** Value */
+      value: string;
+      /** Label */
+      label: string;
+      /** Count */
+      count: number;
     };
     /** CatalogQuestion */
     CatalogQuestion: {
+      /** External Id */
+      external_id: string;
       /** Title */
       title: string;
       /** Slug */
@@ -1278,6 +1377,36 @@ export interface components {
        * @default not_started
        */
       completion_status: string;
+    };
+    /** CatalogSourceStatus */
+    CatalogSourceStatus: {
+      /**
+       * Source Id
+       * Format: uuid
+       */
+      source_id: string;
+      /** Source Name */
+      source_name: string;
+      /** Canonical Domain */
+      canonical_domain: string;
+      /** Connector Status */
+      connector_status: string;
+      /** Last Run */
+      last_run: string | null;
+      /** References Collected */
+      references_collected: number;
+      /** References Updated */
+      references_updated: number;
+      /** Failures */
+      failures: number;
+      /** Rights Status */
+      rights_status: string;
+      /** Coverage Level */
+      coverage_level: string;
+      /** Last Error */
+      last_error: string | null;
+      /** Next Available Action */
+      next_available_action: string;
     };
     /** CompanyStyleTag */
     CompanyStyleTag: {
@@ -1713,6 +1842,10 @@ export interface components {
       difficulty: string | null;
       /** Topic Metadata */
       topic_metadata: string[];
+      /** Patterns */
+      patterns: string[];
+      /** Competency Slugs */
+      competency_slugs: string[];
       /** Source Availability */
       source_availability: string;
       /** Access Tier */
@@ -1734,6 +1867,15 @@ export interface components {
       /** Review Due At */
       review_due_at: string | null;
     };
+    /** ExternalReferenceFacets */
+    ExternalReferenceFacets: {
+      /** Sources */
+      sources: components["schemas"]["CatalogFilterOption"][];
+      /** Difficulties */
+      difficulties: components["schemas"]["CatalogFilterOption"][];
+      /** Competencies */
+      competencies: components["schemas"]["CatalogFilterOption"][];
+    };
     /** ExternalReferenceInput */
     ExternalReferenceInput: {
       /** Source External Id */
@@ -1748,6 +1890,10 @@ export interface components {
       difficulty?: string | null;
       /** Topic Metadata */
       topic_metadata?: string[];
+      /** Patterns */
+      patterns?: string[];
+      /** Competency Slugs */
+      competency_slugs?: string[];
       /** Source Metadata */
       source_metadata?: {
         [key: string]: unknown;
@@ -1966,6 +2112,35 @@ export interface components {
       total: number;
       /** Has Next */
       has_next: boolean;
+    };
+    /** PracticeCatalogSummary */
+    PracticeCatalogSummary: {
+      /** External References */
+      external_references: number;
+      /** Hosted Records */
+      hosted_records: number;
+      /** Awaiting Review */
+      awaiting_review: number;
+      /** Published Hosted Questions */
+      published_hosted_questions: number;
+      /** Approved Sources */
+      approved_sources: number;
+      /** Last Successful Collection */
+      last_successful_collection: string | null;
+      /** Source Counts */
+      source_counts: components["schemas"]["PracticeSourceCount"][];
+    };
+    /** PracticeSourceCount */
+    PracticeSourceCount: {
+      /**
+       * Source Id
+       * Format: uuid
+       */
+      source_id: string;
+      /** Source Name */
+      source_name: string;
+      /** Reference Count */
+      reference_count: number;
     };
     /**
      * PreferredProgrammingLanguage
@@ -3852,6 +4027,8 @@ export interface operations {
         page_size?: number;
         query?: string | null;
         source_id?: string | null;
+        difficulty?: string | null;
+        competency?: string | null;
       };
       header?: never;
       path?: never;
@@ -3875,6 +4052,86 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  external_reference_facets_api_v1_external_reference_facets_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExternalReferenceFacets"];
+        };
+      };
+    };
+  };
+  practice_summary_api_v1_practice_summary_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PracticeCatalogSummary"];
+        };
+      };
+    };
+  };
+  catalog_status_api_v1_admin_catalog_status_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CatalogSourceStatus"][];
+        };
+      };
+    };
+  };
+  run_approved_collectors_api_v1_admin_catalog_collect_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CatalogCollectionRunResult"];
         };
       };
     };

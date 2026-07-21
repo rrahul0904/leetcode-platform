@@ -4,7 +4,7 @@
     "authoring_method": "Human-directed original scenario and deterministic implementation authored in a controlled batch.",
     "source_classes": ["general data-structure knowledge", "Python standard-library behavior", "production cache design principles"],
     "source_notes": ["No proprietary question bank or interview report used."],
-    "content_hash": "sha256:c498b6aa941cb0fcea349a8c98ebbe4d7d1f89bbad538d2dfc9bb1e8ffad91a0",
+    "content_hash": "sha256:ee9b3595c44d5cf0e7c5ffa48da8eccb8e7b56e4e47e066ad7b2c1290e4b33fe",
     "authored_at": "2026-07-20T12:00:00Z",
     "author_id": "rigor-founding-editor"
   },

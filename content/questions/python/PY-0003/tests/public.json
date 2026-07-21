@@ -1,0 +1,4 @@
+[
+  {"id": "PY-0003-P01", "name": "accepts exact watermark boundary", "visibility": "public", "input": {"allowed_lateness": 5, "events": [["latest", 10, 3], ["boundary", 5, 2]]}, "expected_output": [true, true]},
+  {"id": "PY-0003-P02", "name": "uses half-open query windows", "visibility": "edge", "input": {"events": [["a", 1, 2], ["b", 2, 3]], "query": [1, 2]}, "expected_output": 2}
+]

@@ -12,11 +12,16 @@ from .ingestion import IngestionError
 from .persistence import audit_event, ensure_user
 from .schemas import (
     AuthenticatedPrincipal,
+    CatalogFilterOption,
+    CatalogSourceStatus,
     CompetencyCoverage,
     ConnectorStatus,
     ContinuousCoverageStats,
     CoverageLevel,
     ExternalReference,
+    ExternalReferenceFacets,
+    PracticeCatalogSummary,
+    PracticeSourceCount,
     SourceRegistryInput,
     SourceRegistryRecord,
     SourceReviewInput,
@@ -284,14 +289,32 @@ class SourceRegistryRepository:
             updated = 0
             seen_urls: list[str] = []
             source_domain = str(source["canonical_domain"])
+            competency_ids = {
+                str(row["slug"]): row["id"]
+                for row in connection.execute(text("SELECT id, slug FROM competencies")).mappings()
+            }
             for reference in payload.references:
                 self._validate_reference(
                     reference.canonical_url, source_domain, coverage, reference.abstract
                 )
+                unknown_competencies = sorted(
+                    set(reference.competency_slugs) - competency_ids.keys()
+                )
+                if unknown_competencies:
+                    raise IngestionError(
+                        422,
+                        "Unknown competency mappings: " + ", ".join(unknown_competencies),
+                    )
                 seen_urls.append(reference.canonical_url)
-                was_inserted = connection.execute(
-                    text(
-                        """
+                metadata = {
+                    **reference.source_metadata,
+                    "patterns": reference.patterns,
+                    "competency_slugs": reference.competency_slugs,
+                }
+                upserted = (
+                    connection.execute(
+                        text(
+                            """
                         INSERT INTO external_question_references (
                             source_id, source_external_id, canonical_url, title, abstract,
                             difficulty, topic_metadata, source_metadata,
@@ -320,25 +343,51 @@ class SourceRegistryRepository:
                                    IS DISTINCT FROM EXCLUDED.source_metadata
                                 THEN CURRENT_TIMESTAMP
                                 ELSE external_question_references.last_content_change_at END
-                        RETURNING (xmax = 0) AS inserted
+                        RETURNING id, (xmax = 0) AS inserted
                         """
+                        ),
+                        {
+                            "source_id": source_id,
+                            "external_id": reference.source_external_id,
+                            "url": reference.canonical_url,
+                            "title": reference.title,
+                            "abstract": reference.abstract,
+                            "difficulty": reference.difficulty,
+                            "topics": json.dumps(reference.topic_metadata),
+                            "metadata": json.dumps(metadata),
+                            "availability": reference.source_availability,
+                            "access_tier": reference.access_tier,
+                            "freshness": reference.technology_freshness,
+                        },
+                    )
+                    .mappings()
+                    .one()
+                )
+                reference_id = upserted["id"]
+                was_inserted = bool(upserted["inserted"])
+                created += int(was_inserted)
+                updated += int(not was_inserted)
+                connection.execute(
+                    text(
+                        "DELETE FROM external_reference_competencies "
+                        "WHERE external_reference_id=:reference_id"
                     ),
-                    {
-                        "source_id": source_id,
-                        "external_id": reference.source_external_id,
-                        "url": reference.canonical_url,
-                        "title": reference.title,
-                        "abstract": reference.abstract,
-                        "difficulty": reference.difficulty,
-                        "topics": json.dumps(reference.topic_metadata),
-                        "metadata": json.dumps(reference.source_metadata),
-                        "availability": reference.source_availability,
-                        "access_tier": reference.access_tier,
-                        "freshness": reference.technology_freshness,
-                    },
-                ).scalar_one()
-                created += int(bool(was_inserted))
-                updated += int(not bool(was_inserted))
+                    {"reference_id": reference_id},
+                )
+                for competency_slug in dict.fromkeys(reference.competency_slugs):
+                    connection.execute(
+                        text(
+                            """
+                            INSERT INTO external_reference_competencies (
+                                external_reference_id, competency_id, confidence
+                            ) VALUES (:reference_id, :competency_id, 0.85)
+                            """
+                        ),
+                        {
+                            "reference_id": reference_id,
+                            "competency_id": competency_ids[competency_slug],
+                        },
+                    )
             unavailable = 0
             if payload.complete_snapshot:
                 unavailable = connection.execute(
@@ -421,6 +470,8 @@ class SourceRegistryRepository:
         *,
         query: str | None,
         source_id: UUID | None,
+        difficulty: str | None,
+        competency: str | None,
         page: int,
         page_size: int,
     ) -> tuple[list[ExternalReference], int]:
@@ -435,6 +486,16 @@ class SourceRegistryRepository:
         if source_id:
             conditions.append("r.source_id=:source_id")
             parameters["source_id"] = source_id
+        if difficulty:
+            conditions.append("r.difficulty=:difficulty")
+            parameters["difficulty"] = difficulty
+        if competency:
+            conditions.append(
+                "EXISTS (SELECT 1 FROM external_reference_competencies erc "
+                "JOIN competencies c ON c.id=erc.competency_id "
+                "WHERE erc.external_reference_id=r.id AND c.slug=:competency)"
+            )
+            parameters["competency"] = competency
         where = " AND ".join(conditions)
         with self.engine.connect() as connection:
             total = connection.execute(
@@ -453,6 +514,13 @@ class SourceRegistryRepository:
                     SELECT r.id AS reference_id, r.source_id, s.source_name,
                            s.canonical_domain, s.coverage_level, r.canonical_url,
                            r.title, r.abstract, r.difficulty, r.topic_metadata,
+                           COALESCE(r.source_metadata->'patterns', '[]'::jsonb) AS patterns,
+                           COALESCE((
+                               SELECT jsonb_agg(c.slug ORDER BY c.slug)
+                               FROM external_reference_competencies erc
+                               JOIN competencies c ON c.id=erc.competency_id
+                               WHERE erc.external_reference_id=r.id
+                           ), '[]'::jsonb) AS competency_slugs,
                            r.source_availability, r.access_tier, r.technology_freshness,
                            r.first_seen_at, r.last_seen_at, r.last_verified_at,
                            r.review_due_at
@@ -469,6 +537,154 @@ class SourceRegistryRepository:
                 .all()
             )
         return [ExternalReference.model_validate(dict(row)) for row in rows], int(total)
+
+    def external_reference_facets(self) -> ExternalReferenceFacets:
+        with self.engine.connect() as connection:
+            source_rows = (
+                connection.execute(
+                    text(
+                        """
+                        SELECT s.id::text AS value, s.source_name AS label, count(r.id) AS count
+                        FROM source_registry s
+                        JOIN external_question_references r ON r.source_id=s.id
+                        WHERE s.coverage_level <> 'BLOCKED'
+                        GROUP BY s.id, s.source_name ORDER BY count(r.id) DESC, s.source_name
+                        """
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            difficulty_rows = (
+                connection.execute(
+                    text(
+                        """
+                        SELECT difficulty AS value, initcap(difficulty) AS label, count(*) AS count
+                        FROM external_question_references r
+                        JOIN source_registry s ON s.id=r.source_id
+                        WHERE s.coverage_level <> 'BLOCKED' AND difficulty IS NOT NULL
+                        GROUP BY difficulty ORDER BY count(*) DESC, difficulty
+                        """
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            competency_rows = (
+                connection.execute(
+                    text(
+                        """
+                        SELECT c.slug AS value, c.name AS label,
+                               count(DISTINCT erc.external_reference_id) AS count
+                        FROM competencies c
+                        JOIN external_reference_competencies erc ON erc.competency_id=c.id
+                        JOIN external_question_references r ON r.id=erc.external_reference_id
+                        JOIN source_registry s ON s.id=r.source_id
+                        WHERE s.coverage_level <> 'BLOCKED'
+                        GROUP BY c.id
+                        ORDER BY count(DISTINCT erc.external_reference_id) DESC, c.name
+                        """
+                    )
+                )
+                .mappings()
+                .all()
+            )
+        return ExternalReferenceFacets(
+            sources=[CatalogFilterOption.model_validate(dict(row)) for row in source_rows],
+            difficulties=[
+                CatalogFilterOption.model_validate(dict(row)) for row in difficulty_rows
+            ],
+            competencies=[
+                CatalogFilterOption.model_validate(dict(row)) for row in competency_rows
+            ],
+        )
+
+    def practice_summary(self) -> PracticeCatalogSummary:
+        with self.engine.connect() as connection:
+            values = (
+                connection.execute(
+                    text(
+                        """
+                        SELECT
+                          (SELECT count(*) FROM external_question_references r
+                           JOIN source_registry s ON s.id=r.source_id
+                           WHERE s.coverage_level <> 'BLOCKED') AS external_references,
+                          (SELECT count(*) FROM questions WHERE record_type IN (
+                             'platform_original_hosted_question', 'licensed_hosted_question',
+                             'open_license_hosted_question')) AS hosted_records,
+                          (SELECT count(*) FROM question_versions WHERE state IN (
+                             'awaiting_technical_review'::content_state,
+                             'awaiting_editorial_review'::content_state)) AS awaiting_review,
+                          (SELECT count(*) FROM questions q JOIN question_versions v
+                             ON v.id=q.current_published_version_id
+                           WHERE v.state='published'::content_state) AS published_hosted_questions,
+                          (SELECT count(*) FROM source_registry
+                           WHERE connector_status='approved') AS approved_sources,
+                          (SELECT max(last_successful_sync) FROM source_registry)
+                            AS last_successful_collection
+                        """
+                    )
+                )
+                .mappings()
+                .one()
+            )
+            source_rows = (
+                connection.execute(
+                    text(
+                        """
+                        SELECT s.id AS source_id, s.source_name, count(r.id) AS reference_count
+                        FROM source_registry s
+                        JOIN external_question_references r ON r.source_id=s.id
+                        WHERE s.coverage_level <> 'BLOCKED'
+                        GROUP BY s.id ORDER BY count(r.id) DESC, s.source_name
+                        """
+                    )
+                )
+                .mappings()
+                .all()
+            )
+        return PracticeCatalogSummary(
+            **dict(values),
+            source_counts=[PracticeSourceCount.model_validate(dict(row)) for row in source_rows],
+        )
+
+    def catalog_status(self) -> list[CatalogSourceStatus]:
+        with self.engine.connect() as connection:
+            rows = (
+                connection.execute(
+                    text(
+                        """
+                        SELECT s.id AS source_id, s.source_name, s.canonical_domain,
+                               s.connector_status, s.last_successful_sync AS last_run,
+                               s.actual_indexed_volume AS references_collected,
+                               COALESCE(latest.updated_count, 0) AS references_updated,
+                               s.failure_count AS failures, s.rights_status, s.coverage_level,
+                               latest.failure_message AS last_error,
+                               CASE
+                                 WHEN s.connector_status='approved'
+                                   THEN 'Run approved collector'
+                                 WHEN s.connector_status='unreviewed'
+                                   THEN 'Complete rights review'
+                                 WHEN s.connector_status='failing'
+                                   THEN 'Inspect failure and retry'
+                                 WHEN s.connector_status='paused'
+                                   THEN 'Review pause reason'
+                                 ELSE 'No collection action available'
+                               END AS next_available_action
+                        FROM source_registry s
+                        LEFT JOIN LATERAL (
+                            SELECT updated_count, failure_message
+                            FROM source_sync_runs run WHERE run.source_id=s.id
+                            ORDER BY started_at DESC LIMIT 1
+                        ) latest ON true
+                        ORDER BY s.actual_indexed_volume DESC, s.source_name
+                        """
+                    )
+                )
+                .mappings()
+                .all()
+            )
+        return [CatalogSourceStatus.model_validate(dict(row)) for row in rows]
 
     def coverage(self, foundation_manifest_entries: int) -> ContinuousCoverageStats:
         with self.engine.connect() as connection:

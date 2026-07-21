@@ -5,6 +5,7 @@ import {
   CircleGauge,
   FileCheck2,
   FileUp,
+  Link2,
   LayoutDashboard,
   Menu,
   Radar,
@@ -21,6 +22,7 @@ import { useAuth } from "@/lib/auth";
 const workspaceNav = [
   ["Home", "/", LayoutDashboard],
   ["Question bank", "/question-bank", BookOpen],
+  ["External practice", "/external-practice", Link2],
   ["Learning paths", "/learning-paths", Route],
   ["Mock interviews", "/mock-interviews", Sparkles],
   ["Progress", "/progress", CircleGauge],
@@ -31,6 +33,7 @@ const administratorNav = [
   ["Content", "/admin/questions", BookOpen],
   ["Review queue", "/content-review", FileCheck2],
   ["Sources", "/admin/sources", Radar],
+  ["Catalog status", "/admin/catalog-status", Link2],
 ] as const;
 
 const authorNav = [

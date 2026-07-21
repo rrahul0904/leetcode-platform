@@ -42,8 +42,10 @@ services:
       RIGOR_DATABASE_URL: postgresql+psycopg://rigor:rigor_local_only@postgres:5432/rigor
     ports:
       - "8002:8002"
+    secrets:
+      - build_ca
     depends_on:
-      seed:
+      local-release:
         condition: service_completed_successfully
       valkey:
         condition: service_healthy
@@ -83,6 +85,95 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  catalog:
+    profiles: ["catalog"]
+    image: rigor-api:0.1.0-local
+    command:
+      [
+        "python",
+        "/app/scripts/collect_external_references.py",
+        "--ca-file",
+        "/run/secrets/build_ca",
+      ]
+    environment:
+      RIGOR_DATABASE_URL: postgresql+psycopg://rigor:rigor_local_only@postgres:5432/rigor
+    secrets:
+      - build_ca
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  catalog-init:
+    image: rigor-api:0.1.0-local
+    command:
+      [
+        "python",
+        "/app/scripts/collect_external_references.py",
+        "--ca-file",
+        "/run/secrets/build_ca",
+      ]
+    environment:
+      RIGOR_DATABASE_URL: postgresql+psycopg://rigor:rigor_local_only@postgres:5432/rigor
+    secrets:
+      - build_ca
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  content-sync:
+    image: rigor-api:0.1.0-local
+    command:
+      [
+        "python",
+        "/app/scripts/sync_content.py",
+        "--mode",
+        "sync",
+        "--report",
+        "/tmp/content-sync-report.json",
+      ]
+    environment:
+      RIGOR_ENVIRONMENT: local
+      RIGOR_CONTENT_ROOT: /app/content
+      RIGOR_DATABASE_URL: postgresql+psycopg://rigor:rigor_local_only@postgres:5432/rigor
+    depends_on:
+      catalog-init:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  local-release:
+    image: rigor-api:0.1.0-local
+    command: ["python", "/app/scripts/publish_local_catalog.py"]
+    environment:
+      RIGOR_ENVIRONMENT: local
+      RIGOR_CONTENT_ROOT: /app/content
+      RIGOR_DATABASE_URL: postgresql+psycopg://rigor:rigor_local_only@postgres:5432/rigor
+    depends_on:
+      content-sync:
+        condition: service_completed_successfully
+    read_only: true
     restart: "no"
     security_opt:
       - no-new-privileges:true
@@ -133,4 +224,4 @@ volumes:
 
 secrets:
   build_ca:
-    file: .docker-build-ca.pem
+    file: infra/certs/local-build-ca.pem

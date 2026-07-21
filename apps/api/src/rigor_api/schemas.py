@@ -161,6 +161,7 @@ class PublicExample(ApiModel):
 
 
 class CatalogQuestion(ApiModel):
+    external_id: str
     title: str
     slug: str
     track: str
@@ -180,6 +181,7 @@ class CandidateQuestionDetail(CatalogQuestion):
     candidate_instructions: list[str]
     public_constraints: list[str]
     public_examples: list[PublicExample]
+    starter_code: str | None = None
 
 
 class ContentState(StrEnum):
@@ -540,6 +542,8 @@ class ExternalReferenceInput(ApiModel):
     abstract: str | None = Field(default=None, max_length=5000)
     difficulty: str | None = Field(default=None, max_length=40)
     topic_metadata: list[str] = Field(default_factory=list, max_length=100)
+    patterns: list[str] = Field(default_factory=list, max_length=40)
+    competency_slugs: list[str] = Field(default_factory=list, max_length=40)
     source_metadata: dict[str, object] = Field(default_factory=dict)
     source_availability: Literal["available", "unavailable", "deleted", "unknown"] = "available"
     access_tier: Literal["public", "account_required", "premium", "unknown"] = "public"
@@ -576,6 +580,8 @@ class ExternalReference(ApiModel):
     abstract: str | None
     difficulty: str | None
     topic_metadata: list[str]
+    patterns: list[str]
+    competency_slugs: list[str]
     source_availability: str
     access_tier: str
     technology_freshness: str
@@ -583,6 +589,55 @@ class ExternalReference(ApiModel):
     last_seen_at: datetime
     last_verified_at: datetime | None
     review_due_at: datetime | None
+
+
+class CatalogFilterOption(ApiModel):
+    value: str
+    label: str
+    count: int
+
+
+class ExternalReferenceFacets(ApiModel):
+    sources: list[CatalogFilterOption]
+    difficulties: list[CatalogFilterOption]
+    competencies: list[CatalogFilterOption]
+
+
+class PracticeSourceCount(ApiModel):
+    source_id: UUID
+    source_name: str
+    reference_count: int
+
+
+class PracticeCatalogSummary(ApiModel):
+    external_references: int
+    hosted_records: int
+    awaiting_review: int
+    published_hosted_questions: int
+    approved_sources: int
+    last_successful_collection: datetime | None
+    source_counts: list[PracticeSourceCount]
+
+
+class CatalogSourceStatus(ApiModel):
+    source_id: UUID
+    source_name: str
+    canonical_domain: str
+    connector_status: str
+    last_run: datetime | None
+    references_collected: int
+    references_updated: int
+    failures: int
+    rights_status: str
+    coverage_level: str
+    last_error: str | None
+    next_available_action: str
+
+
+class CatalogCollectionRunResult(ApiModel):
+    status: Literal["completed"] = "completed"
+    external_references: int
+    completed_at: datetime
 
 
 class ContinuousCoverageStats(ApiModel):

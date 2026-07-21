@@ -33,7 +33,8 @@ class QuestionIntelligenceRepository:
                                t.slug AS primary_track, v.difficulty,
                                v.expected_seniority AS role_level, v.state::text AS state,
                                v.source_revision, v.updated_at,
-                               q.current_published_version_id=v.id AS is_current_published
+                               COALESCE(q.current_published_version_id=v.id, false)
+                                 AS is_current_published
                         FROM questions q
                         JOIN question_tracks t ON t.id=q.primary_track_id
                         JOIN LATERAL (
@@ -138,6 +139,30 @@ class QuestionIntelligenceRepository:
                         LEFT JOIN external_reference_competencies erc
                           ON erc.competency_id=c.id
                         GROUP BY c.id
+                    ), resolved AS (
+                        UPDATE coverage_gap_briefs existing SET
+                            hosted_count=coverage.hosted_count,
+                            external_reference_count=coverage.external_count,
+                            status='resolved', resolved_at=CURRENT_TIMESTAMP
+                        FROM coverage
+                        WHERE existing.competency_id=coverage.id
+                          AND coverage.hosted_count >= 3
+                          AND existing.status IN ('open', 'brief_generated', 'in_progress')
+                        RETURNING existing.id
+                    ), refreshed AS (
+                        UPDATE coverage_gap_briefs existing SET
+                            hosted_count=coverage.hosted_count,
+                            external_reference_count=coverage.external_count,
+                            recommended_question_count=greatest(1, 3-coverage.hosted_count),
+                            recommended_action=
+                                'Author an independently original hosted question for ' ||
+                                coverage.slug || ' and route it through technical ' ||
+                                'and editorial review.'
+                        FROM coverage
+                        WHERE existing.competency_id=coverage.id
+                          AND coverage.hosted_count < 3
+                          AND existing.status IN ('open', 'brief_generated', 'in_progress')
+                        RETURNING existing.id
                     ), inserted AS (
                         INSERT INTO coverage_gap_briefs (
                             competency_id, role_level, difficulty, hosted_count,

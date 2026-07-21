@@ -49,5 +49,5 @@
     "misses_expiration": ["Probe exact-boundary behavior", "Ask how tests avoid sleeping"],
     "claims_constant_time": ["Ask which line removes unrelated expired entries"]
   },
-  "source_content_hash": "sha256:c498b6aa941cb0fcea349a8c98ebbe4d7d1f89bbad538d2dfc9bb1e8ffad91a0"
+  "source_content_hash": "sha256:ee9b3595c44d5cf0e7c5ffa48da8eccb8e7b56e4e47e066ad7b2c1290e4b33fe"
 }

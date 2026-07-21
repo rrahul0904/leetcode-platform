@@ -1,0 +1,23 @@
+{
+  "policy_version": "2026-07-21.1",
+  "completed_at": "2026-07-21T13:34:07.734464+00:00",
+  "external_references": 2534,
+  "competency_mappings": 5990,
+  "sources": {
+    "codewars": 3,
+    "exercism": 1127,
+    "github": 142,
+    "stackexchange": 295,
+    "stackoverflow": 967
+  },
+  "hosted_drafts_after_gap_analysis": 4,
+  "published_questions": 0,
+  "open_coverage_gaps": 27,
+  "content_exclusions": [
+    "external problem statements",
+    "external solutions and answers",
+    "external tests",
+    "premium fields",
+    "user profiles"
+  ]
+}

@@ -15,9 +15,16 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def source_revision() -> str:
-    result = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=False
-    )
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return "docker-image"
     return result.stdout.strip() if result.returncode == 0 else "working-tree"
 
 

@@ -389,6 +389,7 @@ class ContentSynchronizer:
                 .mappings()
                 .one_or_none()
             )
+            self._replace_question_competencies(connection, package, UUID(str(question_id)))
             if existing and existing["content_hash"] == package.content_hash:
                 return PackageSyncResult(
                     question.id, question.version, "unchanged", package.content_hash, []
@@ -412,6 +413,37 @@ class ContentSynchronizer:
                 "updated" if existing else "inserted",
                 package.content_hash,
                 [],
+            )
+
+    @staticmethod
+    def _replace_question_competencies(
+        connection: Connection, package: LoadedContentPackage, question_id: UUID
+    ) -> None:
+        connection.execute(
+            text("DELETE FROM question_competencies WHERE question_id=:question_id"),
+            {"question_id": question_id},
+        )
+        competency_slugs = list(
+            dict.fromkeys([package.question.primary_track, *package.question.secondary_skills])
+        )
+        competency_rows = connection.execute(
+            text("SELECT id, slug FROM competencies WHERE slug = ANY(:slugs)"),
+            {"slugs": competency_slugs},
+        ).mappings()
+        for competency in competency_rows:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO question_competencies (
+                        question_id, competency_id, is_primary, confidence
+                    ) VALUES (:question_id, :competency_id, :is_primary, 1)
+                    """
+                ),
+                {
+                    "question_id": question_id,
+                    "competency_id": competency["id"],
+                    "is_primary": competency["slug"] == package.question.primary_track,
+                },
             )
 
     def _record_sync_audit(

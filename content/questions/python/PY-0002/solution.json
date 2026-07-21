@@ -1,0 +1,15 @@
+{
+  "question_id": "PY-0002",
+  "question_version": "0.1.0",
+  "reference_solution": "Validate the capacity, job identifiers, row estimates, and dependency references. Keep a completed set and a remaining set. On each iteration, sort jobs whose dependencies are all completed, then greedily add ready jobs that fit the current batch. If no job is ready while work remains, report a cycle.",
+  "explanation": "Only dependencies completed before the iteration make a job ready, so jobs in one batch cannot depend on each other. Lexicographic sorting and a fixed greedy rule make the schedule reproducible. Up-front validation prevents partial plans for malformed graphs.",
+  "alternatives": [{"name": "Indegree queue plus capacity layer", "solution": "Maintain reverse edges and indegrees, exposing a heap of ready jobs after each completed batch.", "advantages": ["avoids rescanning every remaining job", "supports large graphs"], "disadvantages": ["requires more bookkeeping", "capacity packing still needs a deterministic policy"]}],
+  "trade_off_analysis": ["The simple reference rescans remaining jobs and favors clarity over asymptotic optimality.", "Greedy packing is deterministic but does not minimize batch count.", "Production execution requires durable job state and idempotent workers."],
+  "complexity": {"expected_time": "O(V^2 + E) in the simple rescan implementation, plus sorting ready sets.", "expected_space": "O(V + E).", "explanation": "A production implementation can reduce graph traversal cost with indegrees and reverse adjacency lists."},
+  "testing_and_debugging": ["Test chains, diamonds, independent jobs, exact-capacity batches, missing dependencies, oversize jobs, and cycles.", "Assert input objects remain unchanged."],
+  "production_follow_ups": ["Persist batch and job transitions transactionally.", "Compare estimates with observed rows and adapt future capacity."],
+  "critical_omissions": ["No cycle detection.", "Dependencies allowed in the same batch.", "Nondeterministic output."],
+  "strong_response_example": "I will validate the entire graph first. A job is ready only when every dependency is in the completed set from earlier batches. I will sort ready IDs, greedily add those that fit, and declare a cycle if unfinished jobs remain but the ready set is empty.",
+  "interviewer_follow_up_tree": {"correct_base": ["Ask for resumable execution", "Add a second resource budget"], "misses_cycle": ["Present a two-node cycle"], "same_batch_dependency": ["Clarify that batches execute concurrently"]},
+  "source_content_hash": "sha256:b0aca5a6b2c013197b05ecc34b57d6e00c498c1c3af4e51fa7996d5d37dc993f"
+}

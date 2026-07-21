@@ -1,0 +1,4 @@
+[
+  {"id": "PY-0002-P01", "name": "orders a dependency chain", "visibility": "public", "input": {"jobs": {"a": {"rows": 2, "depends_on": []}, "b": {"rows": 2, "depends_on": ["a"]}}, "capacity": 4}, "expected_output": [["a"], ["b"]]},
+  {"id": "PY-0002-P02", "name": "packs independent jobs deterministically", "visibility": "edge", "input": {"jobs": {"b": {"rows": 2, "depends_on": []}, "a": {"rows": 2, "depends_on": []}}, "capacity": 4}, "expected_output": [["a", "b"]]}
+]
