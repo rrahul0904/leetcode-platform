@@ -40,7 +40,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
+                  "$ref": "#/components/schemas/ReadinessResponse"
                 }
               }
             }
@@ -2225,6 +2225,58 @@
         ]
       }
     },
+    "/api/v1/admin/catalog/summary": {
+      "get": {
+        "tags": [
+          "source-registry"
+        ],
+        "summary": "Aggregate Catalog Summary",
+        "operationId": "aggregate_catalog_summary_api_v1_admin_catalog_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogAggregateSummary"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/statistics": {
+      "get": {
+        "tags": [
+          "operations"
+        ],
+        "summary": "Platform Statistics",
+        "operationId": "platform_statistics_api_v1_platform_statistics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformStatistics"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/admin/catalog/collect": {
       "post": {
         "tags": [
@@ -4069,6 +4121,92 @@
           "public_examples"
         ],
         "title": "CandidateQuestionDetail"
+      },
+      "CatalogAggregateSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "hosted_count": {
+            "minimum": 0,
+            "title": "Hosted Count",
+            "type": "integer"
+          },
+          "published_count": {
+            "minimum": 0,
+            "title": "Published Count",
+            "type": "integer"
+          },
+          "external_count": {
+            "minimum": 0,
+            "title": "External Count",
+            "type": "integer"
+          },
+          "source_count": {
+            "minimum": 0,
+            "title": "Source Count",
+            "type": "integer"
+          },
+          "last_collection": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Collection"
+          },
+          "import_failures": {
+            "minimum": 0,
+            "title": "Import Failures",
+            "type": "integer"
+          },
+          "review_backlog": {
+            "minimum": 0,
+            "title": "Review Backlog",
+            "type": "integer"
+          },
+          "content_by_track": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Content By Track",
+            "type": "object"
+          },
+          "content_by_difficulty": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Content By Difficulty",
+            "type": "object"
+          },
+          "simulation_count": {
+            "minimum": 0,
+            "title": "Simulation Count",
+            "type": "integer"
+          },
+          "mock_interview_count": {
+            "minimum": 0,
+            "title": "Mock Interview Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hosted_count",
+          "published_count",
+          "external_count",
+          "source_count",
+          "last_collection",
+          "import_failures",
+          "review_backlog",
+          "content_by_track",
+          "content_by_difficulty",
+          "simulation_count",
+          "mock_interview_count"
+        ],
+        "title": "CatalogAggregateSummary",
+        "type": "object"
       },
       "CatalogCollectionRunResult": {
         "properties": {
@@ -6125,6 +6263,75 @@
         ],
         "title": "Page[ManifestQuestion]"
       },
+      "PlatformStatistics": {
+        "additionalProperties": false,
+        "properties": {
+          "hosted_questions": {
+            "minimum": 0,
+            "title": "Hosted Questions",
+            "type": "integer"
+          },
+          "published_hosted_questions": {
+            "minimum": 0,
+            "title": "Published Hosted Questions",
+            "type": "integer"
+          },
+          "external_references": {
+            "minimum": 0,
+            "title": "External References",
+            "type": "integer"
+          },
+          "practice_sessions": {
+            "minimum": 0,
+            "title": "Practice Sessions",
+            "type": "integer"
+          },
+          "submissions": {
+            "minimum": 0,
+            "title": "Submissions",
+            "type": "integer"
+          },
+          "completed_simulations": {
+            "minimum": 0,
+            "title": "Completed Simulations",
+            "type": "integer"
+          },
+          "completed_mock_interviews": {
+            "minimum": 0,
+            "title": "Completed Mock Interviews",
+            "type": "integer"
+          },
+          "learning_activities": {
+            "minimum": 0,
+            "title": "Learning Activities",
+            "type": "integer"
+          },
+          "competency_evidence": {
+            "minimum": 0,
+            "title": "Competency Evidence",
+            "type": "integer"
+          },
+          "active_candidates": {
+            "minimum": 0,
+            "title": "Active Candidates",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hosted_questions",
+          "published_hosted_questions",
+          "external_references",
+          "practice_sessions",
+          "submissions",
+          "completed_simulations",
+          "completed_mock_interviews",
+          "learning_activities",
+          "competency_evidence",
+          "active_candidates"
+        ],
+        "title": "PlatformStatistics",
+        "type": "object"
+      },
       "PracticeCatalogSummary": {
         "properties": {
           "external_references": {
@@ -6774,6 +6981,61 @@
           "freshness_status"
         ],
         "title": "QuestionFreshnessRecord"
+      },
+      "ReadinessCheck": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "not_ready"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "detail"
+        ],
+        "title": "ReadinessCheck",
+        "type": "object"
+      },
+      "ReadinessResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "service": {
+            "default": "rigor-api",
+            "title": "Service",
+            "type": "string"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/ReadinessCheck"
+            },
+            "title": "Checks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "checks"
+        ],
+        "title": "ReadinessResponse",
+        "type": "object"
       },
       "ReviewActionResult": {
         "properties": {
@@ -8342,92 +8604,6 @@
         "title": "ArchitectureArtifactInput",
         "type": "object"
       },
-      "CatalogAggregateSummary": {
-        "additionalProperties": false,
-        "properties": {
-          "hosted_count": {
-            "minimum": 0,
-            "title": "Hosted Count",
-            "type": "integer"
-          },
-          "published_count": {
-            "minimum": 0,
-            "title": "Published Count",
-            "type": "integer"
-          },
-          "external_count": {
-            "minimum": 0,
-            "title": "External Count",
-            "type": "integer"
-          },
-          "source_count": {
-            "minimum": 0,
-            "title": "Source Count",
-            "type": "integer"
-          },
-          "last_collection": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Collection"
-          },
-          "import_failures": {
-            "minimum": 0,
-            "title": "Import Failures",
-            "type": "integer"
-          },
-          "review_backlog": {
-            "minimum": 0,
-            "title": "Review Backlog",
-            "type": "integer"
-          },
-          "content_by_track": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "title": "Content By Track",
-            "type": "object"
-          },
-          "content_by_difficulty": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "title": "Content By Difficulty",
-            "type": "object"
-          },
-          "simulation_count": {
-            "minimum": 0,
-            "title": "Simulation Count",
-            "type": "integer"
-          },
-          "mock_interview_count": {
-            "minimum": 0,
-            "title": "Mock Interview Count",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "hosted_count",
-          "published_count",
-          "external_count",
-          "source_count",
-          "last_collection",
-          "import_failures",
-          "review_backlog",
-          "content_by_track",
-          "content_by_difficulty",
-          "simulation_count",
-          "mock_interview_count"
-        ],
-        "title": "CatalogAggregateSummary",
-        "type": "object"
-      },
       "CompetencyEvidence": {
         "additionalProperties": false,
         "properties": {
@@ -8662,6 +8838,123 @@
         ],
         "title": "ExecutionTestResult",
         "type": "object"
+      },
+      "ExternalReferenceProgress": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ExternalReferenceProgressStatus"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 10000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Notes"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "external_reference_id": {
+            "format": "uuid",
+            "title": "External Reference Id",
+            "type": "string"
+          },
+          "candidate_id": {
+            "format": "uuid",
+            "title": "Candidate Id",
+            "type": "string"
+          },
+          "organization_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Id"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "id",
+          "external_reference_id",
+          "candidate_id",
+          "organization_id",
+          "completed_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ExternalReferenceProgress",
+        "type": "object"
+      },
+      "ExternalReferenceProgressInput": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ExternalReferenceProgressStatus"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 10000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Notes"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ExternalReferenceProgressInput",
+        "type": "object"
+      },
+      "ExternalReferenceProgressStatus": {
+        "enum": [
+          "NOT_STARTED",
+          "IN_PROGRESS",
+          "COMPLETED"
+        ],
+        "title": "ExternalReferenceProgressStatus",
+        "type": "string"
       },
       "InterviewMessage": {
         "additionalProperties": false,
@@ -8920,75 +9213,6 @@
           "metadata"
         ],
         "title": "LearningPlanActivity",
-        "type": "object"
-      },
-      "PlatformStatistics": {
-        "additionalProperties": false,
-        "properties": {
-          "hosted_questions": {
-            "minimum": 0,
-            "title": "Hosted Questions",
-            "type": "integer"
-          },
-          "published_hosted_questions": {
-            "minimum": 0,
-            "title": "Published Hosted Questions",
-            "type": "integer"
-          },
-          "external_references": {
-            "minimum": 0,
-            "title": "External References",
-            "type": "integer"
-          },
-          "practice_sessions": {
-            "minimum": 0,
-            "title": "Practice Sessions",
-            "type": "integer"
-          },
-          "submissions": {
-            "minimum": 0,
-            "title": "Submissions",
-            "type": "integer"
-          },
-          "completed_simulations": {
-            "minimum": 0,
-            "title": "Completed Simulations",
-            "type": "integer"
-          },
-          "completed_mock_interviews": {
-            "minimum": 0,
-            "title": "Completed Mock Interviews",
-            "type": "integer"
-          },
-          "learning_activities": {
-            "minimum": 0,
-            "title": "Learning Activities",
-            "type": "integer"
-          },
-          "competency_evidence": {
-            "minimum": 0,
-            "title": "Competency Evidence",
-            "type": "integer"
-          },
-          "active_candidates": {
-            "minimum": 0,
-            "title": "Active Candidates",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "hosted_questions",
-          "published_hosted_questions",
-          "external_references",
-          "practice_sessions",
-          "submissions",
-          "completed_simulations",
-          "completed_mock_interviews",
-          "learning_activities",
-          "competency_evidence",
-          "active_candidates"
-        ],
-        "title": "PlatformStatistics",
         "type": "object"
       },
       "PracticeArtifact": {
@@ -9339,61 +9563,6 @@
           "calculated_at"
         ],
         "title": "Readiness",
-        "type": "object"
-      },
-      "ReadinessCheck": {
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "ready",
-              "not_ready"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "detail": {
-            "title": "Detail",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "status",
-          "detail"
-        ],
-        "title": "ReadinessCheck",
-        "type": "object"
-      },
-      "ReadinessResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "status": {
-            "title": "Status",
-            "type": "string"
-          },
-          "service": {
-            "default": "rigor-api",
-            "title": "Service",
-            "type": "string"
-          },
-          "checks": {
-            "items": {
-              "$ref": "#/components/schemas/ReadinessCheck"
-            },
-            "title": "Checks",
-            "type": "array"
-          }
-        },
-        "required": [
-          "status",
-          "checks"
-        ],
-        "title": "ReadinessResponse",
         "type": "object"
       },
       "Recommendation": {

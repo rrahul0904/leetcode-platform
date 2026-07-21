@@ -23,6 +23,10 @@ class Settings(BaseSettings):
 
     environment: str = "development"
     database_url: str = "postgresql+psycopg://rigor:rigor_local_only@localhost:5434/rigor"
+    operational_database_url: str | None = None
+    valkey_url: str = "redis://localhost:6381/0"
+    execution_adapter: str = "LOCAL_FUNCTIONAL"
+    ai_adapter: str = "DETERMINISTIC"
     content_root: Path = Field(default_factory=default_content_root)
     allowed_origins: list[str] = ["http://localhost:3001"]
     oidc_issuer: str = "http://localhost:8002/local-oidc"

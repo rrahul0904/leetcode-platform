@@ -50,6 +50,6 @@ ENV PATH="/app/.venv/bin:$PATH" \
 USER 10001:10001
 EXPOSE 8002
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=5 \
-  CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/livez', timeout=2).read()"]
+  CMD ["python", "-c", "import json,urllib.request; data=json.load(urllib.request.urlopen('http://127.0.0.1:8002/readyz', timeout=2)); assert data['status']=='ready'"]
 
 CMD ["uvicorn", "rigor_api.main:app", "--host", "0.0.0.0", "--port", "8002"]

@@ -953,6 +953,27 @@ class CatalogAggregateSummary(ApiModel):
     mock_interview_count: int = Field(ge=0)
 
 
+class ExternalReferenceProgressStatus(StrEnum):
+    not_started = "NOT_STARTED"
+    in_progress = "IN_PROGRESS"
+    completed = "COMPLETED"
+
+
+class ExternalReferenceProgressInput(ApiModel):
+    status: ExternalReferenceProgressStatus
+    notes: str | None = Field(default=None, max_length=10_000)
+
+
+class ExternalReferenceProgress(ExternalReferenceProgressInput):
+    id: UUID
+    external_reference_id: UUID
+    candidate_id: UUID
+    organization_id: UUID | None
+    completed_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
 class ReadinessCheck(ApiModel):
     name: str
     status: Literal["ready", "not_ready"]
@@ -985,6 +1006,8 @@ SHARED_API_CONTRACTS: tuple[type[ApiModel], ...] = (
     Recommendation,
     PlatformStatistics,
     CatalogAggregateSummary,
+    ExternalReferenceProgressInput,
+    ExternalReferenceProgress,
     ReadinessCheck,
     ReadinessResponse,
 )

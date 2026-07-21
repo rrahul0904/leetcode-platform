@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+from collections.abc import Generator
+from contextlib import contextmanager
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends, Request
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Connection, Engine, create_engine, text
 
 from .config import Settings
+from .schemas import AuthenticatedPrincipal
 
 
-def create_database_engine(settings: Settings) -> Engine:
+def create_database_engine(settings: Settings, database_url: str | None = None) -> Engine:
     return create_engine(
-        settings.database_url,
+        database_url or settings.database_url,
         pool_pre_ping=True,
         pool_size=5,
         max_overflow=5,
@@ -23,3 +27,56 @@ def database_engine(request: Request) -> Engine:
 
 
 DatabaseEngine = Annotated[Engine, Depends(database_engine)]
+
+
+def operational_database_engine(request: Request) -> Engine:
+    value: Engine = request.app.state.operational_database_engine
+    return value
+
+
+OperationalDatabaseEngine = Annotated[Engine, Depends(operational_database_engine)]
+
+
+def set_principal_context(
+    connection: Connection,
+    principal: AuthenticatedPrincipal,
+    principal_user_id: UUID,
+) -> None:
+    """Set transaction-local identity used by PostgreSQL RLS policies."""
+    connection.execute(
+        text("SELECT set_config('rigor.user_id', :user_id, true)"),
+        {"user_id": str(principal_user_id)},
+    )
+    connection.execute(
+        text("SELECT set_config('rigor.organization_id', :organization_id, true)"),
+        {"organization_id": principal.organization_id or ""},
+    )
+    connection.execute(text("SELECT set_config('rigor.maintenance_bypass', 'off', true)"))
+
+
+@contextmanager
+def principal_transaction(
+    engine: Engine,
+    principal: AuthenticatedPrincipal,
+) -> Generator[Connection]:
+    """Open a transaction whose RLS identity cannot leak through the pool."""
+    with engine.begin() as connection:
+        # Local import keeps the low-level database module independent while
+        # guaranteeing the persisted user id and RLS context share a transaction.
+        from .persistence import ensure_user
+
+        principal_user_id = ensure_user(connection, principal)
+        set_principal_context(connection, principal, principal_user_id)
+        yield connection
+
+
+@contextmanager
+def maintenance_transaction(engine: Engine) -> Generator[Connection]:
+    """Open the explicit migrator-only RLS maintenance path.
+
+    PostgreSQL policies additionally verify ``session_user = 'rigor_migrator'``;
+    setting the custom GUC from the runtime role does not grant a bypass.
+    """
+    with engine.begin() as connection:
+        connection.execute(text("SELECT set_config('rigor.maintenance_bypass', 'on', true)"))
+        yield connection

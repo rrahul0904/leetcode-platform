@@ -4,9 +4,9 @@ import json
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Connection, text
+from sqlalchemy import Connection, Engine, text
 
-from .schemas import AuthenticatedPrincipal
+from .schemas import AuthenticatedPrincipal, CatalogAggregateSummary, PlatformStatistics
 
 
 def ensure_user(connection: Connection, principal: AuthenticatedPrincipal) -> UUID:
@@ -74,3 +74,109 @@ def audit_event(
             "correlation_id": principal.correlation_id,
         },
     )
+
+
+class PlatformStatisticsRepository:
+    """PostgreSQL is the only source for operational product counters."""
+
+    def __init__(self, engine: Engine) -> None:
+        self._engine = engine
+
+    def statistics(self) -> PlatformStatistics:
+        with self._engine.connect() as connection:
+            row = (
+                connection.execute(
+                    text(
+                        """
+                    SELECT
+                      (SELECT count(*) FROM questions
+                       WHERE record_type IN (
+                         'platform_original_hosted_question', 'licensed_hosted_question',
+                         'open_license_hosted_question', 'question_variation',
+                         'practice_drill', 'mock_interview_case',
+                         'staff_principal_case_study')) AS hosted_questions,
+                      (SELECT count(*) FROM questions q
+                       JOIN question_versions v ON v.id=q.current_published_version_id
+                       WHERE v.state='published'::content_state) AS published_hosted_questions,
+                      (SELECT count(*) FROM external_question_references) AS external_references,
+                      (SELECT count(*) FROM practice_sessions) AS practice_sessions,
+                      (SELECT count(*) FROM submissions) AS submissions,
+                      (SELECT count(*) FROM simulation_sessions
+                       WHERE status='COMPLETED'::simulation_state) AS completed_simulations,
+                      (SELECT count(*) FROM mock_interview_sessions
+                       WHERE status='COMPLETED'::mock_interview_state)
+                        AS completed_mock_interviews,
+                      (SELECT count(*) FROM learning_plan_activities) AS learning_activities,
+                      (SELECT count(*) FROM candidate_competency_evidence)
+                        AS competency_evidence,
+                      (SELECT count(DISTINCT u.id) FROM users u
+                       JOIN user_roles ur ON ur.user_id=u.id AND ur.role_slug='candidate'
+                       WHERE u.deleted_at IS NULL
+                         AND u.last_login_at >= CURRENT_TIMESTAMP - INTERVAL '30 days')
+                        AS active_candidates
+                    """
+                    )
+                )
+                .mappings()
+                .one()
+            )
+        return PlatformStatistics.model_validate(dict(row))
+
+    def catalog_summary(self) -> CatalogAggregateSummary:
+        with self._engine.connect() as connection:
+            row = (
+                connection.execute(
+                    text(
+                        """
+                    SELECT
+                      (SELECT count(*) FROM questions
+                       WHERE record_type IN (
+                         'platform_original_hosted_question', 'licensed_hosted_question',
+                         'open_license_hosted_question', 'question_variation',
+                         'practice_drill', 'mock_interview_case',
+                         'staff_principal_case_study')) AS hosted_count,
+                      (SELECT count(*) FROM questions q
+                       JOIN question_versions v ON v.id=q.current_published_version_id
+                       WHERE v.state='published'::content_state) AS published_count,
+                      (SELECT count(*) FROM external_question_references) AS external_count,
+                      (SELECT count(*) FROM source_registry) AS source_count,
+                      (SELECT max(completed_at) FROM source_sync_runs
+                       WHERE status='completed') AS last_collection,
+                      (SELECT count(*) FROM content_imports WHERE status='failed')
+                        AS import_failures,
+                      (SELECT count(*) FROM question_versions
+                       WHERE state IN ('awaiting_technical_review'::content_state,
+                                       'awaiting_editorial_review'::content_state))
+                        AS review_backlog,
+                      (SELECT count(*) FROM simulation_sessions) AS simulation_count,
+                      (SELECT count(*) FROM mock_interview_sessions) AS mock_interview_count
+                    """
+                    )
+                )
+                .mappings()
+                .one()
+            )
+            track_rows = connection.execute(
+                text(
+                    """
+                    SELECT t.slug, count(q.id) AS count
+                    FROM question_tracks t
+                    LEFT JOIN questions q ON q.primary_track_id=t.id
+                    GROUP BY t.slug ORDER BY t.slug
+                    """
+                )
+            ).all()
+            difficulty_rows = connection.execute(
+                text(
+                    """
+                    SELECT v.difficulty, count(*) AS count
+                    FROM question_versions v
+                    JOIN questions q ON q.current_published_version_id=v.id
+                    GROUP BY v.difficulty ORDER BY v.difficulty
+                    """
+                )
+            ).all()
+        values = dict(row)
+        values["content_by_track"] = {str(key): int(count) for key, count in track_rows}
+        values["content_by_difficulty"] = {str(key): int(count) for key, count in difficulty_rows}
+        return CatalogAggregateSummary.model_validate(values)

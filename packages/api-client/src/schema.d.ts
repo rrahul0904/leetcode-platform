@@ -705,6 +705,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/admin/catalog/summary": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Aggregate Catalog Summary */
+    get: operations["aggregate_catalog_summary_api_v1_admin_catalog_summary_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/platform/statistics": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Platform Statistics */
+    get: operations["platform_statistics_api_v1_platform_statistics_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/admin/catalog/collect": {
     parameters: {
       query?: never;
@@ -1322,6 +1356,35 @@ export interface components {
       public_examples: components["schemas"]["PublicExample"][];
       /** Starter Code */
       starter_code?: string | null;
+    };
+    /** CatalogAggregateSummary */
+    CatalogAggregateSummary: {
+      /** Hosted Count */
+      hosted_count: number;
+      /** Published Count */
+      published_count: number;
+      /** External Count */
+      external_count: number;
+      /** Source Count */
+      source_count: number;
+      /** Last Collection */
+      last_collection: string | null;
+      /** Import Failures */
+      import_failures: number;
+      /** Review Backlog */
+      review_backlog: number;
+      /** Content By Track */
+      content_by_track: {
+        [key: string]: number;
+      };
+      /** Content By Difficulty */
+      content_by_difficulty: {
+        [key: string]: number;
+      };
+      /** Simulation Count */
+      simulation_count: number;
+      /** Mock Interview Count */
+      mock_interview_count: number;
     };
     /** CatalogCollectionRunResult */
     CatalogCollectionRunResult: {
@@ -2113,6 +2176,29 @@ export interface components {
       /** Has Next */
       has_next: boolean;
     };
+    /** PlatformStatistics */
+    PlatformStatistics: {
+      /** Hosted Questions */
+      hosted_questions: number;
+      /** Published Hosted Questions */
+      published_hosted_questions: number;
+      /** External References */
+      external_references: number;
+      /** Practice Sessions */
+      practice_sessions: number;
+      /** Submissions */
+      submissions: number;
+      /** Completed Simulations */
+      completed_simulations: number;
+      /** Completed Mock Interviews */
+      completed_mock_interviews: number;
+      /** Learning Activities */
+      learning_activities: number;
+      /** Competency Evidence */
+      competency_evidence: number;
+      /** Active Candidates */
+      active_candidates: number;
+    };
     /** PracticeCatalogSummary */
     PracticeCatalogSummary: {
       /** External References */
@@ -2361,6 +2447,30 @@ export interface components {
        * @enum {string}
        */
       freshness_status: "current" | "review_due" | "stale";
+    };
+    /** ReadinessCheck */
+    ReadinessCheck: {
+      /** Name */
+      name: string;
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: "ready" | "not_ready";
+      /** Detail */
+      detail: string;
+    };
+    /** ReadinessResponse */
+    ReadinessResponse: {
+      /** Status */
+      status: string;
+      /**
+       * Service
+       * @default rigor-api
+       */
+      service: string;
+      /** Checks */
+      checks: components["schemas"]["ReadinessCheck"][];
     };
     /** ReviewActionResult */
     ReviewActionResult: {
@@ -2916,35 +3026,6 @@ export interface components {
         [key: string]: unknown;
       };
     };
-    /** CatalogAggregateSummary */
-    CatalogAggregateSummary: {
-      /** Hosted Count */
-      hosted_count: number;
-      /** Published Count */
-      published_count: number;
-      /** External Count */
-      external_count: number;
-      /** Source Count */
-      source_count: number;
-      /** Last Collection */
-      last_collection: string | null;
-      /** Import Failures */
-      import_failures: number;
-      /** Review Backlog */
-      review_backlog: number;
-      /** Content By Track */
-      content_by_track: {
-        [key: string]: number;
-      };
-      /** Content By Difficulty */
-      content_by_difficulty: {
-        [key: string]: number;
-      };
-      /** Simulation Count */
-      simulation_count: number;
-      /** Mock Interview Count */
-      mock_interview_count: number;
-    };
     /** CompetencyEvidence */
     CompetencyEvidence: {
       /**
@@ -3046,6 +3127,59 @@ export interface components {
        */
       duration_ms: number | null;
     };
+    /** ExternalReferenceProgress */
+    ExternalReferenceProgress: {
+      status: components["schemas"]["ExternalReferenceProgressStatus"];
+      /**
+       * Notes
+       * @default null
+       */
+      notes: string | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * External Reference Id
+       * Format: uuid
+       */
+      external_reference_id: string;
+      /**
+       * Candidate Id
+       * Format: uuid
+       */
+      candidate_id: string;
+      /** Organization Id */
+      organization_id: string | null;
+      /** Completed At */
+      completed_at: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /** ExternalReferenceProgressInput */
+    ExternalReferenceProgressInput: {
+      status: components["schemas"]["ExternalReferenceProgressStatus"];
+      /**
+       * Notes
+       * @default null
+       */
+      notes: string | null;
+    };
+    /**
+     * ExternalReferenceProgressStatus
+     * @enum {string}
+     */
+    ExternalReferenceProgressStatus:
+      "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
     /** InterviewMessage */
     InterviewMessage: {
       /** Role */
@@ -3157,29 +3291,6 @@ export interface components {
       metadata: {
         [key: string]: unknown;
       };
-    };
-    /** PlatformStatistics */
-    PlatformStatistics: {
-      /** Hosted Questions */
-      hosted_questions: number;
-      /** Published Hosted Questions */
-      published_hosted_questions: number;
-      /** External References */
-      external_references: number;
-      /** Practice Sessions */
-      practice_sessions: number;
-      /** Submissions */
-      submissions: number;
-      /** Completed Simulations */
-      completed_simulations: number;
-      /** Completed Mock Interviews */
-      completed_mock_interviews: number;
-      /** Learning Activities */
-      learning_activities: number;
-      /** Competency Evidence */
-      competency_evidence: number;
-      /** Active Candidates */
-      active_candidates: number;
     };
     /** PracticeArtifact */
     PracticeArtifact: {
@@ -3328,30 +3439,6 @@ export interface components {
        * Format: date-time
        */
       calculated_at: string;
-    };
-    /** ReadinessCheck */
-    ReadinessCheck: {
-      /** Name */
-      name: string;
-      /**
-       * Status
-       * @enum {string}
-       */
-      status: "ready" | "not_ready";
-      /** Detail */
-      detail: string;
-    };
-    /** ReadinessResponse */
-    ReadinessResponse: {
-      /** Status */
-      status: string;
-      /**
-       * Service
-       * @default rigor-api
-       */
-      service: string;
-      /** Checks */
-      checks: components["schemas"]["ReadinessCheck"][];
     };
     /** Recommendation */
     Recommendation: {
@@ -3550,7 +3637,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["HealthResponse"];
+          "application/json": components["schemas"]["ReadinessResponse"];
         };
       };
     };
@@ -4774,6 +4861,46 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["CatalogSourceStatus"][];
+        };
+      };
+    };
+  };
+  aggregate_catalog_summary_api_v1_admin_catalog_summary_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CatalogAggregateSummary"];
+        };
+      };
+    };
+  };
+  platform_statistics_api_v1_platform_statistics_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlatformStatistics"];
         };
       };
     };
