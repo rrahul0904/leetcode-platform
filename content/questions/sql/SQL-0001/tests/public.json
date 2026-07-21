@@ -1,0 +1,23 @@
+[
+  {
+    "id": "SQL-0001-P01",
+    "name": "visible synthetic dataset",
+    "visibility": "public",
+    "input": {
+      "ddl": "CREATE TABLE users(user_id INTEGER PRIMARY KEY, cohort_week INTEGER NOT NULL); CREATE TABLE activity(user_id INTEGER NOT NULL, activity_week INTEGER NOT NULL);",
+      "seed": "INSERT INTO users VALUES (1,10),(2,10),(3,11); INSERT INTO activity VALUES (1,11),(1,12),(3,12);"
+    },
+    "expected_output": [
+      {
+        "cohort_week": 10,
+        "users": 2,
+        "retained_week_one": 1
+      },
+      {
+        "cohort_week": 11,
+        "users": 1,
+        "retained_week_one": 1
+      }
+    ]
+  }
+]

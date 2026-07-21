@@ -1,0 +1,56 @@
+{
+  "question_id": "SQL-0002",
+  "question_version": "1.0.0",
+  "reference_solution": "Use the query in reference.sql: WITH stages AS (SELECT user_id, MIN(CASE WHEN event_name='view' THEN event_time END) AS viewed, MIN(CASE WHEN event_name='checkout' THEN event_time END) AS checkout, MIN(CASE WHEN event_name='pay' THEN event_time END) AS paid FROM events GROUP BY user_id) SELECT COUNT(*) AS viewed_users, SUM(CASE WHEN checkout>viewed THEN 1 ELSE 0 END) AS checkout_users, SUM(CASE WHEN paid>checkout AND checkout>viewed THEN 1 ELSE 0 END) AS paid_users FROM stages WHERE viewed IS NOT NULL;",
+  "explanation": "The reference separates validation from the core SQL behavior, makes tie-breaking explicit, and verifies the result against the stated invariants.",
+  "alternatives": [
+    {
+      "name": "Simpler centralized implementation",
+      "solution": "Use one authoritative coordinator or query before introducing partitioning.",
+      "advantages": [
+        "lower operational complexity",
+        "easier correctness testing"
+      ],
+      "disadvantages": [
+        "limited scale ceiling",
+        "larger failure domain"
+      ]
+    }
+  ],
+  "trade_off_analysis": [
+    "Correctness and explainability are preferred over premature optimization.",
+    "The production extension adds observability and recovery before higher throughput."
+  ],
+  "complexity": {
+    "expected_time": "Input dependent; the reference avoids unnecessary full Cartesian comparisons.",
+    "expected_space": "Linear in retained working state.",
+    "explanation": "Candidates should make bounds precise for their implementation."
+  },
+  "testing_and_debugging": [
+    "Verify the public example, boundary inputs, invalid input, and the named failure scenario.",
+    "Assert deterministic output across repeated runs."
+  ],
+  "production_follow_ups": [
+    "Add SLO-backed monitoring and traceable decisions.",
+    "Exercise recovery with controlled fault injection."
+  ],
+  "critical_omissions": [
+    "Missing invariant validation.",
+    "No failure or recovery analysis.",
+    "Nondeterministic results."
+  ],
+  "strong_response_example": "I will state the invariant, validate inputs before side effects, use an explicit ordering rule, and prove correctness with boundary and failure cases before discussing scale.",
+  "interviewer_follow_up_tree": {
+    "correct_base": [
+      "Increase scale by ten times",
+      "Inject a dependency failure"
+    ],
+    "misses_validation": [
+      "Provide malformed input"
+    ],
+    "misses_recovery": [
+      "Remove the primary dependency"
+    ]
+  },
+  "source_content_hash": "sha256:af4a6f723ef587d39755cb3e705e7165b3ead7c956d4347995d56c71005c6a58"
+}

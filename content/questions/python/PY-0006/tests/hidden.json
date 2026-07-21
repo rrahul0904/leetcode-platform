@@ -1,0 +1,17 @@
+[
+  {
+    "id": "PY-0006-H01",
+    "name": "hidden boundary case",
+    "visibility": "hidden",
+    "input": {
+      "attempts": 3,
+      "base_delay": 5,
+      "maximum_delay": 5
+    },
+    "expected_output": [
+      5,
+      5,
+      5
+    ]
+  }
+]

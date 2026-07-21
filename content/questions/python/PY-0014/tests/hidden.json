@@ -1,0 +1,23 @@
+[
+  {
+    "id": "PY-0014-H01",
+    "name": "hidden boundary case",
+    "visibility": "hidden",
+    "input": {
+      "plugins": {
+        "metrics": [
+          "core"
+        ],
+        "core": [],
+        "alerts": [
+          "metrics"
+        ]
+      }
+    },
+    "expected_output": [
+      "core",
+      "metrics",
+      "alerts"
+    ]
+  }
+]

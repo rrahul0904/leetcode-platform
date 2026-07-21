@@ -1,0 +1,23 @@
+[
+  {
+    "id": "SQL-0006-P01",
+    "name": "visible synthetic dataset",
+    "visibility": "public",
+    "input": {
+      "ddl": "CREATE TABLE assignments(user_id INTEGER PRIMARY KEY, variant TEXT NOT NULL); CREATE TABLE conversions(user_id INTEGER NOT NULL, conversion_id INTEGER NOT NULL);",
+      "seed": "INSERT INTO assignments VALUES (1,'A'),(2,'A'),(3,'B'); INSERT INTO conversions VALUES (1,10),(1,11),(3,12);"
+    },
+    "expected_output": [
+      {
+        "variant": "A",
+        "exposed_users": 2,
+        "converted_users": 1
+      },
+      {
+        "variant": "B",
+        "exposed_users": 1,
+        "converted_users": 1
+      }
+    ]
+  }
+]

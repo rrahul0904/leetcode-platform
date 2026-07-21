@@ -1,0 +1,27 @@
+[
+  {
+    "id": "PY-0008-H01",
+    "name": "hidden boundary case",
+    "visibility": "hidden",
+    "input": {
+      "pages": [
+        {
+          "token": null,
+          "next_token": null,
+          "items": [
+            {
+              "id": "x",
+              "value": 3
+            }
+          ]
+        }
+      ]
+    },
+    "expected_output": [
+      {
+        "id": "x",
+        "value": 3
+      }
+    ]
+  }
+]

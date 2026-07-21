@@ -25,7 +25,16 @@ from rigor_api.schemas import (
 )
 from sqlalchemy import text
 
-TARGET_QUESTION_IDS = ("PY-0002", "PY-0003", "PY-0004")
+PYTHON_RELEASE_IDS = tuple(f"PY-{index:04d}" for index in range(1, 16))
+SQL_RELEASE_IDS = tuple(f"SQL-{index:04d}" for index in range(1, 9))
+SYSTEM_DESIGN_RELEASE_IDS = ("SD-0001", "SD-0002", "SD-0004")
+OTHER_ARCHITECTURE_RELEASE_IDS = ("DS-0003", "DM-0003", "DA-0001", "ML-0004")
+TARGET_QUESTION_IDS = (
+    *PYTHON_RELEASE_IDS,
+    *SQL_RELEASE_IDS,
+    *SYSTEM_DESIGN_RELEASE_IDS,
+    *OTHER_ARCHITECTURE_RELEASE_IDS,
+)
 
 
 def principal(subject: str, name: str, role: Role) -> AuthenticatedPrincipal:
@@ -50,12 +59,8 @@ def main() -> int:
     administrator = principal(
         "local-platform-administrator", "Parker Platform", Role.platform_administrator
     )
-    technical = principal(
-        "local-technical-reviewer", "Terry Technical", Role.technical_reviewer
-    )
-    editorial = principal(
-        "local-editorial-reviewer", "Emery Editorial", Role.editorial_reviewer
-    )
+    technical = principal("local-technical-reviewer", "Terry Technical", Role.technical_reviewer)
+    editorial = principal("local-editorial-reviewer", "Emery Editorial", Role.editorial_reviewer)
     with engine.begin() as connection:
         for identity in (administrator, technical, editorial):
             ensure_user(connection, identity)
@@ -161,8 +166,25 @@ def main() -> int:
         )
     engine.dispose()
     if published != len(TARGET_QUESTION_IDS):
-        raise RuntimeError(f"Expected 3 published launch questions, found {published}")
-    print(json.dumps({"workflow": "local-validation", "questions": results}, indent=2))
+        raise RuntimeError(
+            f"Expected {len(TARGET_QUESTION_IDS)} published launch questions, found {published}"
+        )
+    print(
+        json.dumps(
+            {
+                "workflow": "local-workflow-verification-not-independent-human-review",
+                "allocation": {
+                    "python": len(PYTHON_RELEASE_IDS),
+                    "sql": len(SQL_RELEASE_IDS),
+                    "system_design": len(SYSTEM_DESIGN_RELEASE_IDS),
+                    "other_architecture_or_data": len(OTHER_ARCHITECTURE_RELEASE_IDS),
+                    "total": published,
+                },
+                "questions": results,
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

@@ -1,0 +1,1 @@
+SELECT service, sample_no, ROUND(AVG(milliseconds) OVER (PARTITION BY service ORDER BY sample_no ROWS BETWEEN 2 PRECEDING AND CURRENT ROW),2) AS rolling_average FROM latency ORDER BY service, sample_no;

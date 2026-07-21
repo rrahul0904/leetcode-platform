@@ -26,6 +26,16 @@ export function QuestionCard({ question }: { question: CatalogQuestion }) {
           <span key={skill}>{skill}</span>
         ))}
       </div>
+      <dl className="external-card__meta" aria-label="Practice capabilities">
+        <div>
+          <dt>Role level</dt>
+          <dd>{titleCaseSlug(question.role_level)}</dd>
+        </div>
+        <div>
+          <dt>Capabilities</dt>
+          <dd>Hosted prompt · Workspace ready</dd>
+        </div>
+      </dl>
       <div className="question-card__footer">
         <span>{titleCaseSlug(question.track)}</span>
         <span>

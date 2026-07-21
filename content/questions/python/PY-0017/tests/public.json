@@ -1,0 +1,62 @@
+[
+  {
+    "id": "PY-0017-P01",
+    "name": "public example 1",
+    "visibility": "public",
+    "input": {
+      "steps": [
+        {
+          "name": "reserve",
+          "compensation": "release"
+        },
+        {
+          "name": "charge",
+          "compensation": "refund"
+        },
+        {
+          "name": "email",
+          "compensation": null
+        }
+      ],
+      "failed_index": 2
+    },
+    "expected_output": [
+      "refund",
+      "release"
+    ]
+  },
+  {
+    "id": "PY-0017-P02",
+    "name": "public example 2",
+    "visibility": "public",
+    "input": {
+      "steps": [
+        {
+          "name": "first",
+          "compensation": "undo"
+        }
+      ],
+      "failed_index": 0
+    },
+    "expected_output": []
+  },
+  {
+    "id": "PY-0017-P03",
+    "name": "public example 3",
+    "visibility": "public",
+    "input": {
+      "steps": [
+        {
+          "name": "a",
+          "compensation": null
+        },
+        {
+          "name": "b",
+          "compensation": "undo-b"
+        }
+      ],
+      "failed_index": 1
+    },
+    "expected_output": []
+  }
+]

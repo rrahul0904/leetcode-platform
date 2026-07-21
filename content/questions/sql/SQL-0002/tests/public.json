@@ -1,0 +1,18 @@
+[
+  {
+    "id": "SQL-0002-P01",
+    "name": "visible synthetic dataset",
+    "visibility": "public",
+    "input": {
+      "ddl": "CREATE TABLE events(user_id INTEGER NOT NULL, event_time INTEGER NOT NULL, event_name TEXT NOT NULL);",
+      "seed": "INSERT INTO events VALUES (1,1,'view'),(1,2,'checkout'),(1,3,'pay'),(2,1,'view'),(2,3,'pay'),(3,2,'checkout');"
+    },
+    "expected_output": [
+      {
+        "viewed_users": 2,
+        "checkout_users": 1,
+        "paid_users": 1
+      }
+    ]
+  }
+]

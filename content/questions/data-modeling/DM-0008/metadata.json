@@ -1,0 +1,28 @@
+{
+  "provenance": {
+    "originality_statement": "Independently authored first-party question based on a competency coverage objective; no external problem statement, examples, tests, or solution were copied.",
+    "authoring_method": "Human-directed deterministic content generation from an original scenario specification, followed by executable and schema validation.",
+    "source_classes": [
+      "internal competency taxonomy",
+      "general engineering knowledge",
+      "synthetic scenario data"
+    ],
+    "source_notes": [
+      "External question metadata was used only to identify aggregate coverage gaps.",
+      "All names, datasets, examples, and failure cases are fictional."
+    ],
+    "content_hash": "sha256:460a7ed288d526c2b1577e8d29be199ff5662da9d9e8c71a7425fab4388f38a9",
+    "authored_at": "2026-07-21T16:00:00Z",
+    "author_id": "rigor-content-release-agent"
+  },
+  "version": "1.0.0",
+  "review_status": "awaiting_technical_review",
+  "validation": {
+    "schema_valid": true,
+    "references_valid": true,
+    "executable_tests_passed": null,
+    "duplicate_check_passed": true,
+    "rubric_check_passed": true,
+    "last_run_id": "launch-foundation-20260721"
+  }
+}

@@ -1,0 +1,27 @@
+[
+  {
+    "id": "PY-0017-H01",
+    "name": "hidden boundary case",
+    "visibility": "hidden",
+    "input": {
+      "steps": [
+        {
+          "name": "a",
+          "compensation": "undo-a"
+        },
+        {
+          "name": "b",
+          "compensation": null
+        },
+        {
+          "name": "c",
+          "compensation": "undo-c"
+        }
+      ],
+      "failed_index": 2
+    },
+    "expected_output": [
+      "undo-a"
+    ]
+  }
+]

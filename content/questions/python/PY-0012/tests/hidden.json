@@ -1,0 +1,22 @@
+[
+  {
+    "id": "PY-0012-H01",
+    "name": "hidden boundary case",
+    "visibility": "hidden",
+    "input": {
+      "chunks": [
+        "service=api\nregion=us-east-1\n"
+      ]
+    },
+    "expected_output": [
+      {
+        "key": "service",
+        "value": "api"
+      },
+      {
+        "key": "region",
+        "value": "us-east-1"
+      }
+    ]
+  }
+]

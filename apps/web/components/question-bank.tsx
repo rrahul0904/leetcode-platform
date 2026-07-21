@@ -7,6 +7,7 @@ import {
   Search,
   SlidersHorizontal,
 } from "lucide-react";
+import Link from "next/link";
 import { useDeferredValue, useMemo, useState } from "react";
 
 import { ExternalCatalog } from "@/components/external-practice";
@@ -94,6 +95,15 @@ export function QuestionBank() {
             {label}
           </button>
         ))}
+        <Link className="catalog-tab" href="/simulation-lab" role="tab">
+          Simulations
+        </Link>
+        <Link className="catalog-tab" href="/mock-interviews" role="tab">
+          Mock Interviews
+        </Link>
+        <Link className="catalog-tab" href="/learning-paths" role="tab">
+          Lessons
+        </Link>
       </div>
       {mode !== "external" && (
         <>

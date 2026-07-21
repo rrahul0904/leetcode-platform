@@ -1,0 +1,47 @@
+[
+  {
+    "id": "PY-0006-P01",
+    "name": "public example 1",
+    "visibility": "public",
+    "input": {
+      "attempts": 4,
+      "base_delay": 2,
+      "maximum_delay": 20
+    },
+    "expected_output": [
+      2,
+      4,
+      8,
+      16
+    ]
+  },
+  {
+    "id": "PY-0006-P02",
+    "name": "public example 2",
+    "visibility": "public",
+    "input": {
+      "attempts": 6,
+      "base_delay": 3,
+      "maximum_delay": 10
+    },
+    "expected_output": [
+      3,
+      6,
+      10,
+      10,
+      10,
+      10
+    ]
+  },
+  {
+    "id": "PY-0006-P03",
+    "name": "public example 3",
+    "visibility": "public",
+    "input": {
+      "attempts": 0,
+      "base_delay": 1,
+      "maximum_delay": 1
+    },
+    "expected_output": []
+  }
+]

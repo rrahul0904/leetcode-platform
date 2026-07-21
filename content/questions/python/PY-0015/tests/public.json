@@ -1,0 +1,69 @@
+[
+  {
+    "id": "PY-0015-P01",
+    "name": "public example 1",
+    "visibility": "public",
+    "input": {
+      "events": [
+        [
+          0,
+          "a"
+        ],
+        [
+          1,
+          "a"
+        ],
+        [
+          2,
+          "a"
+        ]
+      ],
+      "limit": 2,
+      "window_seconds": 10
+    },
+    "expected_output": [
+      true,
+      true,
+      false
+    ]
+  },
+  {
+    "id": "PY-0015-P02",
+    "name": "public example 2",
+    "visibility": "public",
+    "input": {
+      "events": [
+        [
+          0,
+          "a"
+        ],
+        [
+          1,
+          "b"
+        ],
+        [
+          2,
+          "a"
+        ]
+      ],
+      "limit": 1,
+      "window_seconds": 2
+    },
+    "expected_output": [
+      true,
+      true,
+      true
+    ]
+  },
+  {
+    "id": "PY-0015-P03",
+    "name": "public example 3",
+    "visibility": "public",
+    "input": {
+      "events": [],
+      "limit": 1,
+      "window_seconds": 1
+    },
+    "expected_output": []
+  }
+]

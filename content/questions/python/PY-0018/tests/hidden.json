@@ -1,0 +1,31 @@
+[
+  {
+    "id": "PY-0018-H01",
+    "name": "hidden boundary case",
+    "visibility": "hidden",
+    "input": {
+      "samples": [
+        [
+          1,
+          1.0
+        ],
+        [
+          2,
+          1.0
+        ],
+        [
+          3,
+          1.0
+        ]
+      ],
+      "threshold": 1.0,
+      "minimum_consecutive": 1
+    },
+    "expected_output": [
+      [
+        1,
+        3
+      ]
+    ]
+  }
+]

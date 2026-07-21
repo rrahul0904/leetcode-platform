@@ -1,0 +1,17 @@
+[
+  {
+    "id": "SQL-0007-H01",
+    "name": "duplicate and boundary rows",
+    "visibility": "hidden",
+    "input": {
+      "fixture": "boundary-variant"
+    },
+    "expected_output": {
+      "invariants": [
+        "stable ordering",
+        "no unintended duplication",
+        "null-safe aggregation"
+      ]
+    }
+  }
+]

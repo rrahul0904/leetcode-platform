@@ -1,0 +1,1 @@
+SELECT a.variant, COUNT(DISTINCT a.user_id) AS exposed_users, COUNT(DISTINCT c.user_id) AS converted_users FROM assignments a LEFT JOIN conversions c ON c.user_id=a.user_id GROUP BY a.variant ORDER BY a.variant;

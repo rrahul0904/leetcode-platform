@@ -1,0 +1,63 @@
+[
+  {
+    "id": "PY-0013-P01",
+    "name": "public example 1",
+    "visibility": "public",
+    "input": {
+      "graph": {
+        "a": [
+          "c",
+          "b"
+        ],
+        "b": [
+          "d"
+        ],
+        "c": [],
+        "d": []
+      },
+      "start": "a",
+      "maximum_depth": 1
+    },
+    "expected_output": [
+      "a",
+      "b",
+      "c"
+    ]
+  },
+  {
+    "id": "PY-0013-P02",
+    "name": "public example 2",
+    "visibility": "public",
+    "input": {
+      "graph": {
+        "a": [
+          "b"
+        ],
+        "b": [
+          "a"
+        ]
+      },
+      "start": "a",
+      "maximum_depth": 5
+    },
+    "expected_output": [
+      "a",
+      "b"
+    ]
+  },
+  {
+    "id": "PY-0013-P03",
+    "name": "public example 3",
+    "visibility": "public",
+    "input": {
+      "graph": {
+        "a": []
+      },
+      "start": "a",
+      "maximum_depth": 0
+    },
+    "expected_output": [
+      "a"
+    ]
+  }
+]

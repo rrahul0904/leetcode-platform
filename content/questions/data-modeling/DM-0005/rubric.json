@@ -1,0 +1,66 @@
+{
+  "dimensions": [
+    {
+      "name": "Correctness",
+      "description": "Produces a correct and internally consistent data-modeling outcome.",
+      "weight": 35,
+      "evidence_required": [
+        "observable result and invariant evidence"
+      ],
+      "strong_indicators": [
+        "explicit invariants and edge cases"
+      ],
+      "weak_indicators": [
+        "untested happy-path reasoning"
+      ]
+    },
+    {
+      "name": "Trade-off reasoning",
+      "description": "Explains why the selected approach fits the stated constraints.",
+      "weight": 25,
+      "evidence_required": [
+        "comparison against at least one alternative"
+      ],
+      "strong_indicators": [
+        "quantified trade-offs"
+      ],
+      "weak_indicators": [
+        "technology names without rationale"
+      ]
+    },
+    {
+      "name": "Reliability and safety",
+      "description": "Handles failure, recovery, security, and operational risk.",
+      "weight": 20,
+      "evidence_required": [
+        "failure response and recovery evidence"
+      ],
+      "strong_indicators": [
+        "bounded failure modes and recovery objectives"
+      ],
+      "weak_indicators": [
+        "no ownership or recovery plan"
+      ]
+    },
+    {
+      "name": "Communication",
+      "description": "Presents assumptions, decisions, and validation clearly.",
+      "weight": 20,
+      "evidence_required": [
+        "structured explanation and follow-up answers"
+      ],
+      "strong_indicators": [
+        "clear decision log"
+      ],
+      "weak_indicators": [
+        "implicit assumptions"
+      ]
+    }
+  ],
+  "score_bands": {
+    "90-100": "Complete, correct, explicitly validated, and production-aware.",
+    "75-89": "Correct core answer with small scale or operational gaps.",
+    "60-74": "Partially correct but missing material constraints or evidence.",
+    "0-59": "Unsafe, incomplete, or unable to satisfy the core requirements."
+  }
+}

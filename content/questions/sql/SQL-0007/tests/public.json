@@ -1,0 +1,23 @@
+[
+  {
+    "id": "SQL-0007-P01",
+    "name": "visible synthetic dataset",
+    "visibility": "public",
+    "input": {
+      "ddl": "CREATE TABLE inventory_events(sku TEXT NOT NULL, event_sequence INTEGER NOT NULL, quantity INTEGER NOT NULL);",
+      "seed": "INSERT INTO inventory_events VALUES ('a',1,4),('a',3,8),('a',5,1),('b',2,7);"
+    },
+    "expected_output": [
+      {
+        "sku": "a",
+        "quantity": 8,
+        "event_sequence": 3
+      },
+      {
+        "sku": "b",
+        "quantity": 7,
+        "event_sequence": 2
+      }
+    ]
+  }
+]

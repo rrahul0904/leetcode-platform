@@ -1,0 +1,44 @@
+#!/usr/bin/env sh
+set -eu
+
+compose_file=${RIGOR_COMPOSE_FILE:-compose.yaml}
+compose_project=${RIGOR_COMPOSE_PROJECT:-rigor-local}
+
+compose() {
+  docker compose -f "$compose_file" -p "$compose_project" "$@"
+}
+
+curl --fail --silent http://localhost:8002/readyz >/dev/null
+curl --fail --silent http://localhost:3001/question-bank >/dev/null
+
+read_count() {
+  compose exec -T postgres psql -U rigor -d rigor -Atc "$1"
+}
+
+hosted=$(read_count "SELECT count(*) FROM questions;")
+published=$(read_count "SELECT count(*) FROM questions q JOIN question_versions v ON v.id=q.current_published_version_id WHERE v.state='published'::content_state;")
+external=$(read_count "SELECT count(*) FROM external_question_references;")
+sources=$(read_count "SELECT count(*) FROM source_registry;")
+review_backlog=$(read_count "SELECT count(*) FROM question_versions WHERE state IN ('awaiting_technical_review'::content_state,'awaiting_editorial_review'::content_state);")
+python_published=$(read_count "SELECT count(*) FROM questions q JOIN question_versions v ON v.id=q.current_published_version_id WHERE q.external_id ~ '^PY-' AND v.state='published'::content_state;")
+sql_published=$(read_count "SELECT count(*) FROM questions q JOIN question_versions v ON v.id=q.current_published_version_id WHERE q.external_id ~ '^SQL-' AND v.state='published'::content_state;")
+system_design_published=$(read_count "SELECT count(*) FROM questions q JOIN question_versions v ON v.id=q.current_published_version_id WHERE q.external_id = ANY(ARRAY['SD-0001','SD-0002','SD-0004']) AND v.state='published'::content_state;")
+other_published=$(read_count "SELECT count(*) FROM questions q JOIN question_versions v ON v.id=q.current_published_version_id WHERE q.external_id = ANY(ARRAY['DS-0003','DM-0003','DA-0001','ML-0004']) AND v.state='published'::content_state;")
+hidden_leaks=$(read_count "SELECT count(*) FROM publication_events pe JOIN question_versions v ON v.id=pe.question_version_id WHERE v.state <> 'published'::content_state;")
+
+[ "$hosted" -ge 50 ] || { echo "Hosted package count is $hosted; expected at least 50." >&2; exit 1; }
+[ "$published" -ge 30 ] || { echo "Published count is $published; expected at least 30." >&2; exit 1; }
+[ "$external" -ge 2000 ] || { echo "External reference count is $external; expected at least 2,000." >&2; exit 1; }
+[ "$sources" -ge 5 ] || { echo "Source count is $sources; expected at least 5." >&2; exit 1; }
+[ "$python_published" -ge 15 ] || { echo "Published Python count is $python_published; expected 15." >&2; exit 1; }
+[ "$sql_published" -ge 8 ] || { echo "Published SQL count is $sql_published; expected 8." >&2; exit 1; }
+[ "$system_design_published" -eq 3 ] || { echo "Published system-design launch count is $system_design_published; expected 3." >&2; exit 1; }
+[ "$other_published" -eq 4 ] || { echo "Published other architecture/data count is $other_published; expected 4." >&2; exit 1; }
+[ "$hidden_leaks" -eq 0 ] || { echo "Publication events reference non-published versions." >&2; exit 1; }
+
+printf '%s\n' \
+  "Populated release verification passed." \
+  "Hosted=$hosted Published=$published Review-backlog=$review_backlog" \
+  "External=$external Sources=$sources" \
+  "Published allocation: Python=$python_published SQL=$sql_published System-design=$system_design_published Other=$other_published" \
+  "Browser: http://localhost:3001/question-bank"

@@ -1,0 +1,56 @@
+{
+  "question_id": "PY-0013",
+  "question_version": "1.0.0",
+  "reference_solution": "Validate all preconditions, then implement `crawl_frontier` with the explicit ordering and boundary semantics from the prompt. The executable reference in reference.py is the release oracle.",
+  "explanation": "The reference separates validation from the core Python behavior, makes tie-breaking explicit, and verifies the result against the stated invariants.",
+  "alternatives": [
+    {
+      "name": "Simpler centralized implementation",
+      "solution": "Use one authoritative coordinator or query before introducing partitioning.",
+      "advantages": [
+        "lower operational complexity",
+        "easier correctness testing"
+      ],
+      "disadvantages": [
+        "limited scale ceiling",
+        "larger failure domain"
+      ]
+    }
+  ],
+  "trade_off_analysis": [
+    "Correctness and explainability are preferred over premature optimization.",
+    "The production extension adds observability and recovery before higher throughput."
+  ],
+  "complexity": {
+    "expected_time": "Input dependent; the reference avoids unnecessary full Cartesian comparisons.",
+    "expected_space": "Linear in retained working state.",
+    "explanation": "Candidates should make bounds precise for their implementation."
+  },
+  "testing_and_debugging": [
+    "Verify the public example, boundary inputs, invalid input, and the named failure scenario.",
+    "Assert deterministic output across repeated runs."
+  ],
+  "production_follow_ups": [
+    "Add SLO-backed monitoring and traceable decisions.",
+    "Exercise recovery with controlled fault injection."
+  ],
+  "critical_omissions": [
+    "Missing invariant validation.",
+    "No failure or recovery analysis.",
+    "Nondeterministic results."
+  ],
+  "strong_response_example": "I will state the invariant, validate inputs before side effects, use an explicit ordering rule, and prove correctness with boundary and failure cases before discussing scale.",
+  "interviewer_follow_up_tree": {
+    "correct_base": [
+      "Increase scale by ten times",
+      "Inject a dependency failure"
+    ],
+    "misses_validation": [
+      "Provide malformed input"
+    ],
+    "misses_recovery": [
+      "Remove the primary dependency"
+    ]
+  },
+  "source_content_hash": "sha256:daebe4951c815fcd4f4592f6055c0e48f57120f472b62f7d104cbe348774f228"
+}

@@ -1,0 +1,23 @@
+[
+  {
+    "id": "SQL-0005-P01",
+    "name": "visible synthetic dataset",
+    "visibility": "public",
+    "input": {
+      "ddl": "CREATE TABLE updates(entity_id INTEGER NOT NULL, source_version INTEGER NOT NULL, received_at INTEGER NOT NULL, value TEXT NOT NULL);",
+      "seed": "INSERT INTO updates VALUES (1,1,5,'old'),(1,2,3,'newer-source'),(1,2,7,'latest'),(2,1,4,'only');"
+    },
+    "expected_output": [
+      {
+        "entity_id": 1,
+        "source_version": 2,
+        "value": "latest"
+      },
+      {
+        "entity_id": 2,
+        "source_version": 1,
+        "value": "only"
+      }
+    ]
+  }
+]

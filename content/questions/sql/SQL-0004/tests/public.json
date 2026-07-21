@@ -1,0 +1,31 @@
+[
+  {
+    "id": "SQL-0004-P01",
+    "name": "visible synthetic dataset",
+    "visibility": "public",
+    "input": {
+      "ddl": "CREATE TABLE events(user_id INTEGER NOT NULL, minute INTEGER NOT NULL);",
+      "seed": "INSERT INTO events VALUES (1,0),(1,10),(1,50),(1,55),(2,4);"
+    },
+    "expected_output": [
+      {
+        "user_id": 1,
+        "session_no": 1,
+        "start_minute": 0,
+        "end_minute": 10
+      },
+      {
+        "user_id": 1,
+        "session_no": 2,
+        "start_minute": 50,
+        "end_minute": 55
+      },
+      {
+        "user_id": 2,
+        "session_no": 1,
+        "start_minute": 4,
+        "end_minute": 4
+      }
+    ]
+  }
+]
