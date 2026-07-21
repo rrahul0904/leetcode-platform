@@ -2844,6 +2844,668 @@ export interface components {
       /** Context */
       ctx?: Record<string, never>;
     };
+    /** AIEvidence */
+    AIEvidence: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Ai Interaction Id
+       * Format: uuid
+       */
+      ai_interaction_id: string;
+      /** Competency Id */
+      competency_id: string | null;
+      /** Evidence Type */
+      evidence_type: string;
+      /** Claim */
+      claim: string;
+      /**
+       * Score
+       * @default null
+       */
+      score: number | null;
+      /** Confidence */
+      confidence: number;
+      /** Supporting Data */
+      supporting_data: {
+        [key: string]: unknown;
+      };
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+    };
+    /** ArchitectureArtifact */
+    ArchitectureArtifact: {
+      /** Artifact Type */
+      artifact_type: string;
+      /** Version */
+      version: number;
+      /** Content */
+      content: {
+        [key: string]: unknown;
+      };
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+    };
+    /** ArchitectureArtifactInput */
+    ArchitectureArtifactInput: {
+      /** Artifact Type */
+      artifact_type: string;
+      /** Version */
+      version: number;
+      /** Content */
+      content: {
+        [key: string]: unknown;
+      };
+    };
+    /** CatalogAggregateSummary */
+    CatalogAggregateSummary: {
+      /** Hosted Count */
+      hosted_count: number;
+      /** Published Count */
+      published_count: number;
+      /** External Count */
+      external_count: number;
+      /** Source Count */
+      source_count: number;
+      /** Last Collection */
+      last_collection: string | null;
+      /** Import Failures */
+      import_failures: number;
+      /** Review Backlog */
+      review_backlog: number;
+      /** Content By Track */
+      content_by_track: {
+        [key: string]: number;
+      };
+      /** Content By Difficulty */
+      content_by_difficulty: {
+        [key: string]: number;
+      };
+      /** Simulation Count */
+      simulation_count: number;
+      /** Mock Interview Count */
+      mock_interview_count: number;
+    };
+    /** CompetencyEvidence */
+    CompetencyEvidence: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Competency Id
+       * Format: uuid
+       */
+      competency_id: string;
+      /** Source Type */
+      source_type: string;
+      /** Source Id */
+      source_id: string;
+      /** Score */
+      score: number;
+      /** Confidence */
+      confidence: number;
+      /**
+       * Observed At
+       * Format: date-time
+       */
+      observed_at: string;
+      /** Evidence */
+      evidence: {
+        [key: string]: unknown;
+      };
+    };
+    /** ExecutionResult */
+    ExecutionResult: {
+      /**
+       * Execution Request Id
+       * Format: uuid
+       */
+      execution_request_id: string;
+      /** Submission Id */
+      submission_id: string | null;
+      state: components["schemas"]["ExecutionState"];
+      /** Public Results */
+      public_results: components["schemas"]["ExecutionTestResult"][];
+      /** Hidden Total */
+      hidden_total: number;
+      /** Hidden Passed */
+      hidden_passed: number;
+      /**
+       * Runtime Ms
+       * @default null
+       */
+      runtime_ms: number | null;
+      /**
+       * Memory Kb
+       * @default null
+       */
+      memory_kb: number | null;
+      /** Error Category */
+      error_category: string | null;
+      /** Candidate Message */
+      candidate_message: string | null;
+      /** Quality Signals */
+      quality_signals: {
+        [key: string]: unknown;
+      };
+    };
+    /**
+     * ExecutionState
+     * @enum {string}
+     */
+    ExecutionState:
+      | "QUEUED"
+      | "RUNNING"
+      | "PASSED"
+      | "FAILED"
+      | "ERROR"
+      | "CANCELLED"
+      | "TIMED_OUT";
+    /** ExecutionTestResult */
+    ExecutionTestResult: {
+      /** Test Id */
+      test_id: string;
+      /** Name */
+      name: string;
+      /** Passed */
+      passed: boolean;
+      /**
+       * Expected
+       * @default null
+       */
+      expected: unknown | null;
+      /**
+       * Actual
+       * @default null
+       */
+      actual: unknown | null;
+      /**
+       * Duration Ms
+       * @default null
+       */
+      duration_ms: number | null;
+    };
+    /** InterviewMessage */
+    InterviewMessage: {
+      /** Role */
+      role: string;
+      /** Phase */
+      phase: string;
+      /** Content */
+      content: string;
+      /** Evidence */
+      evidence?: {
+        [key: string]: unknown;
+      };
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+      /** Sequence Number */
+      sequence_number: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+    };
+    /** InterviewMessageInput */
+    InterviewMessageInput: {
+      /** Role */
+      role: string;
+      /** Phase */
+      phase: string;
+      /** Content */
+      content: string;
+      /** Evidence */
+      evidence?: {
+        [key: string]: unknown;
+      };
+    };
+    /** LearningPlan */
+    LearningPlan: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Target Role */
+      target_role: string;
+      /** Status */
+      status: string;
+      /**
+       * Starts On
+       * Format: date
+       */
+      starts_on: string;
+      /** Ends On */
+      ends_on: string | null;
+      /** Weekly Minutes */
+      weekly_minutes: number;
+      /** Generation Version */
+      generation_version: string;
+      /** Rationale */
+      rationale: {
+        [key: string]: unknown;
+      };
+      /** Activities */
+      activities: components["schemas"]["LearningPlanActivity"][];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /** LearningPlanActivity */
+    LearningPlanActivity: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Activity Type */
+      activity_type: string;
+      /** Source Type */
+      source_type: string;
+      /** Source Id */
+      source_id: string;
+      /** Title */
+      title: string;
+      /** Status */
+      status: string;
+      /** Due At */
+      due_at: string | null;
+      /** Estimated Minutes */
+      estimated_minutes: number;
+      /** Sequence Number */
+      sequence_number: number;
+      /** Completed At */
+      completed_at: string | null;
+      /** Metadata */
+      metadata: {
+        [key: string]: unknown;
+      };
+    };
+    /** PlatformStatistics */
+    PlatformStatistics: {
+      /** Hosted Questions */
+      hosted_questions: number;
+      /** Published Hosted Questions */
+      published_hosted_questions: number;
+      /** External References */
+      external_references: number;
+      /** Practice Sessions */
+      practice_sessions: number;
+      /** Submissions */
+      submissions: number;
+      /** Completed Simulations */
+      completed_simulations: number;
+      /** Completed Mock Interviews */
+      completed_mock_interviews: number;
+      /** Learning Activities */
+      learning_activities: number;
+      /** Competency Evidence */
+      competency_evidence: number;
+      /** Active Candidates */
+      active_candidates: number;
+    };
+    /** PracticeArtifact */
+    PracticeArtifact: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+      /** Artifact Type */
+      artifact_type: string;
+      /** Version */
+      version: number;
+      /** Content */
+      content: {
+        [key: string]: unknown;
+      };
+      /** Content Hash */
+      content_hash: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+    };
+    /** PracticeSession */
+    PracticeSession: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Organization Id */
+      organization_id: string | null;
+      /**
+       * Candidate Id
+       * Format: uuid
+       */
+      candidate_id: string;
+      /** Question Version Id */
+      question_version_id: string | null;
+      /** Session Type */
+      session_type: string;
+      state: components["schemas"]["PracticeSessionState"];
+      /** Runtime */
+      runtime: string | null;
+      /** Elapsed Seconds */
+      elapsed_seconds: number;
+      /** Hint Count */
+      hint_count: number;
+      /** Started At */
+      started_at: string | null;
+      /** Paused At */
+      paused_at: string | null;
+      /** Submitted At */
+      submitted_at: string | null;
+      /** Completed At */
+      completed_at: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /** PracticeSessionCreate */
+    PracticeSessionCreate: {
+      /**
+       * Question Version Id
+       * @default null
+       */
+      question_version_id: string | null;
+      /**
+       * Session Type
+       * @default HOSTED_QUESTION
+       */
+      session_type: string;
+      /**
+       * Runtime
+       * @default null
+       */
+      runtime: string | null;
+    };
+    /** PracticeSessionEventInput */
+    PracticeSessionEventInput: {
+      /** Event Type */
+      event_type: string;
+      /** Payload */
+      payload?: {
+        [key: string]: unknown;
+      };
+    };
+    /**
+     * PracticeSessionState
+     * @enum {string}
+     */
+    PracticeSessionState:
+      | "CREATED"
+      | "IN_PROGRESS"
+      | "PAUSED"
+      | "SUBMITTED"
+      | "EVALUATING"
+      | "COMPLETED"
+      | "ABANDONED";
+    /** Readiness */
+    Readiness: {
+      /**
+       * Snapshot Id
+       * Format: uuid
+       */
+      snapshot_id: string;
+      /** Overall Readiness */
+      overall_readiness: number;
+      /** Confidence */
+      confidence: number;
+      /** Evidence Count */
+      evidence_count: number;
+      /** Competency Readiness */
+      competency_readiness: {
+        [key: string]: number;
+      };
+      /** Role Readiness */
+      role_readiness: {
+        [key: string]: number;
+      };
+      /** Company Style Readiness */
+      company_style_readiness: {
+        [key: string]: number;
+      };
+      /** Current Risks */
+      current_risks: string[];
+      /** Recommended Actions */
+      recommended_actions: string[];
+      /** Calculation Version */
+      calculation_version: string;
+      /**
+       * Calculated At
+       * Format: date-time
+       */
+      calculated_at: string;
+    };
+    /** ReadinessCheck */
+    ReadinessCheck: {
+      /** Name */
+      name: string;
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: "ready" | "not_ready";
+      /** Detail */
+      detail: string;
+    };
+    /** ReadinessResponse */
+    ReadinessResponse: {
+      /** Status */
+      status: string;
+      /**
+       * Service
+       * @default rigor-api
+       */
+      service: string;
+      /** Checks */
+      checks: components["schemas"]["ReadinessCheck"][];
+    };
+    /** Recommendation */
+    Recommendation: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Recommendation Type */
+      recommendation_type: string;
+      /** Source Type */
+      source_type: string;
+      /** Source Id */
+      source_id: string;
+      /** Title */
+      title: string;
+      /** Reason */
+      reason: string;
+      /** Rank */
+      rank: number;
+      /** Status */
+      status: string;
+      /**
+       * Recommended At
+       * Format: date-time
+       */
+      recommended_at: string;
+      /** Acted At */
+      acted_at: string | null;
+      /** Context */
+      context: {
+        [key: string]: unknown;
+      };
+    };
+    /** SimulationSession */
+    SimulationSession: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Organization Id */
+      organization_id: string | null;
+      /**
+       * Candidate Id
+       * Format: uuid
+       */
+      candidate_id: string;
+      /** Case Slug */
+      case_slug: string;
+      /** Title */
+      title: string;
+      status: components["schemas"]["SimulationState"];
+      /** Current Event Index */
+      current_event_index: number;
+      /** Current Requirements */
+      current_requirements: {
+        [key: string]: unknown;
+      };
+      /** Capacity Inputs */
+      capacity_inputs: {
+        [key: string]: unknown;
+      };
+      /** Capacity Results */
+      capacity_results: {
+        [key: string]: unknown;
+      };
+      /** Rubric Evidence */
+      rubric_evidence: {
+        [key: string]: unknown;
+      }[];
+      /** Version */
+      version: number;
+      /** Started At */
+      started_at: string | null;
+      /** Submitted At */
+      submitted_at: string | null;
+      /** Completed At */
+      completed_at: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * SimulationState
+     * @enum {string}
+     */
+    SimulationState:
+      | "CONFIGURING"
+      | "ACTIVE"
+      | "REQUIREMENT_CHANGE"
+      | "FAILURE_INJECTED"
+      | "SUBMITTED"
+      | "EVALUATING"
+      | "COMPLETED"
+      | "ABANDONED";
+    /** SubmissionCreateRequest */
+    SubmissionCreateRequest: {
+      /** Runtime */
+      runtime: string;
+      /** Submitted Source */
+      submitted_source: string;
+      /**
+       * Practice Session Id
+       * @default null
+       */
+      practice_session_id: string | null;
+    };
+    /** SubmissionRecord */
+    SubmissionRecord: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Organization Id */
+      organization_id: string | null;
+      /**
+       * Candidate Id
+       * Format: uuid
+       */
+      candidate_id: string;
+      /** Practice Session Id */
+      practice_session_id: string | null;
+      /**
+       * Question Version Id
+       * Format: uuid
+       */
+      question_version_id: string;
+      /** Runtime */
+      runtime: string;
+      /** Submitted Source */
+      submitted_source: string;
+      /** Status */
+      status: string;
+      /** @default null */
+      result: components["schemas"]["ExecutionResult"] | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Started At */
+      started_at: string | null;
+      /** Completed At */
+      completed_at: string | null;
+    };
   };
   responses: never;
   parameters: never;
