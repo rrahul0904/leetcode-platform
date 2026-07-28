@@ -6,7 +6,7 @@ This audit is based on the current GitHub branch `feature/rigor-multiclient-infr
 
 ## Branch evidence
 
-At the start of this execution-plane slice GitHub reported **11 commits ahead of `main` and 0 behind**. After the implementation work recorded below, the branch is **50 commits ahead of `main` and 0 behind**.
+At the start of this execution-plane slice GitHub reported **11 commits ahead of `main` and 0 behind**. After the implementation work recorded below, the branch is **54 commits ahead of `main` and 0 behind**.
 
 The previously stated estimate of roughly 134 commits ahead is not supported by the current GitHub branch and is not used as evidence.
 
@@ -42,14 +42,14 @@ The previously stated estimate of roughly 134 commits ahead is not supported by 
 | Execution artifact flow | DB payload separation foundation | No integration test | No | No | No | SQS event contains references/metadata rather than source | Production S3 execution artifacts and scoped temporary access absent |
 | Result sanitization | Design/runner partial | No end-to-end test | No | No | No | runner normalizes bounded output; gVisor validation doc forbids infra leakage | Trusted sanitizer and public API projection not wired |
 | Execution usage accounting | Schema foundation | No | No | No | No | runtime/cpu/memory/result fields added | Runtime collector and usage event emission absent |
-| AWS production infrastructure | Partial execution-queue source only | Terraform gate authored | No | No | No | SQS/KMS module and staging composition now exist | VPC, RDS, Valkey, ECS, EKS, ALB, WAF, CloudFront, DNS, Secrets/ECR remain undeployed/incomplete |
+| AWS production infrastructure | Partial execution-queue source only | Terraform gate authored | No | No | No | SQS/KMS/DLQ module and staging composition now exist | VPC, RDS, Valkey, ECS, EKS, ALB, WAF, CloudFront, DNS, Secrets/ECR remain undeployed/incomplete |
 | PostgreSQL role separation | Partial | Existing local bootstrap evidence | Local only | No | No | migrator/app/readonly/sql-sandbox roles exist | Dedicated execution publisher/dispatcher DB identity and production Secrets Manager bootstrap required |
 | One-shot migration runner | Local Compose only | Existing local path | No production deployment | No | No | local `migrate` service | ECS one-shot migration task and deploy gate absent |
 | CI | **Workflow source implemented** | N/A | **No workflow run evidence** | N/A | No | Python, web, migration and Terraform validation jobs authored | Connector pushes did not produce Actions runs; security scans/SBOM/signing/deploy stages remain |
 | Expo / React Native application | **Not evidenced on inspected GitHub branch** | Not evidenced | Not evidenced | No | No | current multiplatform audit does not support prior ~80% claim | Re-audit any unpublished/local mobile work before claiming implementation |
 | iOS / iPadOS physical E2E | No evidence | No | No | No | No | device evidence absent | Login/editor/Run/Submit/background/recovery testing required |
 | Android phone/tablet physical E2E | No evidence | No | No | No | No | device evidence absent | Same physical-device validation gap |
-| Observability / alerting | Partial platform foundation | Limited | No execution-plane proof | No | No | trace_id/correlation fields in execution domain | Required metrics, dashboards, alarms and structured execution events incomplete |
+| Observability / alerting | Partial platform foundation | Limited | No execution-plane proof | No | No | trace_id/correlation fields in execution domain | Required metrics, dashboards and alerts incomplete |
 | Supply-chain security | Partial | No pipeline proof | No | No | No | pinned runner base image and immutable runtime-reference rule | Trivy/Syft/Cosign/dependency review/image signing not implemented end-to-end |
 | Backup/PITR recovery | No staging evidence | No | No | No | No | requirement documented | Restore exercise/RTO/RPO evidence absent |
 | Load/concurrency/failure injection | No production evidence | No | No | No | No | requirements documented | 10/50/100/500 tests, 500-request burst and failure scenarios remain |
