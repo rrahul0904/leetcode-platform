@@ -1,5 +1,16 @@
+data "aws_partition" "current" {}
+data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
+
 locals {
   tags = merge(var.tags, { "rigor:component" = "iam" })
+  execution_cluster_arn = var.execution_cluster_name == null ? null : format(
+    "arn:%s:eks:%s:%s:cluster/%s",
+    data.aws_partition.current.partition,
+    data.aws_region.current.name,
+    data.aws_caller_identity.current.account_id,
+    var.execution_cluster_name,
+  )
 }
 
 data "aws_iam_policy_document" "ecs_tasks_assume" {
@@ -168,12 +179,12 @@ data "aws_iam_policy_document" "worker" {
   }
 
   dynamic "statement" {
-    for_each = var.execution_cluster_arn == null ? [] : [1]
+    for_each = local.execution_cluster_arn == null ? [] : [1]
     content {
       sid       = "DescribeExecutionCluster"
       effect    = "Allow"
       actions   = ["eks:DescribeCluster"]
-      resources = [var.execution_cluster_arn]
+      resources = [local.execution_cluster_arn]
     }
   }
 }
