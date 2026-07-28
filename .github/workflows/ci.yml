@@ -1,0 +1,135 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "feature/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python lint, types, and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install locked Python workspace
+        run: uv sync --frozen
+
+      - name: Ruff
+        run: >-
+          uv run ruff check
+          apps/api/src
+          packages/question-schema/src
+          scripts
+          apps/api/tests
+          packages/question-schema/tests
+          tests
+
+      - name: Pyright
+        run: uv run pyright apps/api/src packages/question-schema/src scripts
+
+      - name: Pytest
+        run: uv run pytest -q
+
+  web:
+    name: Web lint, types, tests, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.18.0"
+          cache: pnpm
+
+      - name: Enable pinned pnpm
+        run: corepack enable && corepack prepare pnpm@11.10.0 --activate
+
+      - name: Install locked JavaScript workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter @rigor/web lint
+
+      - name: Typecheck
+        run: pnpm --filter @rigor/web typecheck
+
+      - name: Test
+        run: pnpm --filter @rigor/web test
+
+      - name: Build
+        run: pnpm --filter @rigor/web build
+
+  migration:
+    name: PostgreSQL migration cycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install locked Python workspace
+        run: uv sync --frozen
+
+      - name: Start PostgreSQL 18 + pgvector
+        run: docker compose up -d --wait postgres
+
+      - name: Upgrade from empty database
+        env:
+          RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
+        run: uv run alembic upgrade head
+
+      - name: Verify execution schema
+        run: |
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260728_0009"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_outbox') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_payloads') IS NOT NULL")" = "t"
+
+      - name: Downgrade and re-upgrade new execution migration
+        env:
+          RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
+        run: |
+          uv run alembic downgrade 20260728_0008
+          uv run alembic upgrade head
+
+      - name: Show PostgreSQL logs on failure
+        if: failure()
+        run: docker compose logs postgres
+
+      - name: Stop services
+        if: always()
+        run: docker compose down -v
