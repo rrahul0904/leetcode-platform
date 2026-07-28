@@ -14,6 +14,18 @@ variable "application_subnet_ids" {
   type = list(string)
 }
 
+variable "web_security_group_id" {
+  type = string
+}
+
+variable "api_security_group_id" {
+  type = string
+}
+
+variable "worker_security_group_id" {
+  type = string
+}
+
 variable "web_image" {
   description = "Immutable ECR image reference (prefer digest) for Next.js."
   type        = string
@@ -29,6 +41,11 @@ variable "worker_image" {
   type        = string
   default     = null
   nullable    = true
+}
+
+variable "worker_command" {
+  type    = list(string)
+  default = ["python", "-m", "rigor_api.execution_worker"]
 }
 
 variable "ecs_execution_role_arn" {
