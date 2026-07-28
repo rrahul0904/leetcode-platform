@@ -15,6 +15,17 @@ output "security_group_id" {
 }
 
 output "master_user_secret_arn" {
-  value     = try(aws_db_instance.this.master_user_secret[0].secret_arn, null)
+  description = "Bootstrap/recovery credential only; normal application tasks must not receive it."
+  value       = try(aws_db_instance.this.master_user_secret[0].secret_arn, null)
+  sensitive   = true
+}
+
+output "app_secret_arn" {
+  value     = aws_secretsmanager_secret.app.arn
+  sensitive = true
+}
+
+output "migrator_secret_arn" {
+  value     = aws_secretsmanager_secret.migrator.arn
   sensitive = true
 }
