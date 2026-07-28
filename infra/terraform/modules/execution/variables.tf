@@ -15,6 +15,11 @@ variable "subnet_ids" {
   type        = list(string)
 }
 
+variable "s3_prefix_list_id" {
+  description = "AWS-managed S3 prefix list reached through the VPC gateway endpoint."
+  type        = string
+}
+
 variable "kms_key_arn" {
   description = "Execution-plane KMS key for EKS secret envelope encryption."
   type        = string
