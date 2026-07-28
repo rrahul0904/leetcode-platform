@@ -14,7 +14,7 @@ from .schemas import AuthenticatedPrincipal
 
 def create_database_engine(settings: Settings, database_url: str | None = None) -> Engine:
     return create_engine(
-        database_url or settings.database_url,
+        database_url or settings.resolved_database_url(),
         pool_pre_ping=True,
         pool_size=5,
         max_overflow=5,
