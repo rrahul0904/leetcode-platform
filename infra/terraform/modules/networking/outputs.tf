@@ -26,6 +26,18 @@ output "execution_route_table_ids" {
   value = values(aws_route_table.execution)[*].id
 }
 
+output "web_security_group_id" {
+  value = aws_security_group.control_service["web"].id
+}
+
+output "api_security_group_id" {
+  value = aws_security_group.control_service["api"].id
+}
+
+output "worker_security_group_id" {
+  value = aws_security_group.control_service["trusted-worker"].id
+}
+
 output "vpc_endpoint_security_group_id" {
   value = aws_security_group.vpc_endpoints.id
 }
