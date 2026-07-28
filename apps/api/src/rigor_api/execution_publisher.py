@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
+from uuid import UUID
 
 from sqlalchemy import Connection
 
@@ -22,16 +24,16 @@ class ExecutionQueuePublisher(Protocol):
 class ExecutionOutboxStore(Protocol):
     def claim_batch(self, *, limit: int = 25) -> list[OutboxMessage]: ...
 
-    def mark_published(self, message_id: object) -> None: ...
+    def mark_published(self, message_id: UUID) -> None: ...
 
     def mark_failed(
         self,
-        message_id: object,
+        message_id: UUID,
         *,
         attempt_count: int,
         error: str,
         jitter_ratio: float | None = None,
-    ) -> object: ...
+    ) -> datetime: ...
 
 
 @dataclass(frozen=True)
