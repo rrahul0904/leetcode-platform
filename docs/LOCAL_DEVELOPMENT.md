@@ -24,6 +24,15 @@ make reset-local
 `reset-local` removes only this Compose project's containers, orphans, and named
 volumes before running the same bootstrap workflow.
 
+Validate all content schemas and executable reference packages with:
+
+```bash
+make test-content
+```
+
+Executable packages run in isolated Python subprocesses so package-local modules
+named `reference.py` and `test_reference.py` cannot collide during collection.
+
 Verified foundation commands are:
 
 ```bash
