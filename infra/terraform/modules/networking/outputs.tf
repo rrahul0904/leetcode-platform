@@ -29,3 +29,8 @@ output "execution_route_table_ids" {
 output "vpc_endpoint_security_group_id" {
   value = aws_security_group.vpc_endpoints.id
 }
+
+output "s3_prefix_list_id" {
+  description = "AWS-managed S3 prefix list reached through the gateway endpoint; execution node SGs can allow this without general internet egress."
+  value       = aws_vpc_endpoint.s3.prefix_list_id
+}
