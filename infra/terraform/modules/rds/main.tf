@@ -60,6 +60,29 @@ resource "aws_db_parameter_group" "this" {
   }
 }
 
+data "aws_iam_policy_document" "monitoring_assume" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["monitoring.rds.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "monitoring" {
+  name_prefix        = "${var.name}-rds-monitoring-"
+  assume_role_policy = data.aws_iam_policy_document.monitoring_assume.json
+  tags               = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "monitoring" {
+  role       = aws_iam_role.monitoring.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
+}
+
 resource "aws_db_instance" "this" {
   identifier_prefix = "${var.name}-"
 
@@ -100,14 +123,11 @@ resource "aws_db_instance" "this" {
   performance_insights_retention_period = var.performance_insights_enabled ? 7 : null
 
   monitoring_interval = 60
+  monitoring_role_arn = aws_iam_role.monitoring.arn
 
-  deletion_protection = var.deletion_protection
-  skip_final_snapshot = var.skip_final_snapshot
+  deletion_protection       = var.deletion_protection
+  skip_final_snapshot       = var.skip_final_snapshot
   final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.name}-final"
 
   tags = local.tags
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
