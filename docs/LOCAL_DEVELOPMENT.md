@@ -4,6 +4,26 @@ Standard development will use Node 24, Python 3.13, pnpm, uv, and Docker Compose
 
 A separate kind or k3d profile will exercise the controller contract and gVisor when the host supports it. Local Docker execution is developer testing only and must never be represented as the production security boundary.
 
+The reproducible Docker workflow is:
+
+```bash
+make bootstrap
+```
+
+It validates Docker Compose, builds the locked images, waits on the PostgreSQL
+and Valkey health checks through Compose dependencies, migrates, seeds,
+synchronizes hosted content, runs the local publication workflow, starts the API
+and web application, and verifies health and database counts.
+
+To deliberately destroy local development data and recreate it:
+
+```bash
+make reset-local
+```
+
+`reset-local` removes only this Compose project's containers, orphans, and named
+volumes before running the same bootstrap workflow.
+
 Verified foundation commands are:
 
 ```bash

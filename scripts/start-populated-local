@@ -1,6 +1,19 @@
 #!/usr/bin/env sh
 set -eu
 
+for dependency in docker curl; do
+  if ! command -v "$dependency" >/dev/null 2>&1; then
+    echo "Required dependency is unavailable: $dependency" >&2
+    exit 1
+  fi
+done
+
+if ! docker compose version >/dev/null 2>&1; then
+  echo "Docker Compose v2 is required." >&2
+  exit 1
+fi
+
+docker compose config --quiet
 docker compose up -d --build
 
 attempt=0
