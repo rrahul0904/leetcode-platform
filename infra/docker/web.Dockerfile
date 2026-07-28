@@ -3,9 +3,11 @@
 ARG NODE_IMAGE=node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d
 
 FROM ${NODE_IMAGE} AS builder
+ARG NEXT_PUBLIC_RIGOR_API_URL=http://localhost:8002
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
-    NEXT_TELEMETRY_DISABLED=1
+    NEXT_TELEMETRY_DISABLED=1 \
+    NEXT_PUBLIC_RIGOR_API_URL=${NEXT_PUBLIC_RIGOR_API_URL}
 WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@11.10.0 --activate
@@ -40,4 +42,3 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=5 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:3001/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
 
 CMD ["node", "apps/web/server.js"]
-
