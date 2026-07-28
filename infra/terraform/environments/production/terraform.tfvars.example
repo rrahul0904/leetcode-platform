@@ -1,0 +1,17 @@
+aws_region      = "us-east-1"
+allowed_origins = ["https://app.example.invalid"]
+oidc_issuer     = "https://identity.example.invalid/"
+oidc_audience   = "rigor-production-api"
+oidc_jwks_url   = "https://identity.example.invalid/.well-known/jwks.json"
+
+# Production compute remains off until the async queue/dispatcher path has passed staging.
+enable_control_plane_compute = false
+
+# Supply immutable image references only after promotion from staging.
+# web_image    = "123456789012.dkr.ecr.us-east-1.amazonaws.com/rigor-production/web@sha256:..."
+# api_image    = "123456789012.dkr.ecr.us-east-1.amazonaws.com/rigor-production/api@sha256:..."
+# worker_image = "123456789012.dkr.ecr.us-east-1.amazonaws.com/rigor-production/trusted-worker@sha256:..."
+
+# A node group is intentionally not created without a validated runsc AMI + bootstrap.
+# gvisor_node_ami_id    = "ami-..."
+# gvisor_node_user_data = "..."
