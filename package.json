@@ -8,6 +8,10 @@
   },
   "scripts": {
     "dev": "turbo dev",
+    "dev:web": "pnpm --filter @rigor/web dev",
+    "dev:mobile": "pnpm --filter @rigor/mobile start",
+    "mobile:ios": "pnpm --filter @rigor/mobile ios",
+    "mobile:android": "pnpm --filter @rigor/mobile android",
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
