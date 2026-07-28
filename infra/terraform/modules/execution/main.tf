@@ -30,6 +30,27 @@ resource "aws_iam_role_policy_attachment" "cluster" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
 }
 
+data "aws_iam_policy_document" "cluster_kms" {
+  statement {
+    sid    = "UseExecutionEnvelopeKey"
+    effect = "Allow"
+    actions = [
+      "kms:DescribeKey",
+      "kms:Encrypt",
+      "kms:Decrypt",
+      "kms:ReEncrypt*",
+      "kms:GenerateDataKey*",
+    ]
+    resources = [var.kms_key_arn]
+  }
+}
+
+resource "aws_iam_role_policy" "cluster_kms" {
+  name   = "execution-envelope-kms"
+  role   = aws_iam_role.cluster.id
+  policy = data.aws_iam_policy_document.cluster_kms.json
+}
+
 resource "aws_security_group" "cluster" {
   name_prefix = "${var.name}-execution-cluster-"
   description = "Additional security group for the private execution EKS control plane."
@@ -80,7 +101,10 @@ resource "aws_eks_cluster" "this" {
 
   tags = local.tags
 
-  depends_on = [aws_iam_role_policy_attachment.cluster]
+  depends_on = [
+    aws_iam_role_policy_attachment.cluster,
+    aws_iam_role_policy.cluster_kms,
+  ]
 }
 
 data "aws_iam_policy_document" "node_assume" {
@@ -120,16 +144,23 @@ resource "aws_security_group" "execution_nodes" {
   name_prefix = "${var.name}-execution-node-"
   description = "Execution nodes have no internet route; pod egress is additionally default-denied."
   vpc_id      = var.vpc_id
+  tags        = local.tags
+}
 
-  egress {
-    description = "Only private VPC destinations; route tables provide no internet path"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = [var.vpc_cidr]
-  }
+resource "aws_vpc_security_group_egress_rule" "nodes_private_vpc" {
+  security_group_id = aws_security_group.execution_nodes.id
+  cidr_ipv4         = var.vpc_cidr
+  ip_protocol       = "-1"
+  description       = "Private VPC services only; execution route tables have no internet path"
+}
 
-  tags = local.tags
+resource "aws_vpc_security_group_egress_rule" "nodes_s3_endpoint" {
+  security_group_id = aws_security_group.execution_nodes.id
+  prefix_list_id    = var.s3_prefix_list_id
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+  description       = "TLS to S3 through the VPC gateway endpoint for ECR image layers"
 }
 
 resource "aws_vpc_security_group_ingress_rule" "nodes_self" {
