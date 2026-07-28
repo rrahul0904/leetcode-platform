@@ -41,6 +41,7 @@ jobs:
           uv run ruff check
           apps/api/src
           packages/question-schema/src
+          services/python-runner
           scripts
           apps/api/tests
           packages/question-schema/tests
