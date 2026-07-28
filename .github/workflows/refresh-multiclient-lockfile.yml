@@ -1,0 +1,53 @@
+name: Refresh multiclient lockfile
+
+on:
+  push:
+    branches:
+      - feature/multiclient-production-foundation
+    paths:
+      - apps/mobile/package.json
+      - packages/api-client/package.json
+      - packages/query/package.json
+      - packages/design-tokens/package.json
+      - pnpm-workspace.yaml
+      - package.json
+      - .github/workflows/refresh-multiclient-lockfile.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lockfile:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/multiclient-production-foundation
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+
+      - name: Activate locked pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.10.0 --activate
+          pnpm --version
+
+      - name: Refresh workspace lockfile only
+        run: pnpm install --lockfile-only --no-frozen-lockfile
+
+      - name: Commit lockfile when changed
+        shell: bash
+        run: |
+          if git diff --quiet -- pnpm-lock.yaml; then
+            echo "pnpm-lock.yaml already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pnpm-lock.yaml
+          git commit -m "Update lockfile for native client"
+          git push origin HEAD:feature/multiclient-production-foundation
