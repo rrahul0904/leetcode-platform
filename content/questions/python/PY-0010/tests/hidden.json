@@ -1,0 +1,28 @@
+[
+  {
+    "id": "PY-0010-H01",
+    "name": "hidden boundary case",
+    "visibility": "hidden",
+    "input": {
+      "tasks": [
+        {
+          "key": "a",
+          "version": 2,
+          "value": 1
+        },
+        {
+          "key": "a",
+          "version": 2,
+          "value": 2
+        }
+      ]
+    },
+    "expected_output": [
+      {
+        "key": "a",
+        "version": 2,
+        "value": 1
+      }
+    ]
+  }
+]

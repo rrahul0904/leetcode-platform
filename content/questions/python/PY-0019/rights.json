@@ -1,0 +1,12 @@
+{
+  "rights_basis": "original",
+  "license_identifier": "RIGOR-FIRST-PARTY-1.0",
+  "certification": "First-party original interview content approved for hosted practice, modification, and distribution.",
+  "evidence": [
+    "Authored from an internal competency brief without copying an external prompt.",
+    "Automated source-hash and duplicate checks are recorded in metadata."
+  ],
+  "modification_rights": true,
+  "export_rights": true,
+  "ai_training_rights": false
+}

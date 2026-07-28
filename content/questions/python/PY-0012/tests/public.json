@@ -1,0 +1,49 @@
+[
+  {
+    "id": "PY-0012-P01",
+    "name": "public example 1",
+    "visibility": "public",
+    "input": {
+      "chunks": [
+        "a=1\nb=",
+        "two\n"
+      ]
+    },
+    "expected_output": [
+      {
+        "key": "a",
+        "value": "1"
+      },
+      {
+        "key": "b",
+        "value": "two"
+      }
+    ]
+  },
+  {
+    "id": "PY-0012-P02",
+    "name": "public example 2",
+    "visibility": "public",
+    "input": {
+      "chunks": [
+        "\n",
+        "x=\n"
+      ]
+    },
+    "expected_output": [
+      {
+        "key": "x",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "id": "PY-0012-P03",
+    "name": "public example 3",
+    "visibility": "public",
+    "input": {
+      "chunks": []
+    },
+    "expected_output": []
+  }
+]

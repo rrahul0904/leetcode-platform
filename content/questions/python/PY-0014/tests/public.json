@@ -1,0 +1,47 @@
+[
+  {
+    "id": "PY-0014-P01",
+    "name": "public example 1",
+    "visibility": "public",
+    "input": {
+      "plugins": {
+        "api": [
+          "core"
+        ],
+        "core": [],
+        "ui": [
+          "core"
+        ]
+      }
+    },
+    "expected_output": [
+      "core",
+      "api",
+      "ui"
+    ]
+  },
+  {
+    "id": "PY-0014-P02",
+    "name": "public example 2",
+    "visibility": "public",
+    "input": {
+      "plugins": {
+        "b": [],
+        "a": []
+      }
+    },
+    "expected_output": [
+      "a",
+      "b"
+    ]
+  },
+  {
+    "id": "PY-0014-P03",
+    "name": "public example 3",
+    "visibility": "public",
+    "input": {
+      "plugins": {}
+    },
+    "expected_output": []
+  }
+]

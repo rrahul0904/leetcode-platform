@@ -1,0 +1,33 @@
+[
+  {
+    "id": "SQL-0010-P01",
+    "name": "visible synthetic dataset",
+    "visibility": "public",
+    "input": {
+      "ddl": "CREATE TABLE teams(team_id INTEGER PRIMARY KEY, parent_team_id INTEGER, name TEXT NOT NULL);",
+      "seed": "INSERT INTO teams VALUES (1,NULL,'platform'),(2,1,'data'),(3,1,'runtime'),(4,2,'analytics'),(5,NULL,'sales');"
+    },
+    "expected_output": [
+      {
+        "team_id": 1,
+        "name": "platform",
+        "depth": 0
+      },
+      {
+        "team_id": 2,
+        "name": "data",
+        "depth": 1
+      },
+      {
+        "team_id": 3,
+        "name": "runtime",
+        "depth": 1
+      },
+      {
+        "team_id": 4,
+        "name": "analytics",
+        "depth": 2
+      }
+    ]
+  }
+]

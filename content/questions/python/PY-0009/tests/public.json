@@ -1,0 +1,61 @@
+[
+  {
+    "id": "PY-0009-P01",
+    "name": "public example 1",
+    "visibility": "public",
+    "input": {
+      "samples": [
+        3,
+        4,
+        8,
+        7,
+        9
+      ],
+      "window_size": 3,
+      "minimum_growth": 4
+    },
+    "expected_output": [
+      [
+        0,
+        2
+      ]
+    ]
+  },
+  {
+    "id": "PY-0009-P02",
+    "name": "public example 2",
+    "visibility": "public",
+    "input": {
+      "samples": [
+        1,
+        1,
+        1
+      ],
+      "window_size": 2,
+      "minimum_growth": 0
+    },
+    "expected_output": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "id": "PY-0009-P03",
+    "name": "public example 3",
+    "visibility": "public",
+    "input": {
+      "samples": [
+        5
+      ],
+      "window_size": 2,
+      "minimum_growth": 1
+    },
+    "expected_output": []
+  }
+]

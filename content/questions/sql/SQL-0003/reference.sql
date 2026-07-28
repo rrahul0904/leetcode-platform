@@ -1,0 +1,1 @@
+SELECT account_id, sequence_no, amount, SUM(amount) OVER (PARTITION BY account_id ORDER BY sequence_no ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_balance FROM postings ORDER BY account_id, sequence_no;

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "SQL-0009-P01",
+    "name": "visible synthetic dataset",
+    "visibility": "public",
+    "input": {
+      "ddl": "CREATE TABLE latency(service TEXT NOT NULL, sample_no INTEGER NOT NULL, milliseconds INTEGER NOT NULL);",
+      "seed": "INSERT INTO latency VALUES ('api',1,10),('api',2,20),('api',3,30),('api',4,50),('db',1,8);"
+    },
+    "expected_output": [
+      {
+        "service": "api",
+        "sample_no": 1,
+        "rolling_average": 10.0
+      },
+      {
+        "service": "api",
+        "sample_no": 2,
+        "rolling_average": 15.0
+      },
+      {
+        "service": "api",
+        "sample_no": 3,
+        "rolling_average": 20.0
+      },
+      {
+        "service": "api",
+        "sample_no": 4,
+        "rolling_average": 33.33
+      },
+      {
+        "service": "db",
+        "sample_no": 1,
+        "rolling_average": 8.0
+      }
+    ]
+  }
+]

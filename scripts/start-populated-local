@@ -42,12 +42,12 @@ if [ "$external_count" -lt 2000 ]; then
   echo "Expected at least 2,000 external references; found $external_count." >&2
   exit 1
 fi
-if [ "$hosted_count" -lt 3 ]; then
-  echo "Expected at least 3 hosted questions; found $hosted_count." >&2
+if [ "$hosted_count" -lt 50 ]; then
+  echo "Expected at least 50 hosted questions; found $hosted_count." >&2
   exit 1
 fi
-if [ "$published_count" -lt 3 ]; then
-  echo "Expected at least 3 published hosted questions; found $published_count." >&2
+if [ "$published_count" -lt 30 ]; then
+  echo "Expected at least 30 published hosted questions; found $published_count." >&2
   exit 1
 fi
 if [ "$sync_count" -lt 1 ]; then
@@ -55,5 +55,21 @@ if [ "$sync_count" -lt 1 ]; then
   exit 1
 fi
 
+python_published=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SELECT count(*) FROM questions q JOIN question_versions v ON v.id=q.current_published_version_id WHERE q.external_id ~ '^PY-' AND v.state='published'::content_state;")
+sql_published=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SELECT count(*) FROM questions q JOIN question_versions v ON v.id=q.current_published_version_id WHERE q.external_id ~ '^SQL-' AND v.state='published'::content_state;")
+system_design_published=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SELECT count(*) FROM questions q JOIN question_versions v ON v.id=q.current_published_version_id WHERE q.external_id = ANY(ARRAY['SD-0001','SD-0002','SD-0004']) AND v.state='published'::content_state;")
+other_published=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SELECT count(*) FROM questions q JOIN question_versions v ON v.id=q.current_published_version_id WHERE q.external_id = ANY(ARRAY['DS-0003','DM-0003','DA-0001','ML-0004']) AND v.state='published'::content_state;")
+
+if [ "$python_published" -lt 15 ] || [ "$sql_published" -lt 8 ] \
+  || [ "$system_design_published" -ne 3 ] || [ "$other_published" -ne 4 ]; then
+  echo "Published allocation mismatch: Python=$python_published SQL=$sql_published system-design=$system_design_published other=$other_published." >&2
+  exit 1
+fi
+
 echo "Rigor is populated and ready: http://localhost:3001"
 echo "External references: $external_count | Hosted: $hosted_count | Published: $published_count"
+echo "Release allocation: Python=$python_published | SQL=$sql_published | System design=$system_design_published | Other architecture/data=$other_published"

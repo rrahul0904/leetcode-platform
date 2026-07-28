@@ -1,0 +1,37 @@
+[
+  {
+    "id": "PY-0020-H01",
+    "name": "hidden boundary case",
+    "visibility": "hidden",
+    "input": {
+      "events": [
+        {
+          "trace": "b",
+          "service": "worker",
+          "timestamp": 1,
+          "level": "error"
+        },
+        {
+          "trace": "a",
+          "service": "queue",
+          "timestamp": 4,
+          "level": "error"
+        }
+      ]
+    },
+    "expected_output": [
+      {
+        "trace": "a",
+        "service": "queue",
+        "timestamp": 4,
+        "level": "error"
+      },
+      {
+        "trace": "b",
+        "service": "worker",
+        "timestamp": 1,
+        "level": "error"
+      }
+    ]
+  }
+]

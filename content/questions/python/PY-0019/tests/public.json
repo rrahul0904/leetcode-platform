@@ -1,0 +1,68 @@
+[
+  {
+    "id": "PY-0019-P01",
+    "name": "public example 1",
+    "visibility": "public",
+    "input": {
+      "before": {
+        "a": 1,
+        "b": 2
+      },
+      "after": {
+        "b": 3,
+        "c": 4
+      }
+    },
+    "expected_output": {
+      "added": [
+        "c"
+      ],
+      "removed": [
+        "a"
+      ],
+      "changed": [
+        {
+          "key": "b",
+          "before": 2,
+          "after": 3
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-0019-P02",
+    "name": "public example 2",
+    "visibility": "public",
+    "input": {
+      "before": {},
+      "after": {}
+    },
+    "expected_output": {
+      "added": [],
+      "removed": [],
+      "changed": []
+    }
+  },
+  {
+    "id": "PY-0019-P03",
+    "name": "public example 3",
+    "visibility": "public",
+    "input": {
+      "before": {
+        "x": [
+          1
+        ]
+      },
+      "after": {
+        "x": [
+          1
+        ]
+      }
+    },
+    "expected_output": {
+      "added": [],
+      "removed": [],
+      "changed": []
+    }
+  }
+]

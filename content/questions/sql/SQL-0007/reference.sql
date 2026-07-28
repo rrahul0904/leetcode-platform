@@ -1,0 +1,1 @@
+WITH eligible AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY sku ORDER BY event_sequence DESC) AS rank_no FROM inventory_events WHERE event_sequence<=3) SELECT sku, quantity, event_sequence FROM eligible WHERE rank_no=1 ORDER BY sku;

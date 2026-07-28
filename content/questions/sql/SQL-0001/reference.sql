@@ -1,0 +1,1 @@
+SELECT u.cohort_week, COUNT(*) AS users, SUM(CASE WHEN EXISTS (SELECT 1 FROM activity a WHERE a.user_id=u.user_id AND a.activity_week=u.cohort_week+1) THEN 1 ELSE 0 END) AS retained_week_one FROM users u GROUP BY u.cohort_week ORDER BY u.cohort_week;

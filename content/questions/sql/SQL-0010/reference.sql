@@ -1,0 +1,1 @@
+WITH RECURSIVE descendants(team_id,name,depth) AS (SELECT team_id,name,0 FROM teams WHERE team_id=1 UNION ALL SELECT child.team_id,child.name,parent.depth+1 FROM teams child JOIN descendants parent ON child.parent_team_id=parent.team_id) SELECT team_id,name,depth FROM descendants ORDER BY depth,team_id;

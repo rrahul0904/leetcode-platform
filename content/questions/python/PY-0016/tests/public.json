@@ -1,0 +1,55 @@
+[
+  {
+    "id": "PY-0016-P01",
+    "name": "public example 1",
+    "visibility": "public",
+    "input": {
+      "batches": [
+        [
+          1,
+          4,
+          7
+        ],
+        [
+          2,
+          4,
+          8
+        ]
+      ]
+    },
+    "expected_output": [
+      1,
+      2,
+      4,
+      7,
+      8
+    ]
+  },
+  {
+    "id": "PY-0016-P02",
+    "name": "public example 2",
+    "visibility": "public",
+    "input": {
+      "batches": [
+        [],
+        [
+          1,
+          1
+        ],
+        []
+      ]
+    },
+    "expected_output": [
+      1
+    ]
+  },
+  {
+    "id": "PY-0016-P03",
+    "name": "public example 3",
+    "visibility": "public",
+    "input": {
+      "batches": []
+    },
+    "expected_output": []
+  }
+]

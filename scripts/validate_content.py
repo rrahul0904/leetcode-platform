@@ -112,7 +112,9 @@ def validate_packages() -> tuple[list[str], int]:
             hidden_tests = json.loads(required_paths["hidden_tests"].read_text(encoding="utf-8"))
             question["evaluation_rubric"] = rubric
             question.update(metadata)
-            question["mode_specification"]["tests"] = [*public_tests, *hidden_tests]
+            mode = question["mode_specification"]
+            if "runtime" in mode or "dialect" in mode:
+                mode["tests"] = [*public_tests, *hidden_tests]
             QuestionPackage.model_validate(question)
             SolutionPackage.model_validate_json(
                 required_paths["solution"].read_text(encoding="utf-8")

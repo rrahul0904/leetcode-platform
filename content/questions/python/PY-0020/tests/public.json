@@ -1,0 +1,56 @@
+[
+  {
+    "id": "PY-0020-P01",
+    "name": "public example 1",
+    "visibility": "public",
+    "input": {
+      "events": [
+        {
+          "trace": "t1",
+          "service": "api",
+          "timestamp": 3,
+          "level": "error"
+        },
+        {
+          "trace": "t1",
+          "service": "db",
+          "timestamp": 2,
+          "level": "error"
+        }
+      ]
+    },
+    "expected_output": [
+      {
+        "trace": "t1",
+        "service": "db",
+        "timestamp": 2,
+        "level": "error"
+      }
+    ]
+  },
+  {
+    "id": "PY-0020-P02",
+    "name": "public example 2",
+    "visibility": "public",
+    "input": {
+      "events": [
+        {
+          "trace": "t2",
+          "service": "api",
+          "timestamp": 1,
+          "level": "info"
+        }
+      ]
+    },
+    "expected_output": []
+  },
+  {
+    "id": "PY-0020-P03",
+    "name": "public example 3",
+    "visibility": "public",
+    "input": {
+      "events": []
+    },
+    "expected_output": []
+  }
+]

@@ -1,0 +1,1 @@
+WITH ranked AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY normalized_email ORDER BY verified DESC, updated_at DESC, identity_id) AS rank_no FROM identities) SELECT normalized_email, identity_id FROM ranked WHERE rank_no=1 ORDER BY normalized_email;

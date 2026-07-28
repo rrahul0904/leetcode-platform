@@ -1,0 +1,30 @@
+[
+  {
+    "id": "PY-0015-H01",
+    "name": "hidden boundary case",
+    "visibility": "hidden",
+    "input": {
+      "events": [
+        [
+          0,
+          "a"
+        ],
+        [
+          5,
+          "a"
+        ],
+        [
+          5,
+          "a"
+        ]
+      ],
+      "limit": 1,
+      "window_seconds": 5
+    },
+    "expected_output": [
+      true,
+      true,
+      false
+    ]
+  }
+]

@@ -1,0 +1,141 @@
+{
+  "id": "DA-0003",
+  "title": "Design an End-to-End Data Lineage System",
+  "slug": "da-0003-design-an-end-to-end-data-lineage-system",
+  "primary_track": "data-architecture",
+  "secondary_skills": [
+    "design",
+    "reliability",
+    "trade-off-analysis"
+  ],
+  "role_families": [
+    "software-engineer",
+    "data-engineer",
+    "platform-engineer"
+  ],
+  "expected_seniority": "senior",
+  "difficulty": "advanced",
+  "difficulty_dimensions": {
+    "conceptual": 4,
+    "implementation": 3,
+    "scale": 5,
+    "ambiguity": 4,
+    "prerequisite_depth": 4
+  },
+  "company_style_tags": [
+    {
+      "slug": "independent-production-interview",
+      "relevance_rationale": "Original production scenario emphasizing explicit constraints and evidence without claiming employer provenance.",
+      "public_theme_sources": [],
+      "disclaimer": "independent-content"
+    }
+  ],
+  "learning_objectives": [
+    "Translate a production scenario into explicit invariants.",
+    "Evaluate correctness under failure and scale.",
+    "Communicate a testable decision and its trade-offs."
+  ],
+  "prerequisites": [
+    "data-structures",
+    "reliability-fundamentals"
+  ],
+  "estimated_duration_minutes": 75,
+  "problem_statement": "Design column-level lineage for a fictional multi-tenant enterprise platform. Begin with 25 million active users, 30,000 peak requests per second, and a 99.95% availability objective. Produce APIs, data models, capacity estimates, a component diagram, failure recovery, security boundaries, observability, cost controls, and a staged migration. During the interview, respond when a parser cannot interpret a critical query; then revise the design when stakeholders require you to answer deletion-impact questions within minutes.",
+  "candidate_instructions": [
+    "Clarify assumptions before committing to an approach.",
+    "Make the result deterministic and explain how it is validated.",
+    "Discuss complexity, failure behavior, and production follow-ups."
+  ],
+  "interviewer_instructions": [
+    "Ask for the candidate's invariants before implementation.",
+    "Probe one failure scenario and one scale change.",
+    "Do not reveal the reference solution or private rubric."
+  ],
+  "constraints": [
+    "The answer must be deterministic for identical inputs.",
+    "Invalid inputs or impossible states must fail explicitly.",
+    "Production claims require observable evidence."
+  ],
+  "assumptions": [
+    "All examples are fictional and use synthetic data.",
+    "The candidate may state additional assumptions when they are testable."
+  ],
+  "expected_clarifying_questions": [
+    "Which invariant has priority when requirements conflict?",
+    "What scale and latency targets should be assumed?",
+    "How should partial failure be surfaced?"
+  ],
+  "hints": [
+    {
+      "reveal_level": 1,
+      "text": "Write the invariant that must hold after every operation.",
+      "penalty_points": 4
+    },
+    {
+      "reveal_level": 2,
+      "text": "Separate validation, core behavior, and failure handling.",
+      "penalty_points": 8
+    }
+  ],
+  "common_mistakes": [
+    "Assuming well-formed input without validation.",
+    "Using nondeterministic iteration as a tie-breaker.",
+    "Claiming production readiness without recovery or observability."
+  ],
+  "strong_answer_indicators": [
+    "States invariants and validates them with examples.",
+    "Explains a credible alternative and rejection reason.",
+    "Connects failure handling to measurable signals."
+  ],
+  "weak_answer_indicators": [
+    "Only handles the happy path.",
+    "Provides an unquantified technology list.",
+    "Leaks private evaluation material into the candidate answer."
+  ],
+  "follow_up_questions": [
+    "How would the design behave during a regional outage?",
+    "Which metrics would prove the implementation is correct?"
+  ],
+  "harder_variants": [
+    "Add multi-tenant fairness and strict isolation.",
+    "Preserve correctness during a zero-downtime migration."
+  ],
+  "easier_variants": [
+    "Solve for one tenant and a single failure domain."
+  ],
+  "related_question_ids": [],
+  "mode_specification": {
+    "functional_requirements": [
+      "Provide the core column-level lineage workflow.",
+      "Isolate tenant data and quotas.",
+      "Expose auditable administrative controls."
+    ],
+    "non_functional_requirements": [
+      "99.95% monthly availability.",
+      "Bounded p99 latency with graceful overload behavior.",
+      "Encryption, least privilege, and complete audit history."
+    ],
+    "scale_assumptions": [
+      "25 million monthly active users.",
+      "30,000 peak requests per second.",
+      "Three regions with two failure domains each."
+    ],
+    "capacity_estimation_example": "At 30,000 requests/second and 1.5 KiB per request, ingress is about 45 MiB/second before replication; the candidate must extend this calculation to daily storage and headroom.",
+    "expected_artifacts": [
+      "API contract",
+      "logical data model",
+      "component and trust-boundary diagram",
+      "capacity model",
+      "migration and rollback plan"
+    ],
+    "failure_scenarios": [
+      "a parser cannot interpret a critical query",
+      "a primary datastore becomes unavailable",
+      "one tenant creates a sudden ten-times traffic spike"
+    ],
+    "requirement_changes": [
+      "answer deletion-impact questions within minutes",
+      "reduce operating cost by twenty percent without weakening the SLO"
+    ]
+  }
+}

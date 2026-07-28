@@ -1,0 +1,63 @@
+[
+  {
+    "id": "PY-0005-P01",
+    "name": "public example 1",
+    "visibility": "public",
+    "input": {
+      "tasks": [
+        {
+          "id": "b",
+          "cost": 2,
+          "priority": 2,
+          "enqueued_at": 2
+        },
+        {
+          "id": "a",
+          "cost": 3,
+          "priority": 2,
+          "enqueued_at": 1
+        }
+      ],
+      "max_cost": 4
+    },
+    "expected_output": [
+      "a"
+    ]
+  },
+  {
+    "id": "PY-0005-P02",
+    "name": "public example 2",
+    "visibility": "public",
+    "input": {
+      "tasks": [
+        {
+          "id": "low",
+          "cost": 1,
+          "priority": 1,
+          "enqueued_at": 0
+        },
+        {
+          "id": "high",
+          "cost": 2,
+          "priority": 4,
+          "enqueued_at": 9
+        }
+      ],
+      "max_cost": 3
+    },
+    "expected_output": [
+      "high",
+      "low"
+    ]
+  },
+  {
+    "id": "PY-0005-P03",
+    "name": "public example 3",
+    "visibility": "public",
+    "input": {
+      "tasks": [],
+      "max_cost": 5
+    },
+    "expected_output": []
+  }
+]

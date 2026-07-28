@@ -1,0 +1,61 @@
+[
+  {
+    "id": "PY-0008-P01",
+    "name": "public example 1",
+    "visibility": "public",
+    "input": {
+      "pages": [
+        {
+          "token": null,
+          "next_token": "p2",
+          "items": [
+            {
+              "id": "a"
+            }
+          ]
+        },
+        {
+          "token": "p2",
+          "next_token": null,
+          "items": [
+            {
+              "id": "b"
+            }
+          ]
+        }
+      ]
+    },
+    "expected_output": [
+      {
+        "id": "a"
+      },
+      {
+        "id": "b"
+      }
+    ]
+  },
+  {
+    "id": "PY-0008-P02",
+    "name": "public example 2",
+    "visibility": "public",
+    "input": {
+      "pages": [
+        {
+          "token": null,
+          "next_token": null,
+          "items": []
+        }
+      ]
+    },
+    "expected_output": []
+  },
+  {
+    "id": "PY-0008-P03",
+    "name": "public example 3",
+    "visibility": "public",
+    "input": {
+      "pages": []
+    },
+    "expected_output": []
+  }
+]

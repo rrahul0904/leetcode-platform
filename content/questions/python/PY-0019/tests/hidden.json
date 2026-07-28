@@ -1,0 +1,33 @@
+[
+  {
+    "id": "PY-0019-H01",
+    "name": "hidden boundary case",
+    "visibility": "hidden",
+    "input": {
+      "before": {
+        "z": 0,
+        "a": false
+      },
+      "after": {
+        "z": 1,
+        "a": true
+      }
+    },
+    "expected_output": {
+      "added": [],
+      "removed": [],
+      "changed": [
+        {
+          "key": "a",
+          "before": false,
+          "after": true
+        },
+        {
+          "key": "z",
+          "before": 0,
+          "after": 1
+        }
+      ]
+    }
+  }
+]

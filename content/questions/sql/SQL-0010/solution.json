@@ -1,0 +1,56 @@
+{
+  "question_id": "SQL-0010",
+  "question_version": "1.0.0",
+  "reference_solution": "Use the query in reference.sql: WITH RECURSIVE descendants(team_id,name,depth) AS (SELECT team_id,name,0 FROM teams WHERE team_id=1 UNION ALL SELECT child.team_id,child.name,parent.depth+1 FROM teams child JOIN descendants parent ON child.parent_team_id=parent.team_id) SELECT team_id,name,depth FROM descendants ORDER BY depth,team_id;",
+  "explanation": "The reference separates validation from the core SQL behavior, makes tie-breaking explicit, and verifies the result against the stated invariants.",
+  "alternatives": [
+    {
+      "name": "Simpler centralized implementation",
+      "solution": "Use one authoritative coordinator or query before introducing partitioning.",
+      "advantages": [
+        "lower operational complexity",
+        "easier correctness testing"
+      ],
+      "disadvantages": [
+        "limited scale ceiling",
+        "larger failure domain"
+      ]
+    }
+  ],
+  "trade_off_analysis": [
+    "Correctness and explainability are preferred over premature optimization.",
+    "The production extension adds observability and recovery before higher throughput."
+  ],
+  "complexity": {
+    "expected_time": "Input dependent; the reference avoids unnecessary full Cartesian comparisons.",
+    "expected_space": "Linear in retained working state.",
+    "explanation": "Candidates should make bounds precise for their implementation."
+  },
+  "testing_and_debugging": [
+    "Verify the public example, boundary inputs, invalid input, and the named failure scenario.",
+    "Assert deterministic output across repeated runs."
+  ],
+  "production_follow_ups": [
+    "Add SLO-backed monitoring and traceable decisions.",
+    "Exercise recovery with controlled fault injection."
+  ],
+  "critical_omissions": [
+    "Missing invariant validation.",
+    "No failure or recovery analysis.",
+    "Nondeterministic results."
+  ],
+  "strong_response_example": "I will state the invariant, validate inputs before side effects, use an explicit ordering rule, and prove correctness with boundary and failure cases before discussing scale.",
+  "interviewer_follow_up_tree": {
+    "correct_base": [
+      "Increase scale by ten times",
+      "Inject a dependency failure"
+    ],
+    "misses_validation": [
+      "Provide malformed input"
+    ],
+    "misses_recovery": [
+      "Remove the primary dependency"
+    ]
+  },
+  "source_content_hash": "sha256:db246b1bc0bd34a6965d5566e99d78d128b413a4c5ab6f91228a1dffe21df949"
+}

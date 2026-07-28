@@ -1,0 +1,56 @@
+{
+  "question_id": "SQL-0008",
+  "question_version": "1.0.0",
+  "reference_solution": "Use the query in reference.sql: WITH ranked AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY normalized_email ORDER BY verified DESC, updated_at DESC, identity_id) AS rank_no FROM identities) SELECT normalized_email, identity_id FROM ranked WHERE rank_no=1 ORDER BY normalized_email;",
+  "explanation": "The reference separates validation from the core SQL behavior, makes tie-breaking explicit, and verifies the result against the stated invariants.",
+  "alternatives": [
+    {
+      "name": "Simpler centralized implementation",
+      "solution": "Use one authoritative coordinator or query before introducing partitioning.",
+      "advantages": [
+        "lower operational complexity",
+        "easier correctness testing"
+      ],
+      "disadvantages": [
+        "limited scale ceiling",
+        "larger failure domain"
+      ]
+    }
+  ],
+  "trade_off_analysis": [
+    "Correctness and explainability are preferred over premature optimization.",
+    "The production extension adds observability and recovery before higher throughput."
+  ],
+  "complexity": {
+    "expected_time": "Input dependent; the reference avoids unnecessary full Cartesian comparisons.",
+    "expected_space": "Linear in retained working state.",
+    "explanation": "Candidates should make bounds precise for their implementation."
+  },
+  "testing_and_debugging": [
+    "Verify the public example, boundary inputs, invalid input, and the named failure scenario.",
+    "Assert deterministic output across repeated runs."
+  ],
+  "production_follow_ups": [
+    "Add SLO-backed monitoring and traceable decisions.",
+    "Exercise recovery with controlled fault injection."
+  ],
+  "critical_omissions": [
+    "Missing invariant validation.",
+    "No failure or recovery analysis.",
+    "Nondeterministic results."
+  ],
+  "strong_response_example": "I will state the invariant, validate inputs before side effects, use an explicit ordering rule, and prove correctness with boundary and failure cases before discussing scale.",
+  "interviewer_follow_up_tree": {
+    "correct_base": [
+      "Increase scale by ten times",
+      "Inject a dependency failure"
+    ],
+    "misses_validation": [
+      "Provide malformed input"
+    ],
+    "misses_recovery": [
+      "Remove the primary dependency"
+    ]
+  },
+  "source_content_hash": "sha256:524db9363c4705027616665a7f691eae8ec031d13adf0880698ecaa5e269992d"
+}

@@ -1,0 +1,25 @@
+[
+  {
+    "id": "PY-0011-H01",
+    "name": "hidden boundary case",
+    "visibility": "hidden",
+    "input": {
+      "graph": {
+        "a": [
+          "b"
+        ],
+        "b": [
+          "c"
+        ],
+        "c": []
+      },
+      "start": "a",
+      "target": "c"
+    },
+    "expected_output": [
+      "a",
+      "b",
+      "c"
+    ]
+  }
+]

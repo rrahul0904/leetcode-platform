@@ -1,0 +1,27 @@
+[
+  {
+    "id": "PY-0005-H01",
+    "name": "hidden boundary case",
+    "visibility": "hidden",
+    "input": {
+      "tasks": [
+        {
+          "id": "large",
+          "cost": 9,
+          "priority": 9,
+          "enqueued_at": 0
+        },
+        {
+          "id": "fit",
+          "cost": 2,
+          "priority": 1,
+          "enqueued_at": 0
+        }
+      ],
+      "max_cost": 2
+    },
+    "expected_output": [
+      "fit"
+    ]
+  }
+]

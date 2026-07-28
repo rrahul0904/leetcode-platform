@@ -1,0 +1,34 @@
+[
+  {
+    "id": "PY-0007-H01",
+    "name": "hidden boundary case",
+    "visibility": "hidden",
+    "input": {
+      "requests": [
+        {
+          "id": "a",
+          "start": 0,
+          "end": 10,
+          "units": 1
+        },
+        {
+          "id": "b",
+          "start": 3,
+          "end": 7,
+          "units": 1
+        },
+        {
+          "id": "c",
+          "start": 4,
+          "end": 5,
+          "units": 1
+        }
+      ],
+      "capacity": 2
+    },
+    "expected_output": [
+      "a",
+      "b"
+    ]
+  }
+]

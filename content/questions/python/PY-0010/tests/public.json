@@ -1,0 +1,68 @@
+[
+  {
+    "id": "PY-0010-P01",
+    "name": "public example 1",
+    "visibility": "public",
+    "input": {
+      "tasks": [
+        {
+          "key": "a",
+          "version": 1,
+          "value": "old"
+        },
+        {
+          "key": "a",
+          "version": 2,
+          "value": "new"
+        }
+      ]
+    },
+    "expected_output": [
+      {
+        "key": "a",
+        "version": 2,
+        "value": "new"
+      }
+    ]
+  },
+  {
+    "id": "PY-0010-P02",
+    "name": "public example 2",
+    "visibility": "public",
+    "input": {
+      "tasks": [
+        {
+          "key": "b",
+          "version": 1
+        },
+        {
+          "key": "a",
+          "version": 3
+        },
+        {
+          "key": "b",
+          "version": 2
+        }
+      ]
+    },
+    "expected_output": [
+      {
+        "key": "b",
+        "version": 2
+      },
+      {
+        "key": "a",
+        "version": 3
+      }
+    ]
+  },
+  {
+    "id": "PY-0010-P03",
+    "name": "public example 3",
+    "visibility": "public",
+    "input": {
+      "tasks": []
+    },
+    "expected_output": []
+  }
+]

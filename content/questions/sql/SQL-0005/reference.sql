@@ -1,0 +1,1 @@
+WITH ranked AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY source_version DESC, received_at DESC) AS rank_no FROM updates) SELECT entity_id, source_version, value FROM ranked WHERE rank_no=1 ORDER BY entity_id;
