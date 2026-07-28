@@ -22,7 +22,12 @@ members = ["apps/api", "packages/question-schema"]
 package = false
 
 [tool.pytest.ini_options]
-testpaths = ["apps/api/tests", "packages/question-schema/tests", "tests"]
+testpaths = [
+  "apps/api/tests",
+  "packages/question-schema/tests",
+  "services/python-runner/tests",
+  "tests",
+]
 asyncio_mode = "auto"
 
 [tool.ruff]
