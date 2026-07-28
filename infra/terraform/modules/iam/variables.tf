@@ -28,10 +28,11 @@ variable "runtime_secret_arns" {
   default     = []
 }
 
-variable "execution_cluster_arn" {
-  type     = string
-  default  = null
-  nullable = true
+variable "execution_cluster_name" {
+  description = "Private execution cluster name used to scope trusted worker DescribeCluster permission."
+  type        = string
+  default     = null
+  nullable    = true
 }
 
 variable "tags" {
