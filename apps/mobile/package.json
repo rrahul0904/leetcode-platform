@@ -25,6 +25,7 @@
     "expo-network": "~57.0.1",
     "expo-router": "~57.0.7",
     "expo-secure-store": "~57.0.1",
+    "expo-sqlite": "~57.0.1",
     "expo-status-bar": "~57.0.1",
     "expo-web-browser": "~57.0.1",
     "react": "19.2.3",
