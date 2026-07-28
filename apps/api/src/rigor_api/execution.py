@@ -11,7 +11,9 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
+
+from sqlalchemy import Engine
 
 from .schemas import HiddenTestSummary, PublicTestResult, SubmissionRuntime
 
@@ -36,7 +38,7 @@ class ExecutionResult:
     error_category: str | None
     duration_ms: int
     candidate_message: str | None = None
-    quality_signals: dict[str, object] = field(default_factory=dict)
+    quality_signals: dict[str, object] = field(default_factory=lambda: {})
     memory_kb: int | None = None
 
 
@@ -264,6 +266,8 @@ except Exception as exc:
             if process is not None and process.poll() is None:
                 self._terminate_group(process)
                 process.wait(timeout=1)
+        if process is None:
+            return self._error(started, tests, "runner_start_failed", source=source)
         if len(stdout.encode("utf-8", errors="replace")) > selected_limits.output_bytes:
             return self._error(started, tests, "output_limit", source=source)
         if process.returncode != 0:
@@ -310,8 +314,94 @@ except Exception as exc:
             ),
             error_category=category,
             duration_ms=round((time.monotonic() - started) * 1000),
-            candidate_message=message or "Execution could not complete within the configured limits.",
+            candidate_message=message
+            or "Execution could not complete within the configured limits.",
             quality_signals=source_quality_signals(source),
+        )
+
+
+class LocalControlledRunner:
+    """Compatibility adapter for trusted content-package validation.
+
+    Candidate Python uses :class:`LocalFunctionalPythonRunner`; candidate SQL
+    uses the disposable PostgreSQL adapter. This class remains only because the
+    ingestion pipeline validates trusted, repository-owned reference packages
+    before publication.
+    """
+
+    adapter_name = "CONTENT_REFERENCE_VALIDATOR"
+
+    def __init__(self, engine: Engine) -> None:
+        self._engine = engine
+        self._python = LocalFunctionalPythonRunner()
+
+    def execute(
+        self,
+        runtime: SubmissionRuntime,
+        source: str,
+        tests: list[dict[str, Any]],
+        *,
+        limits: ExecutionLimits | None = None,
+        challenge: dict[str, Any] | None = None,
+    ) -> ExecutionResult:
+        if runtime == SubmissionRuntime.python:
+            return self._python.execute(runtime, source, tests, limits=limits)
+        return self._execute_trusted_reference_sql(source, tests)
+
+    def _execute_trusted_reference_sql(
+        self, source: str, tests: list[dict[str, Any]]
+    ) -> ExecutionResult:
+        started = time.monotonic()
+        normalized = source.strip().rstrip(";").strip()
+        raw_results: list[dict[str, Any]] = []
+        try:
+            for test in tests:
+                test_input = test.get("input")
+                if not isinstance(test_input, dict):
+                    raise ValueError("SQL tests require an input object")
+                typed_input = cast(dict[str, object], test_input)
+                setup_value: object = typed_input.get("setup_sql", [])
+                if not isinstance(setup_value, list):
+                    raise ValueError("SQL setup_sql must be a list of statements")
+                setup_objects = cast(list[object], setup_value)
+                if not all(isinstance(value, str) for value in setup_objects):
+                    raise ValueError("SQL setup_sql must be a list of statements")
+                setup = cast(list[str], setup_objects)
+                with self._engine.connect() as connection:
+                    transaction = connection.begin()
+                    try:
+                        connection.exec_driver_sql("SET LOCAL statement_timeout = '2000ms'")
+                        connection.exec_driver_sql("SET LOCAL search_path = pg_temp")
+                        for statement in setup:
+                            connection.exec_driver_sql(statement)
+                        rows = connection.exec_driver_sql(normalized).fetchall()
+                        actual = [list(row) for row in rows]
+                    finally:
+                        transaction.rollback()
+                raw_results.append(
+                    {
+                        "id": str(test["id"]),
+                        "passed": actual == test.get("expected_output"),
+                        "actual": actual,
+                    }
+                )
+        except Exception as exc:
+            return ExecutionResult(
+                status="error",
+                public_results=[],
+                hidden_summary=HiddenTestSummary(
+                    total=sum(test.get("visibility") != "public" for test in tests),
+                    passed=0,
+                ),
+                error_category=type(exc).__name__,
+                duration_ms=round((time.monotonic() - started) * 1000),
+                candidate_message="Trusted content reference validation failed.",
+            )
+        return project_results(
+            tests,
+            raw_results,
+            round((time.monotonic() - started) * 1000),
+            source,
         )
 
 
@@ -417,7 +507,9 @@ class KubernetesJobAdapter:
                                     "limits": {
                                         "cpu": "1",
                                         "memory": f"{limits.memory_mb}Mi",
-                                        "ephemeral-storage": f"{max(8, limits.file_bytes // 1048576)}Mi",
+                                        "ephemeral-storage": (
+                                            f"{max(8, limits.file_bytes // 1048576)}Mi"
+                                        ),
                                     },
                                 },
                                 "volumeMounts": [

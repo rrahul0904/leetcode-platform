@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 import psycopg
@@ -58,7 +58,9 @@ class DisposablePostgresSandbox:
     def _for_database(dsn: str, database: str) -> str:
         values = conninfo_to_dict(dsn)
         values["dbname"] = database
-        return make_conninfo(**values)
+        return make_conninfo(
+            **{key: str(value) for key, value in values.items() if value is not None}
+        )
 
     def execute(
         self,
@@ -93,9 +95,9 @@ class DisposablePostgresSandbox:
                 )
             target_admin_dsn = self._for_database(self.admin_dsn, database)
             with psycopg.connect(target_admin_dsn, autocommit=True) as setup:
-                setup.execute(str(challenge["ddl"]))
+                setup.execute(cast(Any, str(challenge["ddl"])))
                 if challenge.get("seed_data"):
-                    setup.execute(str(challenge["seed_data"]))
+                    setup.execute(cast(Any, str(challenge["seed_data"])))
                 setup.execute(
                     sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(
                         sql.Identifier(self.restricted_role)
@@ -121,25 +123,28 @@ class DisposablePostgresSandbox:
                     (f"{self.limits.statement_timeout_ms}ms",),
                 )
                 for test in tests:
-                    with candidate.transaction():
-                        with candidate.cursor() as cursor:
-                            cursor.execute(source)
-                            if cursor.description is None:
-                                raise psycopg.errors.ReadOnlySqlTransaction(
-                                    "candidate query must return rows"
-                                )
-                            columns = [column.name for column in cursor.description]
-                            rows = cursor.fetchmany(self.limits.row_limit + 1)
-                            if len(rows) > self.limits.row_limit:
-                                raise SqlResultLimitError
-                            actual = [dict(zip(columns, row, strict=True)) for row in rows]
-                            encoded = json.dumps(actual, default=str).encode()
-                            if len(encoded) > self.limits.output_bytes:
-                                raise SqlOutputLimitError
-                            expected = test.get("expected_output", expected_default)
-                            raw_results.append(
-                                {"id": str(test["id"]), "passed": actual == expected, "actual": actual}
+                    with candidate.transaction(), candidate.cursor() as cursor:
+                        cursor.execute(cast(Any, source))
+                        if cursor.description is None:
+                            raise psycopg.errors.ReadOnlySqlTransaction(
+                                "candidate query must return rows"
                             )
+                        columns = [column.name for column in cursor.description]
+                        rows = cursor.fetchmany(self.limits.row_limit + 1)
+                        if len(rows) > self.limits.row_limit:
+                            raise SqlResultLimitError
+                        actual = [dict(zip(columns, row, strict=True)) for row in rows]
+                        encoded = json.dumps(actual, default=str).encode()
+                        if len(encoded) > self.limits.output_bytes:
+                            raise SqlOutputLimitError
+                        expected = test.get("expected_output", expected_default)
+                        raw_results.append(
+                            {
+                                "id": str(test["id"]),
+                                "passed": actual == expected,
+                                "actual": actual,
+                            }
+                        )
         except SqlResultLimitError:
             return self._error(started, tests, "row_limit")
         except SqlOutputLimitError:
