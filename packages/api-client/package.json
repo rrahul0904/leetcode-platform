@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./client": "./src/client.ts",
     "./schema": "./src/schema.d.ts"
   },
   "scripts": {
     "generate": "openapi-typescript openapi.json -o src/schema.d.ts && prettier --write src/schema.d.ts",
     "build": "pnpm generate",
-    "lint": "prettier --check src/schema.d.ts",
+    "lint": "prettier --check src/client.ts src/schema.d.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test"
   },
