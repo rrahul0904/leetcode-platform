@@ -15,6 +15,11 @@ variable "subnet_ids" {
   type        = list(string)
 }
 
+variable "kms_key_arn" {
+  description = "Execution-plane KMS key for EKS secret envelope encryption."
+  type        = string
+}
+
 variable "kubernetes_version" {
   description = "Pin to an EKS-supported version before apply. Null lets AWS select the account default and is intended only for planning/bootstrap."
   type        = string
