@@ -9,11 +9,12 @@ from sqlalchemy.exc import SQLAlchemyError
 from .config import Settings
 from .schemas import ReadinessCheck, ReadinessResponse
 
-EXPECTED_MIGRATION_VERSION = "20260721_0007"
+EXPECTED_MIGRATION_VERSION = "20260728_0008"
 REQUIRED_TABLES = (
     "practice_sessions",
     "submissions",
     "execution_requests",
+    "submission_evaluations",
     "learning_plans",
     "candidate_competency_evidence",
     "assessment_sessions",
@@ -22,6 +23,7 @@ REQUIRED_TABLES = (
     "ai_interactions",
     "readiness_snapshots",
     "recommendation_events",
+    "role_readiness_profiles",
 )
 EXECUTION_ADAPTERS = {"LOCAL_FUNCTIONAL", "KUBERNETES_JOB"}
 AI_ADAPTERS = {"DETERMINISTIC", "OPENAI", "ANTHROPIC"}

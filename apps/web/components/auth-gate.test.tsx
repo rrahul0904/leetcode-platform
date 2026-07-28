@@ -47,4 +47,16 @@ describe("AuthGate", () => {
     expect(screen.getByText("Candidate home")).toBeInTheDocument();
     expect(router.replace).not.toHaveBeenCalledWith("/onboarding");
   });
+
+  it("keeps a candidate inside the hosted practice workspace", () => {
+    pathname = "/practice/py-0001-bounded-cache";
+    router.replace.mockClear();
+    render(
+      <AuthGate>
+        <div>Practice workspace</div>
+      </AuthGate>,
+    );
+    expect(screen.getByText("Practice workspace")).toBeInTheDocument();
+    expect(router.replace).not.toHaveBeenCalledWith("/");
+  });
 });

@@ -45,6 +45,7 @@ from .database_health import readiness_report
 from .import_reports import ContentImportRepository
 from .ingestion import ContentIngestionEngine, IngestionError
 from .persistence import PlatformStatisticsRepository
+from .practice import router as practice_router
 from .profiles import ProfileNotFoundError, ProfileRepository
 from .published_catalog import (
     CatalogSort,
@@ -107,6 +108,7 @@ from .schemas import (
     SourceSyncResult,
 )
 from .source_registry import SourceRegistryRepository
+from .submissions import router as submissions_router
 
 
 @asynccontextmanager
@@ -132,6 +134,8 @@ app = FastAPI(
     description="Versioned API for the independent Rigor interview preparation platform.",
     lifespan=lifespan,
 )
+app.include_router(practice_router)
+app.include_router(submissions_router)
 settings: Settings = get_settings()
 app.add_middleware(
     CORSMiddleware,

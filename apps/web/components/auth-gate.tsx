@@ -21,6 +21,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const candidateRoute = [
     "/",
     "/question-bank",
+    "/practice",
     "/learning-paths",
     "/mock-interviews",
     "/progress",

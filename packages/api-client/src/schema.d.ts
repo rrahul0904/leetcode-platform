@@ -4,6 +4,297 @@
  */
 
 export interface paths {
+  "/api/v1/practice-sessions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Practice Sessions */
+    get: operations["list_practice_sessions_api_v1_practice_sessions_get"];
+    put?: never;
+    /** Create Practice Session */
+    post: operations["create_practice_session_api_v1_practice_sessions_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/practice-sessions/{session_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Practice Session */
+    get: operations["get_practice_session_api_v1_practice_sessions__session_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Patch Practice Session */
+    patch: operations["patch_practice_session_api_v1_practice_sessions__session_id__patch"];
+    trace?: never;
+  };
+  "/api/v1/practice-sessions/{session_id}/start": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start Practice Session */
+    post: operations["start_practice_session_api_v1_practice_sessions__session_id__start_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/practice-sessions/{session_id}/pause": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Pause Practice Session */
+    post: operations["pause_practice_session_api_v1_practice_sessions__session_id__pause_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/practice-sessions/{session_id}/resume": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resume Practice Session */
+    post: operations["resume_practice_session_api_v1_practice_sessions__session_id__resume_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/practice-sessions/{session_id}/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Append Practice Event */
+    post: operations["append_practice_event_api_v1_practice_sessions__session_id__events_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/practice-sessions/{session_id}/complete": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Complete Practice Session */
+    post: operations["complete_practice_session_api_v1_practice_sessions__session_id__complete_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/practice-sessions/{session_id}/hints": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reveal Practice Hint */
+    post: operations["reveal_practice_hint_api_v1_practice_sessions__session_id__hints_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/questions/{slug}/run": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Run Question */
+    post: operations["run_question_api_v1_questions__slug__run_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/questions/{slug}/submissions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Submit Question */
+    post: operations["submit_question_api_v1_questions__slug__submissions_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/submissions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Submissions */
+    get: operations["list_submissions_api_v1_submissions_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/submissions/{submission_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Submission */
+    get: operations["get_submission_api_v1_submissions__submission_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/practice-sessions/{session_id}/submissions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Session Submissions */
+    get: operations["list_session_submissions_api_v1_practice_sessions__session_id__submissions_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/me/evidence": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Candidate Evidence */
+    get: operations["candidate_evidence_api_v1_me_evidence_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/me/competencies": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Candidate Competencies */
+    get: operations["candidate_competencies_api_v1_me_competencies_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/me/readiness": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Candidate Readiness */
+    get: operations["candidate_readiness_api_v1_me_readiness_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/me/next-action": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Next Action */
+    get: operations["next_action_api_v1_me_next_action_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/livez": {
     parameters: {
       query?: never;
@@ -1258,6 +1549,44 @@ export interface components {
        */
       visibility: "public" | "private";
     };
+    /** CandidateEvidence */
+    CandidateEvidence: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Competency Id
+       * Format: uuid
+       */
+      competency_id: string;
+      /** Competency Slug */
+      competency_slug: string;
+      /** Competency Name */
+      competency_name: string;
+      /** Source Type */
+      source_type: string;
+      /** Source Id */
+      source_id: string;
+      /** Score */
+      score: number;
+      /** Confidence */
+      confidence: number;
+      /** Weight */
+      weight: number;
+      /** Evaluator Version */
+      evaluator_version: string;
+      /** Metadata */
+      metadata: {
+        [key: string]: unknown;
+      };
+      /**
+       * Observed At
+       * Format: date-time
+       */
+      observed_at: string;
+    };
     /** CandidateProfile */
     CandidateProfile: {
       /** Target Roles */
@@ -1356,6 +1685,62 @@ export interface components {
       public_examples: components["schemas"]["PublicExample"][];
       /** Starter Code */
       starter_code?: string | null;
+    };
+    /** CandidateReadiness */
+    CandidateReadiness: {
+      /** Target Role */
+      target_role: string;
+      overall: components["schemas"]["ReadinessSummary"];
+      /** Evidence Count */
+      evidence_count: number;
+      /** Competencies */
+      competencies: components["schemas"]["CompetencyReadiness"][];
+      /** Critical Gaps */
+      critical_gaps: components["schemas"]["CompetencyReadiness"][];
+      /** Strongest Areas */
+      strongest_areas: components["schemas"]["CompetencyReadiness"][];
+      /** Calculated At */
+      calculated_at: string | null;
+    };
+    /** CandidateSubmission */
+    CandidateSubmission: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Practice Session Id
+       * Format: uuid
+       */
+      practice_session_id: string;
+      /**
+       * Question Version Id
+       * Format: uuid
+       */
+      question_version_id: string;
+      /** Question Slug */
+      question_slug: string;
+      /** Question Title */
+      question_title: string;
+      /** Publication Version */
+      publication_version: string;
+      runtime: components["schemas"]["SubmissionRuntime"];
+      /** Source Code */
+      source_code: string;
+      status: components["schemas"]["SubmissionStatus"];
+      execution: components["schemas"]["ExecutionResult"];
+      evaluation: components["schemas"]["SubmissionEvaluationRecord"];
+      /**
+       * Submitted At
+       * Format: date-time
+       */
+      submitted_at: string;
+      /**
+       * Completed At
+       * Format: date-time
+       */
+      completed_at: string;
     };
     /** CatalogAggregateSummary */
     CatalogAggregateSummary: {
@@ -1512,6 +1897,31 @@ export interface components {
        * Format: date-time
        */
       last_updated_at: string;
+    };
+    /** CompetencyReadiness */
+    CompetencyReadiness: {
+      /**
+       * Competency Id
+       * Format: uuid
+       */
+      competency_id: string;
+      /** Slug */
+      slug: string;
+      /** Name */
+      name: string;
+      /** Score */
+      score: number;
+      /** Confidence */
+      confidence: number;
+      /** Evidence Count */
+      evidence_count: number;
+      /** Last Observed At */
+      last_observed_at: string | null;
+      /**
+       * Trend
+       * @enum {string}
+       */
+      trend: "improving" | "stable" | "declining" | "insufficient_evidence";
     };
     /** ComplexityAnalysis */
     ComplexityAnalysis: {
@@ -1873,6 +2283,77 @@ export interface components {
        */
       created_at: string;
     };
+    /** ExecutionResult */
+    ExecutionResult: {
+      /**
+       * Execution Request Id
+       * Format: uuid
+       */
+      execution_request_id: string;
+      /** Submission Id */
+      submission_id: string | null;
+      state: components["schemas"]["ExecutionState"];
+      /** Public Results */
+      public_results: components["schemas"]["ExecutionTestResult"][];
+      /** Hidden Total */
+      hidden_total: number;
+      /** Hidden Passed */
+      hidden_passed: number;
+      /**
+       * Runtime Ms
+       * @default null
+       */
+      runtime_ms: number | null;
+      /**
+       * Memory Kb
+       * @default null
+       */
+      memory_kb: number | null;
+      /** Error Category */
+      error_category: string | null;
+      /** Candidate Message */
+      candidate_message: string | null;
+      /** Quality Signals */
+      quality_signals: {
+        [key: string]: unknown;
+      };
+    };
+    /**
+     * ExecutionState
+     * @enum {string}
+     */
+    ExecutionState:
+      | "QUEUED"
+      | "RUNNING"
+      | "PASSED"
+      | "FAILED"
+      | "ERROR"
+      | "CANCELLED"
+      | "TIMED_OUT";
+    /** ExecutionTestResult */
+    ExecutionTestResult: {
+      /** Test Id */
+      test_id: string;
+      /** Name */
+      name: string;
+      /** Passed */
+      passed: boolean;
+      /**
+       * Expected
+       * @default null
+       */
+      expected: unknown | null;
+      /**
+       * Actual
+       * @default null
+       */
+      actual: unknown | null;
+      /**
+       * Duration Ms
+       * @default null
+       */
+      duration_ms: number | null;
+    };
     /**
      * ExperienceLevel
      * @enum {string}
@@ -2118,6 +2599,27 @@ export interface components {
       /** Difficulty Calibration */
       difficulty_calibration: string;
     };
+    /** NextAction */
+    NextAction: {
+      /**
+       * Type
+       * @enum {string}
+       */
+      type: "PRACTICE" | "ASSESSMENT" | "REVIEW";
+      /** Source Id */
+      source_id: string;
+      /** Title */
+      title: string;
+      /** Href */
+      href: string;
+      /** Reasons */
+      reasons: string[];
+      /**
+       * Competency Slug
+       * @default null
+       */
+      competency_slug: string | null;
+    };
     /** OIDCTokenResponse */
     OIDCTokenResponse: {
       /** Access Token */
@@ -2216,6 +2718,133 @@ export interface components {
       /** Source Counts */
       source_counts: components["schemas"]["PracticeSourceCount"][];
     };
+    /** PracticeHint */
+    PracticeHint: {
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+      /** Reveal Level */
+      reveal_level: number;
+      /** Text */
+      text: string;
+      /** Hint Count */
+      hint_count: number;
+    };
+    /** PracticeRunRequest */
+    PracticeRunRequest: {
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+      /** Source Code */
+      source_code: string;
+    };
+    /** PracticeSessionCreateRequest */
+    PracticeSessionCreateRequest: {
+      /** Question Slug */
+      question_slug: string;
+      /** @default python3.13 */
+      runtime: components["schemas"]["SubmissionRuntime"];
+    };
+    /** PracticeSessionEventInput */
+    PracticeSessionEventInput: {
+      /** Event Type */
+      event_type: string;
+      /** Payload */
+      payload?: {
+        [key: string]: unknown;
+      };
+    };
+    /** PracticeSessionPatch */
+    PracticeSessionPatch: {
+      /**
+       * Draft Code
+       * @default null
+       */
+      draft_code: string | null;
+      /**
+       * Notes
+       * @default null
+       */
+      notes: string | null;
+      /**
+       * Elapsed Seconds
+       * @default null
+       */
+      elapsed_seconds: number | null;
+    };
+    /**
+     * PracticeSessionState
+     * @enum {string}
+     */
+    PracticeSessionState:
+      | "CREATED"
+      | "IN_PROGRESS"
+      | "PAUSED"
+      | "SUBMITTED"
+      | "EVALUATING"
+      | "COMPLETED"
+      | "ABANDONED";
+    /** PracticeSessionView */
+    PracticeSessionView: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Question Version Id
+       * Format: uuid
+       */
+      question_version_id: string;
+      /** Question Slug */
+      question_slug: string;
+      /** Question Title */
+      question_title: string;
+      /** Publication Version */
+      publication_version: string;
+      state: components["schemas"]["PracticeSessionState"];
+      runtime: components["schemas"]["SubmissionRuntime"];
+      /** Draft Code */
+      draft_code: string;
+      /** Notes */
+      notes: string;
+      /** Elapsed Seconds */
+      elapsed_seconds: number;
+      /** Hint Count */
+      hint_count: number;
+      /** Run Count */
+      run_count: number;
+      /** Submission Count */
+      submission_count: number;
+      /**
+       * Started At
+       * Format: date-time
+       */
+      started_at: string;
+      /**
+       * Last Activity At
+       * Format: date-time
+       */
+      last_activity_at: string;
+      /** Submitted At */
+      submitted_at: string | null;
+      /** Completed At */
+      completed_at: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
     /** PracticeSourceCount */
     PracticeSourceCount: {
       /**
@@ -2227,6 +2856,18 @@ export interface components {
       source_name: string;
       /** Reference Count */
       reference_count: number;
+    };
+    /** PracticeSubmitRequest */
+    PracticeSubmitRequest: {
+      /**
+       * Session Id
+       * Format: uuid
+       */
+      session_id: string;
+      /** Source Code */
+      source_code: string;
+      /** @default python3.13 */
+      runtime: components["schemas"]["SubmissionRuntime"];
     };
     /**
      * PreferredProgrammingLanguage
@@ -2471,6 +3112,13 @@ export interface components {
       service: string;
       /** Checks */
       checks: components["schemas"]["ReadinessCheck"][];
+    };
+    /** ReadinessSummary */
+    ReadinessSummary: {
+      /** Score */
+      score: number;
+      /** Confidence */
+      confidence: number;
     };
     /** ReviewActionResult */
     ReviewActionResult: {
@@ -2876,6 +3524,46 @@ export interface components {
       /** Statement Timeout Ms */
       statement_timeout_ms: number;
     };
+    /** SubmissionEvaluationRecord */
+    SubmissionEvaluationRecord: {
+      /** Correctness Score */
+      correctness_score: number;
+      /** Complexity Score */
+      complexity_score: number;
+      /** Code Quality Score */
+      code_quality_score: number;
+      /** Testing Score */
+      testing_score: number;
+      /** Robustness Score */
+      robustness_score: number;
+      /** Overall Score */
+      overall_score: number;
+      /** Evaluator Version */
+      evaluator_version: string;
+      /** Deterministic Signals */
+      deterministic_signals: {
+        [key: string]: unknown;
+      };
+      /** Heuristic Signals */
+      heuristic_signals: {
+        [key: string]: unknown;
+      };
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+    };
+    /**
+     * SubmissionRuntime
+     * @enum {string}
+     */
+    SubmissionRuntime: "python3.13" | "postgresql18";
+    /**
+     * SubmissionStatus
+     * @enum {string}
+     */
+    SubmissionStatus: "queued" | "running" | "passed" | "failed" | "error";
     /** TestCase */
     TestCase: {
       /** Id */
@@ -3055,77 +3743,6 @@ export interface components {
       evidence: {
         [key: string]: unknown;
       };
-    };
-    /** ExecutionResult */
-    ExecutionResult: {
-      /**
-       * Execution Request Id
-       * Format: uuid
-       */
-      execution_request_id: string;
-      /** Submission Id */
-      submission_id: string | null;
-      state: components["schemas"]["ExecutionState"];
-      /** Public Results */
-      public_results: components["schemas"]["ExecutionTestResult"][];
-      /** Hidden Total */
-      hidden_total: number;
-      /** Hidden Passed */
-      hidden_passed: number;
-      /**
-       * Runtime Ms
-       * @default null
-       */
-      runtime_ms: number | null;
-      /**
-       * Memory Kb
-       * @default null
-       */
-      memory_kb: number | null;
-      /** Error Category */
-      error_category: string | null;
-      /** Candidate Message */
-      candidate_message: string | null;
-      /** Quality Signals */
-      quality_signals: {
-        [key: string]: unknown;
-      };
-    };
-    /**
-     * ExecutionState
-     * @enum {string}
-     */
-    ExecutionState:
-      | "QUEUED"
-      | "RUNNING"
-      | "PASSED"
-      | "FAILED"
-      | "ERROR"
-      | "CANCELLED"
-      | "TIMED_OUT";
-    /** ExecutionTestResult */
-    ExecutionTestResult: {
-      /** Test Id */
-      test_id: string;
-      /** Name */
-      name: string;
-      /** Passed */
-      passed: boolean;
-      /**
-       * Expected
-       * @default null
-       */
-      expected: unknown | null;
-      /**
-       * Actual
-       * @default null
-       */
-      actual: unknown | null;
-      /**
-       * Duration Ms
-       * @default null
-       */
-      duration_ms: number | null;
     };
     /** ExternalReferenceProgress */
     ExternalReferenceProgress: {
@@ -3382,27 +3999,6 @@ export interface components {
        */
       runtime: string | null;
     };
-    /** PracticeSessionEventInput */
-    PracticeSessionEventInput: {
-      /** Event Type */
-      event_type: string;
-      /** Payload */
-      payload?: {
-        [key: string]: unknown;
-      };
-    };
-    /**
-     * PracticeSessionState
-     * @enum {string}
-     */
-    PracticeSessionState:
-      | "CREATED"
-      | "IN_PROGRESS"
-      | "PAUSED"
-      | "SUBMITTED"
-      | "EVALUATING"
-      | "COMPLETED"
-      | "ABANDONED";
     /** Readiness */
     Readiness: {
       /**
@@ -3602,6 +4198,547 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  list_practice_sessions_api_v1_practice_sessions_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PracticeSessionView"][];
+        };
+      };
+    };
+  };
+  create_practice_session_api_v1_practice_sessions_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PracticeSessionCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PracticeSessionView"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_practice_session_api_v1_practice_sessions__session_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PracticeSessionView"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  patch_practice_session_api_v1_practice_sessions__session_id__patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PracticeSessionPatch"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PracticeSessionView"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  start_practice_session_api_v1_practice_sessions__session_id__start_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PracticeSessionView"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  pause_practice_session_api_v1_practice_sessions__session_id__pause_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PracticeSessionView"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  resume_practice_session_api_v1_practice_sessions__session_id__resume_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PracticeSessionView"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  append_practice_event_api_v1_practice_sessions__session_id__events_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PracticeSessionEventInput"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  complete_practice_session_api_v1_practice_sessions__session_id__complete_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PracticeSessionView"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  reveal_practice_hint_api_v1_practice_sessions__session_id__hints_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PracticeHint"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  run_question_api_v1_questions__slug__run_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slug: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PracticeRunRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExecutionResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  submit_question_api_v1_questions__slug__submissions_post: {
+    parameters: {
+      query?: never;
+      header: {
+        "Idempotency-Key": string;
+      };
+      path: {
+        slug: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PracticeSubmitRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CandidateSubmission"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_submissions_api_v1_submissions_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CandidateSubmission"][];
+        };
+      };
+    };
+  };
+  get_submission_api_v1_submissions__submission_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CandidateSubmission"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_session_submissions_api_v1_practice_sessions__session_id__submissions_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CandidateSubmission"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  candidate_evidence_api_v1_me_evidence_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CandidateEvidence"][];
+        };
+      };
+    };
+  };
+  candidate_competencies_api_v1_me_competencies_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CompetencyReadiness"][];
+        };
+      };
+    };
+  };
+  candidate_readiness_api_v1_me_readiness_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CandidateReadiness"];
+        };
+      };
+    };
+  };
+  next_action_api_v1_me_next_action_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NextAction"];
+        };
+      };
+    };
+  };
   liveness_livez_get: {
     parameters: {
       query?: never;

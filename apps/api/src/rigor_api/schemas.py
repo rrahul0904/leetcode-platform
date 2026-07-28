@@ -801,6 +801,134 @@ class SubmissionRecord(ApiModel):
     completed_at: datetime | None
 
 
+class PracticeSessionCreateRequest(ApiModel):
+    question_slug: str = Field(min_length=3, max_length=180)
+    runtime: SubmissionRuntime = SubmissionRuntime.python
+
+
+class PracticeSessionPatch(ApiModel):
+    draft_code: str | None = Field(default=None, max_length=100_000)
+    notes: str | None = Field(default=None, max_length=20_000)
+    elapsed_seconds: int | None = Field(default=None, ge=0, le=86_400)
+
+
+class PracticeSessionView(ApiModel):
+    id: UUID
+    question_version_id: UUID
+    question_slug: str
+    question_title: str
+    publication_version: str
+    state: PracticeSessionState
+    runtime: SubmissionRuntime
+    draft_code: str
+    notes: str
+    elapsed_seconds: int = Field(ge=0)
+    hint_count: int = Field(ge=0)
+    run_count: int = Field(ge=0)
+    submission_count: int = Field(ge=0)
+    started_at: datetime
+    last_activity_at: datetime
+    submitted_at: datetime | None
+    completed_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class PracticeRunRequest(ApiModel):
+    session_id: UUID
+    source_code: str = Field(min_length=1, max_length=100_000)
+
+
+class PracticeSubmitRequest(PracticeRunRequest):
+    runtime: SubmissionRuntime = SubmissionRuntime.python
+
+
+class PracticeHint(ApiModel):
+    session_id: UUID
+    reveal_level: int = Field(ge=1)
+    text: str
+    hint_count: int = Field(ge=1)
+
+
+class SubmissionEvaluationRecord(ApiModel):
+    correctness_score: float = Field(ge=0, le=1)
+    complexity_score: float = Field(ge=0, le=1)
+    code_quality_score: float = Field(ge=0, le=1)
+    testing_score: float = Field(ge=0, le=1)
+    robustness_score: float = Field(ge=0, le=1)
+    overall_score: float = Field(ge=0, le=1)
+    evaluator_version: str
+    deterministic_signals: dict[str, object]
+    heuristic_signals: dict[str, object]
+    created_at: datetime
+
+
+class CandidateSubmission(ApiModel):
+    id: UUID
+    practice_session_id: UUID
+    question_version_id: UUID
+    question_slug: str
+    question_title: str
+    publication_version: str
+    runtime: SubmissionRuntime
+    source_code: str
+    status: SubmissionStatus
+    execution: ExecutionResult
+    evaluation: SubmissionEvaluationRecord
+    submitted_at: datetime
+    completed_at: datetime
+
+
+class CandidateEvidence(ApiModel):
+    id: UUID
+    competency_id: UUID
+    competency_slug: str
+    competency_name: str
+    source_type: str
+    source_id: str
+    score: float = Field(ge=0, le=1)
+    confidence: float = Field(ge=0, le=1)
+    weight: float = Field(gt=0, le=1)
+    evaluator_version: str
+    metadata: dict[str, object]
+    observed_at: datetime
+
+
+class CompetencyReadiness(ApiModel):
+    competency_id: UUID
+    slug: str
+    name: str
+    score: float = Field(ge=0, le=1)
+    confidence: float = Field(ge=0, le=1)
+    evidence_count: int = Field(ge=0)
+    last_observed_at: datetime | None
+    trend: Literal["improving", "stable", "declining", "insufficient_evidence"]
+
+
+class ReadinessSummary(ApiModel):
+    score: float = Field(ge=0, le=1)
+    confidence: float = Field(ge=0, le=1)
+
+
+class CandidateReadiness(ApiModel):
+    target_role: str
+    overall: ReadinessSummary
+    evidence_count: int = Field(ge=0)
+    competencies: list[CompetencyReadiness]
+    critical_gaps: list[CompetencyReadiness]
+    strongest_areas: list[CompetencyReadiness]
+    calculated_at: datetime | None
+
+
+class NextAction(ApiModel):
+    type: Literal["PRACTICE", "ASSESSMENT", "REVIEW"]
+    source_id: str
+    title: str
+    href: str
+    reasons: list[str]
+    competency_slug: str | None = None
+
+
 class ArchitectureArtifactInput(ApiModel):
     artifact_type: str = Field(min_length=2, max_length=60)
     version: int = Field(ge=1)
@@ -993,6 +1121,19 @@ SHARED_API_CONTRACTS: tuple[type[ApiModel], ...] = (
     ExecutionTestResult,
     ExecutionResult,
     SubmissionRecord,
+    PracticeSessionCreateRequest,
+    PracticeSessionPatch,
+    PracticeSessionView,
+    PracticeRunRequest,
+    PracticeSubmitRequest,
+    PracticeHint,
+    SubmissionEvaluationRecord,
+    CandidateSubmission,
+    CandidateEvidence,
+    CompetencyReadiness,
+    ReadinessSummary,
+    CandidateReadiness,
+    NextAction,
     ArchitectureArtifactInput,
     ArchitectureArtifact,
     SimulationSession,

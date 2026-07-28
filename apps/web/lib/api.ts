@@ -48,6 +48,17 @@ export type LicenseInventoryRecord =
   components["schemas"]["LicenseInventoryRecord"];
 export type ProvenanceInventoryRecord =
   components["schemas"]["ProvenanceInventoryRecord"];
+export type PracticeSession =
+  components["schemas"]["PracticeSessionView"];
+export type ExecutionResult = components["schemas"]["ExecutionResult"];
+export type CandidateSubmission =
+  components["schemas"]["CandidateSubmission"];
+export type CandidateReadiness =
+  components["schemas"]["CandidateReadiness"];
+export type CompetencyReadiness =
+  components["schemas"]["CompetencyReadiness"];
+export type NextAction = components["schemas"]["NextAction"];
+export type PracticeHint = components["schemas"]["PracticeHint"];
 
 const apiUrl = process.env.NEXT_PUBLIC_RIGOR_API_URL ?? "http://localhost:8002";
 
@@ -171,6 +182,92 @@ export function getPublishedQuestions(
 export function getPublishedQuestion(slug: string, signal?: AbortSignal) {
   return requestJson<CandidateQuestionDetail>(
     `/api/v1/questions/${encodeURIComponent(slug)}`,
+    signal ? { signal } : {},
+  );
+}
+
+export function createPracticeSession(questionSlug: string) {
+  return requestJson<PracticeSession>("/api/v1/practice-sessions", {
+    method: "POST",
+    body: { question_slug: questionSlug, runtime: "python3.13" },
+  });
+}
+
+export function autosavePracticeSession(
+  sessionId: string,
+  update: { draft_code: string; elapsed_seconds: number },
+) {
+  return requestJson<PracticeSession>(
+    `/api/v1/practice-sessions/${sessionId}`,
+    { method: "PATCH", body: update },
+  );
+}
+
+export function runPracticeCode(
+  slug: string,
+  sessionId: string,
+  sourceCode: string,
+) {
+  return requestJson<ExecutionResult>(
+    `/api/v1/questions/${encodeURIComponent(slug)}/run`,
+    {
+      method: "POST",
+      body: { session_id: sessionId, source_code: sourceCode },
+    },
+  );
+}
+
+export function submitPracticeCode(
+  slug: string,
+  sessionId: string,
+  sourceCode: string,
+  idempotencyKey: string,
+) {
+  return requestJson<CandidateSubmission>(
+    `/api/v1/questions/${encodeURIComponent(slug)}/submissions`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: {
+        session_id: sessionId,
+        source_code: sourceCode,
+        runtime: "python3.13",
+      },
+    },
+  );
+}
+
+export function revealPracticeHint(sessionId: string) {
+  return requestJson<PracticeHint>(
+    `/api/v1/practice-sessions/${sessionId}/hints`,
+    { method: "POST" },
+  );
+}
+
+export function getSubmissions(signal?: AbortSignal) {
+  return requestJson<CandidateSubmission[]>(
+    "/api/v1/submissions",
+    signal ? { signal } : {},
+  );
+}
+
+export function getCandidateReadiness(signal?: AbortSignal) {
+  return requestJson<CandidateReadiness>(
+    "/api/v1/me/readiness",
+    signal ? { signal } : {},
+  );
+}
+
+export function getCandidateCompetencies(signal?: AbortSignal) {
+  return requestJson<CompetencyReadiness[]>(
+    "/api/v1/me/competencies",
+    signal ? { signal } : {},
+  );
+}
+
+export function getNextAction(signal?: AbortSignal) {
+  return requestJson<NextAction>(
+    "/api/v1/me/next-action",
     signal ? { signal } : {},
   );
 }

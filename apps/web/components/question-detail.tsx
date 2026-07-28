@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  ArrowRight,
   Building2,
   Clock3,
   ShieldCheck,
@@ -55,6 +56,17 @@ export function QuestionDetail({ slug }: { slug: string }) {
               <span key={skill}>{skill}</span>
             ))}
           </div>
+          {item.starter_code?.trimStart().startsWith("def ") && (
+            <Link className="button button--primary" href={`/practice/${slug}`}>
+              Start practice <ArrowRight size={16} />
+            </Link>
+          )}
+          {item.starter_code?.trimStart().startsWith("class ") && (
+            <p className="boundary-note">
+              Class-style execution is not enabled in the current Python
+              runner milestone. The prompt remains available for guided study.
+            </p>
+          )}
         </div>
         <aside className="availability-card">
           <ShieldCheck size={22} />
