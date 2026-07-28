@@ -149,6 +149,7 @@ def build_python_job(
                 "metadata": {"labels": labels},
                 "spec": {
                     "runtimeClassName": "gvisor",
+                    "serviceAccountName": "candidate-execution",
                     "restartPolicy": "Never",
                     "automountServiceAccountToken": False,
                     "enableServiceLinks": False,
