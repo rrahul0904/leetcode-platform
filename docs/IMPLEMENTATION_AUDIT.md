@@ -2,90 +2,100 @@
 
 Audit date: 2026-07-28
 
-This document supersedes older local-worktree observations with evidence from the current GitHub branch `feature/rigor-multiclient-infrastructure`. It deliberately distinguishes implementation, tests, integration validation, deployment, and production readiness.
+This audit is based on the current GitHub branch `feature/rigor-multiclient-infrastructure`. It distinguishes source implementation, tests present in source, tests actually executed, staging deployment, and production readiness. A Terraform module, Kubernetes manifest, test file, or Dockerfile is not deployment proof.
 
 ## Branch evidence
 
-At the start of this execution-plane slice, GitHub reported:
+At the start of this execution-plane slice GitHub reported **11 commits ahead of `main` and 0 behind**. After the implementation work recorded below, the branch is **50 commits ahead of `main` and 0 behind**.
 
-- feature branch ahead of `main`: **11 commits**;
-- feature branch behind `main`: **0 commits**.
-
-The previously stated estimate of roughly 134 commits ahead is not supported by the current GitHub branch and is not used as evidence here.
+The previously stated estimate of roughly 134 commits ahead is not supported by the current GitHub branch and is not used as evidence.
 
 ## Capability audit
 
 | Capability | Source implemented? | Unit tested? | Integration tested? | Staging deployed? | Production-ready? | Evidence | Known gaps |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Next.js web application | Yes | Yes, existing suite | Local evidence only | No evidence | No | `apps/web`; existing progress ledger reports lint/typecheck/component/build validation | Async production execution client not yet proven in staging |
-| FastAPI application | Yes | Yes, existing suite | Local evidence only | No evidence | No | `apps/api`; authenticated practice/submission routes | Current Run/Submit path still invokes local candidate execution synchronously |
-| PostgreSQL persistence and migrations | Yes | Partial | Local migration evidence | No evidence | No | Alembic through `20260728_0008` before this slice; role/RLS foundation | New execution migration `20260728_0009` requires CI/database/staging validation |
-| Valkey integration | Partial | Limited | Reachability check exists | No evidence | No | API readiness probe | No production ElastiCache deployment/failure validation |
-| OIDC / authorization | Yes | Existing tests | Local | No evidence | No | normalized principal, permission checks, local OIDC/PKCE support | Production provider, redirects, token lifecycle and physical-device validation incomplete |
-| Candidate profile | Yes | Existing tests | Local | No evidence | No | API/UI persistence and RLS context | No staging verification |
-| Published question catalog | Yes | Existing tests | Local | No evidence | No | published-version filtering and candidate-safe response boundary | Production release validation remains separate |
-| Practice sessions / server draft persistence | Yes | Existing tests | Local | No evidence | No | `practice.py`, PostgreSQL-backed sessions | Native local-first/offline claims are not evidenced by the inspected branch |
-| Candidate Run API | Yes, legacy synchronous path | Existing local runner coverage | Local only | No | **No** | `/api/v1/questions/{slug}/run`; `LocalFunctionalPythonRunner` | FastAPI still executes candidate Python; must be rewired to durable async execution |
-| Candidate Submit API | Yes, legacy synchronous path | Existing evaluation tests | Local only | No | **No** | submissions/evaluation/evidence persistence | Same production-isolation blocker; response contract is terminal/synchronous |
-| Execution state-machine foundation | **Yes, this slice** | **Yes, this slice** | Not yet | No | No | `rigor_api/execution_domain.py`; `test_execution_domain.py` | Dispatcher/database integration not yet validated |
-| Durable execution idempotency foundation | **Yes, this slice** | Request fingerprint unit-tested | Not yet | No | No | candidate-scoped uniqueness plus `request_hash` | Run/Submit endpoints still need endpoint-scoped key wiring |
-| Transactional execution outbox | **Yes, this slice** | Retry policy unit-tested | Not yet | No | No | execution + payload + initial event + outbox can share one transaction; publisher claim uses `FOR UPDATE SKIP LOCKED` | SQS publisher service and trusted worker DB identity absent |
-| Versioned queue event contract | **Yes, this slice** | **Yes** | Not yet | No | No | `execution.requested` schema v1 contains execution ID/attempt/time/trace only | No SQS send/receive verification |
-| Execution leases | Schema/domain foundation | Transition tests | No | No | No | `lease_owner`, `lease_expires_at`, dispatch/running timestamps | Atomic dispatcher claim, renewal and reconciliation remain |
-| Trusted execution dispatcher | No | No | No | No | No | Target architecture only | P0 implementation blocker |
-| SQS + DLQ | No deployed implementation | No | No | No | No | Required in architecture docs/specification | Terraform, publisher, consumer, retry and DLQ operations absent |
-| EKS execution cluster | No verified implementation | No | No | No | No | Target architecture only | Cluster/node groups/runtime not deployed |
-| gVisor sandbox execution | Contract/design only | Local adapter tests are not gVisor tests | No | No | No | security intent and Kubernetes boundary documented | `runsc`/RuntimeClass proof and adversarial staging suite absent |
-| Python production runner | No | Local functional runner tested | No | No | No | local runner explicitly states it is not a production security sandbox | Versioned runner image + EKS integration required |
-| Disposable PostgreSQL candidate SQL | Partial local concepts | Limited | No production integration | No | No | local/trusted SQL execution foundations | Candidate SQL must use disposable isolated PostgreSQL, never application RDS |
-| Execution cancellation | Domain foundation this slice | State-machine tests | No | No | No | durable cancel transition plus cancellation outbox event | API endpoint and Kubernetes deletion/convergence not wired |
-| Reconciliation loop | No | No | No | No | No | Required by production design | P0 reliability gap |
-| Execution artifacts | DB payload separation foundation | No integration test | No | No | No | source is outside queue in `execution_payloads`; reference fields exist | Production S3 execution-artifact flow and scoped access absent |
-| Execution telemetry / metrics | Partial platform telemetry | Limited | No execution-plane validation | No | No | correlation/trace fields exist | Required metrics, dashboards and alerts incomplete |
-| AWS SaaS infrastructure | Architecture/audit only on inspected branch | No deployment proof | No | No | No | `docs/PRODUCTION_INFRASTRUCTURE_AUDIT.md` states AWS is unverified/not deployed | Terraform implementation and staging deployment remain major work |
-| CloudFront/WAF/ALB/Route53 | No verified deployment | No | No | No | No | Target architecture documented | TLS/routing/cache/origin validation absent |
-| PostgreSQL role separation | Partial | Local bootstrap evidence | Local only | No | No | `rigor_migrator`, `rigor_app`, readonly and SQL sandbox roles defined locally | Secrets Manager/bootstrap/deployment verification required |
-| One-shot migration deployment | No verified production workflow | No | No | No | No | Desired workflow documented | ECS migration task/deployment gate absent |
-| Expo / React Native application | **Not evidenced by inspected feature branch** | Not evidenced | Not evidenced | No | No | `docs/MULTIPLATFORM_AUDIT.md` lists Expo scaffold/native flow/screens as not yet claimed complete | Re-audit additional unpublished/local work before making mobile completion claims |
-| iOS / iPadOS physical E2E | No evidence | No | No | No | No | Device evidence document absent | Login/editor/Run/Submit/background/network/device validation required |
-| Android phone/tablet physical E2E | No evidence | No | No | No | No | Device evidence document absent | Same physical-device validation gap |
-| CI/CD | Existing validation foundation | Yes for existing areas | Partial | No deployment proof | No | repository documents lint/typecheck/test/build commands | New migration/domain tests must pass CI; immutable deploy/security stages remain |
-| Supply-chain security | Partial / no full verified pipeline | Unknown | No production validation | No | No | production audit calls for scanning/SBOM/signing | Trivy/Syft/Cosign and signed-image deployment proof needed |
-| Backup/PITR recovery | No deployment evidence | No | No | No | No | Required by production specification | Staging restore exercise/RTO/RPO evidence absent |
-| Load/concurrency/failure injection | No production evidence | No | No | No | No | Required benchmark documents absent | 10/50/100/500 execution tests and crash/failure scenarios remain |
+| Next.js web application | Yes | Existing suite | Existing local evidence only | No evidence | No | `apps/web` and prior repository validation records | Async execution polling/cancellation not wired to the new execution domain |
+| FastAPI application | Yes | Existing suite | Existing local evidence only | No evidence | No | `apps/api`; authenticated practice/submission routes | Current Run/Submit path still invokes `LocalFunctionalPythonRunner` synchronously |
+| PostgreSQL persistence and migrations | Yes | Tests/config authored | **0009 migration CI job authored, not executed** | No | No | `20260728_0009_execution_queue_foundation.py`; readiness head updated to 0009 | Must run clean upgrade/downgrade/re-upgrade and staging migration |
+| OIDC / authorization | Yes | Existing tests | Local only | No | No | normalized principal, permissions, local OIDC/PKCE | Production provider/redirect/session lifecycle and physical-device proof absent |
+| Practice sessions | Yes | Existing tests | Local only | No | No | PostgreSQL-backed practice sessions and server drafts | Client async execution lifecycle not integrated |
+| Candidate Run API | Legacy source only | Existing local-runner coverage | Local only | No | **No** | existing Run route | Still executes candidate Python in FastAPI; P0 rewrite required |
+| Candidate Submit API | Legacy source only | Existing evaluation tests | Local only | No | **No** | existing submission/evidence flow | Still synchronous/local; must submit durable execution and return 202 |
+| Canonical execution state machine | **Yes** | **Tests authored** | Not executed | No | No | `execution_domain.py`, `test_execution_domain.py`, state-machine doc | Dispatcher/end-to-end transitions not proven |
+| Durable execution idempotency | **Yes foundation** | **Tests authored** | Not executed | No | No | candidate-scoped uniqueness + request fingerprint | Async endpoints still need endpoint-scoped `Idempotency-Key` wiring |
+| Transactional execution outbox | **Yes** | **Tests authored** | Not executed | No | No | execution/payload/event/outbox can commit in one transaction | Worker DB role and real SQS publish integration absent |
+| Outbox publisher application service | **Yes** | **Tests authored** | Not executed | No | No | injectable publisher port; success/failure/retry behavior | Concrete AWS SQS transport intentionally not added without locked dependency/IAM integration |
+| Versioned queue event contract | **Yes** | **Tests authored** | Not executed | No | No | strict Pydantic schema v1, extra fields forbidden, no source code | Real SQS send/receive/redelivery proof absent |
+| SQS execution queue + DLQ | **Terraform source implemented** | Terraform CI gate authored | Not executed | **No** | No | encrypted Standard SQS queue, DLQ, redrive, long polling, visibility timeout, IAM policy docs | No `terraform plan/apply`, no live queue metrics/redelivery/DLQ test |
+| Atomic execution claim | **Yes** | Lease tests authored | Not executed against PostgreSQL | No | No | compare-and-set `QUEUED -> DISPATCHING`, attempt increment | Must test concurrent dispatchers against real PostgreSQL |
+| Execution leases | **Yes foundation** | Lease validation test authored | Not executed against PostgreSQL | No | No | owner/expiry, renew, expired-lease scan | No reconciler yet; no Kubernetes existence check/recovery loop |
+| Trusted execution dispatcher | Partial foundations | Component tests authored | No | No | No | event parser, claim repo, sandbox builder | Full consume → claim → create resources → monitor → persist → cleanup loop absent |
+| Kubernetes execution boundary | **Source implemented** | Manifest/job tests authored | No cluster validation | No | No | restricted namespace, dedicated no-token service account, RuntimeClass, quota, LimitRange, default-deny | EKS execution nodes and CNI enforcement not deployed |
+| gVisor runtime | **Source contract implemented** | Manifest tests authored | **No runtime proof** | No | **No** | `runtimeClassName: gvisor`, `handler: runsc`, `GVISOR_VALIDATION.md` | Must prove actual execution nodes use `runsc` in staging |
+| Server-controlled sandbox profiles | **Yes** | Tests authored | No | No | No | python/sql small/large profiles; client cannot choose arbitrary limits | Scheduling/capacity behavior not measured |
+| Python sandbox Job builder | **Yes** | Tests authored | No | No | No | non-root, read-only root, caps dropped, seccomp, no SA token, no host namespaces, immutable image requirement | Actual Job creation/cleanup/network denial not proven |
+| Versioned Python runner | **Yes, first production-oriented implementation** | **Runner tests authored and collected by pytest** | No gVisor/EKS integration | No | No | pinned runner Dockerfile; bounded child processes/output; hidden expected outputs excluded | Must build/scan/sign image and run adversarial staging suite; runner is not security boundary alone |
+| Hidden-test isolation | Partial implementation | Runner tests authored | No | No | No | expected outputs never enter candidate container; hidden stdout/stderr suppressed | Trusted post-sandbox comparator/result sanitizer still required |
+| Disposable PostgreSQL candidate SQL | Not yet production implemented | Existing local concepts only | No | No | No | SQL profile placeholders and prior local adapter concepts | Disposable PostgreSQL Job/sidecar lifecycle is still P0 |
+| Execution cancellation | Domain/outbox foundation | State tests authored | No | No | No | terminal cancel transition + cancel-requested event | API endpoint, Job deletion, race reconciliation absent |
+| Reconciliation service | Expired-lease query only | No full-loop test | No | No | No | expired lease discovery exists | Missing job inspection, repair/fail-safe decisions, orphan cleanup |
+| Execution artifact flow | DB payload separation foundation | No integration test | No | No | No | SQS event contains references/metadata rather than source | Production S3 execution artifacts and scoped temporary access absent |
+| Result sanitization | Design/runner partial | No end-to-end test | No | No | No | runner normalizes bounded output; gVisor validation doc forbids infra leakage | Trusted sanitizer and public API projection not wired |
+| Execution usage accounting | Schema foundation | No | No | No | No | runtime/cpu/memory/result fields added | Runtime collector and usage event emission absent |
+| AWS production infrastructure | Partial execution-queue source only | Terraform gate authored | No | No | No | SQS/KMS module and staging composition now exist | VPC, RDS, Valkey, ECS, EKS, ALB, WAF, CloudFront, DNS, Secrets/ECR remain undeployed/incomplete |
+| PostgreSQL role separation | Partial | Existing local bootstrap evidence | Local only | No | No | migrator/app/readonly/sql-sandbox roles exist | Dedicated execution publisher/dispatcher DB identity and production Secrets Manager bootstrap required |
+| One-shot migration runner | Local Compose only | Existing local path | No production deployment | No | No | local `migrate` service | ECS one-shot migration task and deploy gate absent |
+| CI | **Workflow source implemented** | N/A | **No workflow run evidence** | N/A | No | Python, web, migration and Terraform validation jobs authored | Connector pushes did not produce Actions runs; security scans/SBOM/signing/deploy stages remain |
+| Expo / React Native application | **Not evidenced on inspected GitHub branch** | Not evidenced | Not evidenced | No | No | current multiplatform audit does not support prior ~80% claim | Re-audit any unpublished/local mobile work before claiming implementation |
+| iOS / iPadOS physical E2E | No evidence | No | No | No | No | device evidence absent | Login/editor/Run/Submit/background/recovery testing required |
+| Android phone/tablet physical E2E | No evidence | No | No | No | No | device evidence absent | Same physical-device validation gap |
+| Observability / alerting | Partial platform foundation | Limited | No execution-plane proof | No | No | trace_id/correlation fields in execution domain | Required metrics, dashboards, alarms and structured execution events incomplete |
+| Supply-chain security | Partial | No pipeline proof | No | No | No | pinned runner base image and immutable runtime-reference rule | Trivy/Syft/Cosign/dependency review/image signing not implemented end-to-end |
+| Backup/PITR recovery | No staging evidence | No | No | No | No | requirement documented | Restore exercise/RTO/RPO evidence absent |
+| Load/concurrency/failure injection | No production evidence | No | No | No | No | requirements documented | 10/50/100/500 tests, 500-request burst and failure scenarios remain |
 
-## Execution-plane changes introduced in this slice
+## Implemented in this execution-plane slice
 
-1. Canonical production lifecycle: `QUEUED → DISPATCHING → RUNNING → COMPLETED`, with `FAILED`, `TIMEOUT` and `CANCELLED` terminal paths.
-2. Explicit legal transition validation rejects terminal-state resurrection and skipped lifecycle transitions.
-3. Candidate execution creation can persist the execution aggregate, source payload, initial event and outbox event inside one PostgreSQL transaction.
-4. Queue events are versioned and contain no candidate source code.
-5. Durable request fingerprints prevent silent reuse of one idempotency key for different code/requests.
-6. Outbox workers can safely claim concurrent batches with `FOR UPDATE SKIP LOCKED` and retry with capped exponential backoff plus jitter.
-7. Lease, dispatch, Kubernetes identity, resource-accounting and result-reference columns are introduced for dispatcher/reconciliation work.
+1. Canonical durable execution lifecycle with explicit legal transitions.
+2. Request fingerprinting and durable idempotency foundation.
+3. Execution payload separation and transactional outbox in migration `0009`.
+4. Concurrent outbox claiming with `FOR UPDATE SKIP LOCKED`, retry/backoff/jitter, and an injectable queue publisher service.
+5. Strict schema-versioned execution queue events that reject source-code payloads and unknown fields.
+6. Atomic dispatcher claims, leases, lease renewal, Kubernetes Job identity tracking, and expired-lease discovery.
+7. Encrypted SQS execution queue + DLQ Terraform module with redrive policy and least-privilege IAM policy documents.
+8. Staging Terraform composition for the execution queue, without claiming it has been applied.
+9. gVisor execution namespace source: restricted Pod Security, `runsc` RuntimeClass, no-token service account, deny-all network policy, quota and limit range.
+10. Server-controlled Python/SQL resource profiles and hardened Python Job manifest generation.
+11. A versioned, pinned Python runner image and bounded runner process that excludes hidden expected answers from the candidate sandbox.
+12. Unit/security test source for transitions, events, outbox retry, publisher behavior, leases, sandbox manifests and the Python runner.
+13. CI source for Python, Web, clean PostgreSQL migration cycle and Terraform format/validation.
+14. Explicit staging gVisor validation gate that remains pending until real `runsc` evidence exists.
 
 ## Immediate blockers
 
 ### P0
 
-- Rewire Run/Submit away from `LocalFunctionalPythonRunner` to the durable async execution request path.
-- Implement SQS publisher and consumer with a dedicated trusted worker database identity/policy.
-- Implement atomic dispatcher claim, lease renewal and reconciliation.
-- Implement/deploy the EKS + gVisor sandbox and versioned Python runner.
-- Implement disposable PostgreSQL for candidate SQL.
-- Deploy a representative staging environment and prove isolation.
+- Rewire Run/Submit to durable async execution and return `202 Accepted`; FastAPI must stop executing candidate code in production mode.
+- Add dedicated trusted execution-worker database identity/policies and concrete SQS transport/consumer.
+- Complete the dispatcher lifecycle: create input resource + NetworkPolicy + Job, monitor, collect, sanitize, persist terminal result, clean up, and acknowledge queue message.
+- Implement reconciliation for expired leases, missing/completed Jobs, orphan resources and cancellation races.
+- Implement disposable PostgreSQL SQL execution and fixture lifecycle.
+- Implement/deploy VPC/EKS execution nodes with actual gVisor and prove `runsc` in staging.
+- Run the authored tests and migration/Terraform gates; current connector-originated commits have no Actions evidence.
 
 ### P1
 
-- Async Web/native polling, cancellation and lifecycle recovery.
-- DLQ operational recovery.
-- Security/adversarial and failure-injection suites.
+- Async Web/native polling, cancellation and background/resume recovery.
+- S3 execution-artifact flow with execution-scoped access.
+- DLQ inspect/replay workflow.
+- Adversarial sandbox and failure-injection suites.
 - Metrics, dashboards and alerts.
-- One-shot migration deployment and database role/secrets bootstrap.
+- Full AWS control-plane Terraform and one-shot migration deployment.
+- Build/scan/SBOM/sign runner images using immutable git-SHA/digest references.
 
 ### P2
 
-- Load/cost benchmarking and optimization after correctness/safety proof.
+- Load/cost benchmarking and autoscaling/backpressure tuning.
 - Mock Interview durable domain only after the shared execution plane is healthy.
 
 No capability is marked production-ready merely because source code exists.
