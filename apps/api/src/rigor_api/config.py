@@ -52,7 +52,10 @@ class Settings(BaseSettings):
     oidc_audience: str = "rigor-web"
     oidc_jwks_url: str | None = None
     local_oidc_enabled: bool = True
-    local_oidc_redirect_uris: list[str] = ["http://localhost:3001/auth/callback"]
+    local_oidc_redirect_uris: list[str] = [
+        "http://localhost:3001/auth/callback",
+        "rigor://auth/callback",
+    ]
 
     def resolved_database_url(self) -> str:
         """Build a production DSN from secret fields when ECS injects them separately."""
