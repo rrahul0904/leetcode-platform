@@ -4,6 +4,12 @@ variable "vpc_cidr" { type = string }
 variable "az_count" { type = number }
 variable "enable_nat_gateway_per_az" { type = bool }
 
+variable "enable_control_plane_compute" {
+  description = "Create ECS/ALB/WAF only after queued execution dispatch is implemented and production-safe."
+  type        = bool
+  default     = false
+}
+
 variable "web_image" {
   type     = string
   default  = null
