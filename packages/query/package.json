@@ -1,0 +1,19 @@
+{
+  "name": "@rigor/query",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "prettier --check src/**/*.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "prettier": "3.9.5",
+    "typescript": "5.9.3"
+  }
+}
