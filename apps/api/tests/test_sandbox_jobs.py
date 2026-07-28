@@ -31,6 +31,7 @@ def test_python_job_has_required_sandbox_controls() -> None:
     assert spec["backoffLimit"] == 0  # type: ignore[index]
     assert spec["activeDeadlineSeconds"] == 20  # type: ignore[index]
     assert pod_spec["runtimeClassName"] == "gvisor"
+    assert pod_spec["serviceAccountName"] == "candidate-execution"
     assert pod_spec["automountServiceAccountToken"] is False
     assert pod_spec["enableServiceLinks"] is False
     assert pod_spec["hostNetwork"] is False
