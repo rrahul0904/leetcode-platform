@@ -1,0 +1,17 @@
+aws_region      = "us-east-1"
+allowed_origins = ["https://app.staging.example.invalid"]
+oidc_issuer     = "https://identity.staging.example.invalid/"
+oidc_audience   = "rigor-staging-api"
+oidc_jwks_url   = "https://identity.staging.example.invalid/.well-known/jwks.json"
+
+# Keep false until the production queue/dispatcher implementation is enabled.
+enable_control_plane_compute = false
+
+# Supply immutable image references only when compute is enabled.
+# web_image    = "123456789012.dkr.ecr.us-east-1.amazonaws.com/rigor-staging/web@sha256:..."
+# api_image    = "123456789012.dkr.ecr.us-east-1.amazonaws.com/rigor-staging/api@sha256:..."
+# worker_image = "123456789012.dkr.ecr.us-east-1.amazonaws.com/rigor-staging/trusted-worker@sha256:..."
+
+# Do not create execution nodes until this AMI has been verified to run runsc.
+# gvisor_node_ami_id    = "ami-..."
+# gvisor_node_user_data = "..."
