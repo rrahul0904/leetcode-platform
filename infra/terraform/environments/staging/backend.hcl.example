@@ -1,0 +1,6 @@
+# Copy outside Git or pass with -backend-config. The state bucket must be bootstrapped separately.
+bucket       = "REPLACE_WITH_STAGING_TERRAFORM_STATE_BUCKET"
+key          = "rigor/staging/terraform.tfstate"
+region       = "us-east-1"
+encrypt      = true
+use_lockfile = true
