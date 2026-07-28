@@ -678,5 +678,340 @@ class CompetencyCoverage(ApiModel):
     last_updated_at: datetime
 
 
+class PracticeSessionState(StrEnum):
+    created = "CREATED"
+    in_progress = "IN_PROGRESS"
+    paused = "PAUSED"
+    submitted = "SUBMITTED"
+    evaluating = "EVALUATING"
+    completed = "COMPLETED"
+    abandoned = "ABANDONED"
+
+
+class ExecutionState(StrEnum):
+    queued = "QUEUED"
+    running = "RUNNING"
+    passed = "PASSED"
+    failed = "FAILED"
+    error = "ERROR"
+    cancelled = "CANCELLED"
+    timed_out = "TIMED_OUT"
+
+
+class SimulationState(StrEnum):
+    configuring = "CONFIGURING"
+    active = "ACTIVE"
+    requirement_change = "REQUIREMENT_CHANGE"
+    failure_injected = "FAILURE_INJECTED"
+    submitted = "SUBMITTED"
+    evaluating = "EVALUATING"
+    completed = "COMPLETED"
+    abandoned = "ABANDONED"
+
+
+class MockInterviewState(StrEnum):
+    created = "CREATED"
+    ready = "READY"
+    in_progress = "IN_PROGRESS"
+    paused = "PAUSED"
+    completed = "COMPLETED"
+    cancelled = "CANCELLED"
+
+
+class PracticeSessionCreate(ApiModel):
+    question_version_id: UUID | None = None
+    session_type: str = "HOSTED_QUESTION"
+    runtime: str | None = None
+
+
+class PracticeSessionEventInput(ApiModel):
+    event_type: str = Field(min_length=2, max_length=80)
+    payload: dict[str, object] = Field(default_factory=dict)
+
+
+class PracticeArtifact(ApiModel):
+    id: UUID
+    session_id: UUID
+    artifact_type: str
+    version: int = Field(ge=1)
+    content: dict[str, object]
+    content_hash: str
+    created_at: datetime
+
+
+class PracticeSession(ApiModel):
+    id: UUID
+    organization_id: UUID | None
+    candidate_id: UUID
+    question_version_id: UUID | None
+    session_type: str
+    state: PracticeSessionState
+    runtime: str | None
+    elapsed_seconds: int = Field(ge=0)
+    hint_count: int = Field(ge=0)
+    started_at: datetime | None
+    paused_at: datetime | None
+    submitted_at: datetime | None
+    completed_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class SubmissionCreateRequest(ApiModel):
+    runtime: str = Field(min_length=2, max_length=60)
+    submitted_source: str = Field(min_length=1, max_length=100_000)
+    practice_session_id: UUID | None = None
+
+
+class ExecutionTestResult(ApiModel):
+    test_id: str
+    name: str
+    passed: bool
+    expected: object | None = None
+    actual: object | None = None
+    duration_ms: int | None = Field(default=None, ge=0)
+
+
+class ExecutionResult(ApiModel):
+    execution_request_id: UUID
+    submission_id: UUID | None
+    state: ExecutionState
+    public_results: list[ExecutionTestResult]
+    hidden_total: int = Field(ge=0)
+    hidden_passed: int = Field(ge=0)
+    runtime_ms: int | None = Field(default=None, ge=0)
+    memory_kb: int | None = Field(default=None, ge=0)
+    error_category: str | None
+    candidate_message: str | None
+    quality_signals: dict[str, object]
+
+
+class SubmissionRecord(ApiModel):
+    id: UUID
+    organization_id: UUID | None
+    candidate_id: UUID
+    practice_session_id: UUID | None
+    question_version_id: UUID
+    runtime: str
+    submitted_source: str
+    status: str
+    result: ExecutionResult | None = None
+    created_at: datetime
+    started_at: datetime | None
+    completed_at: datetime | None
+
+
+class ArchitectureArtifactInput(ApiModel):
+    artifact_type: str = Field(min_length=2, max_length=60)
+    version: int = Field(ge=1)
+    content: dict[str, object]
+
+
+class ArchitectureArtifact(ArchitectureArtifactInput):
+    id: UUID
+    session_id: UUID
+    created_at: datetime
+
+
+class SimulationSession(ApiModel):
+    id: UUID
+    organization_id: UUID | None
+    candidate_id: UUID
+    case_slug: str
+    title: str
+    status: SimulationState
+    current_event_index: int = Field(ge=0)
+    current_requirements: dict[str, object]
+    capacity_inputs: dict[str, object]
+    capacity_results: dict[str, object]
+    rubric_evidence: list[dict[str, object]]
+    version: int = Field(ge=1)
+    started_at: datetime | None
+    submitted_at: datetime | None
+    completed_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class InterviewMessageInput(ApiModel):
+    role: str = Field(min_length=2, max_length=30)
+    phase: str = Field(min_length=2, max_length=60)
+    content: str = Field(min_length=1, max_length=50_000)
+    evidence: dict[str, object] = Field(default_factory=dict)
+
+
+class InterviewMessage(InterviewMessageInput):
+    id: UUID
+    session_id: UUID
+    sequence_number: int = Field(ge=0)
+    created_at: datetime
+
+
+class AIEvidence(ApiModel):
+    id: UUID
+    ai_interaction_id: UUID
+    competency_id: UUID | None
+    evidence_type: str
+    claim: str
+    score: float | None = Field(default=None, ge=0, le=1)
+    confidence: float = Field(ge=0, le=1)
+    supporting_data: dict[str, object]
+    created_at: datetime
+
+
+class CompetencyEvidence(ApiModel):
+    id: UUID
+    competency_id: UUID
+    source_type: str
+    source_id: str
+    score: float = Field(ge=0, le=1)
+    confidence: float = Field(ge=0, le=1)
+    observed_at: datetime
+    evidence: dict[str, object]
+
+
+class LearningPlanActivity(ApiModel):
+    id: UUID
+    activity_type: str
+    source_type: str
+    source_id: str
+    title: str
+    status: str
+    due_at: datetime | None
+    estimated_minutes: int = Field(gt=0)
+    sequence_number: int = Field(ge=0)
+    completed_at: datetime | None
+    metadata: dict[str, object]
+
+
+class LearningPlan(ApiModel):
+    id: UUID
+    target_role: str
+    status: str
+    starts_on: date
+    ends_on: date | None
+    weekly_minutes: int = Field(gt=0)
+    generation_version: str
+    rationale: dict[str, object]
+    activities: list[LearningPlanActivity]
+    created_at: datetime
+    updated_at: datetime
+
+
+class Readiness(ApiModel):
+    snapshot_id: UUID
+    overall_readiness: float = Field(ge=0, le=1)
+    confidence: float = Field(ge=0, le=1)
+    evidence_count: int = Field(ge=0)
+    competency_readiness: dict[str, float]
+    role_readiness: dict[str, float]
+    company_style_readiness: dict[str, float]
+    current_risks: list[str]
+    recommended_actions: list[str]
+    calculation_version: str
+    calculated_at: datetime
+
+
+class Recommendation(ApiModel):
+    id: UUID
+    recommendation_type: str
+    source_type: str
+    source_id: str
+    title: str
+    reason: str
+    rank: int = Field(gt=0)
+    status: str
+    recommended_at: datetime
+    acted_at: datetime | None
+    context: dict[str, object]
+
+
+class PlatformStatistics(ApiModel):
+    hosted_questions: int = Field(ge=0)
+    published_hosted_questions: int = Field(ge=0)
+    external_references: int = Field(ge=0)
+    practice_sessions: int = Field(ge=0)
+    submissions: int = Field(ge=0)
+    completed_simulations: int = Field(ge=0)
+    completed_mock_interviews: int = Field(ge=0)
+    learning_activities: int = Field(ge=0)
+    competency_evidence: int = Field(ge=0)
+    active_candidates: int = Field(ge=0)
+
+
+class CatalogAggregateSummary(ApiModel):
+    hosted_count: int = Field(ge=0)
+    published_count: int = Field(ge=0)
+    external_count: int = Field(ge=0)
+    source_count: int = Field(ge=0)
+    last_collection: datetime | None
+    import_failures: int = Field(ge=0)
+    review_backlog: int = Field(ge=0)
+    content_by_track: dict[str, int]
+    content_by_difficulty: dict[str, int]
+    simulation_count: int = Field(ge=0)
+    mock_interview_count: int = Field(ge=0)
+
+
+class ExternalReferenceProgressStatus(StrEnum):
+    not_started = "NOT_STARTED"
+    in_progress = "IN_PROGRESS"
+    completed = "COMPLETED"
+
+
+class ExternalReferenceProgressInput(ApiModel):
+    status: ExternalReferenceProgressStatus
+    notes: str | None = Field(default=None, max_length=10_000)
+
+
+class ExternalReferenceProgress(ExternalReferenceProgressInput):
+    id: UUID
+    external_reference_id: UUID
+    candidate_id: UUID
+    organization_id: UUID | None
+    completed_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ReadinessCheck(ApiModel):
+    name: str
+    status: Literal["ready", "not_ready"]
+    detail: str
+
+
+class ReadinessResponse(HealthResponse):
+    checks: list[ReadinessCheck]
+
+
+SHARED_API_CONTRACTS: tuple[type[ApiModel], ...] = (
+    PracticeSessionCreate,
+    PracticeSessionEventInput,
+    PracticeArtifact,
+    PracticeSession,
+    SubmissionCreateRequest,
+    ExecutionTestResult,
+    ExecutionResult,
+    SubmissionRecord,
+    ArchitectureArtifactInput,
+    ArchitectureArtifact,
+    SimulationSession,
+    InterviewMessageInput,
+    InterviewMessage,
+    AIEvidence,
+    CompetencyEvidence,
+    LearningPlanActivity,
+    LearningPlan,
+    Readiness,
+    Recommendation,
+    PlatformStatistics,
+    CatalogAggregateSummary,
+    ExternalReferenceProgressInput,
+    ExternalReferenceProgress,
+    ReadinessCheck,
+    ReadinessResponse,
+)
+
+
 PageNumber = Annotated[int, Field(ge=1)]
 PageSize = Annotated[int, Field(ge=1, le=100)]

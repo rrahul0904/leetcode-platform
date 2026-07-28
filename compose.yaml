@@ -39,7 +39,11 @@ services:
       RIGOR_OIDC_ISSUER: http://localhost:8002/local-oidc
       RIGOR_OIDC_AUDIENCE: rigor-web
       RIGOR_LOCAL_OIDC_REDIRECT_URIS: '["http://localhost:3001/auth/callback"]'
-      RIGOR_DATABASE_URL: postgresql+psycopg://rigor:rigor_local_only@postgres:5432/rigor
+      RIGOR_DATABASE_URL: postgresql+psycopg://rigor_app:rigor_app_local_only@postgres:5432/rigor
+      RIGOR_OPERATIONAL_DATABASE_URL: postgresql+psycopg://rigor_readonly:rigor_readonly_local_only@postgres:5432/rigor
+      RIGOR_VALKEY_URL: redis://valkey:6379/0
+      RIGOR_EXECUTION_ADAPTER: LOCAL_FUNCTIONAL
+      RIGOR_AI_ADAPTER: DETERMINISTIC
     ports:
       - "8002:8002"
     secrets:
@@ -67,7 +71,7 @@ services:
         - build_ca
     command: ["alembic", "upgrade", "head"]
     environment:
-      RIGOR_DATABASE_URL: postgresql+psycopg://rigor:rigor_local_only@postgres:5432/rigor
+      RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
     depends_on:
       postgres:
         condition: service_healthy
@@ -81,7 +85,7 @@ services:
     image: rigor-api:0.1.0-local
     command: ["python", "/app/scripts/seed_database.py"]
     environment:
-      RIGOR_SEED_DATABASE_URL: postgresql://rigor:rigor_local_only@postgres:5432/rigor
+      RIGOR_SEED_DATABASE_URL: postgresql://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -102,7 +106,8 @@ services:
         "/run/secrets/build_ca",
       ]
     environment:
-      RIGOR_DATABASE_URL: postgresql+psycopg://rigor:rigor_local_only@postgres:5432/rigor
+      RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
+      PGOPTIONS: "-c rigor.maintenance_bypass=on"
     secrets:
       - build_ca
     depends_on:
@@ -124,7 +129,8 @@ services:
         "/run/secrets/build_ca",
       ]
     environment:
-      RIGOR_DATABASE_URL: postgresql+psycopg://rigor:rigor_local_only@postgres:5432/rigor
+      RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
+      PGOPTIONS: "-c rigor.maintenance_bypass=on"
     secrets:
       - build_ca
     depends_on:
@@ -150,7 +156,8 @@ services:
     environment:
       RIGOR_ENVIRONMENT: local
       RIGOR_CONTENT_ROOT: /app/content
-      RIGOR_DATABASE_URL: postgresql+psycopg://rigor:rigor_local_only@postgres:5432/rigor
+      RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
+      PGOPTIONS: "-c rigor.maintenance_bypass=on"
     depends_on:
       catalog-init:
         condition: service_completed_successfully
@@ -169,7 +176,8 @@ services:
     environment:
       RIGOR_ENVIRONMENT: local
       RIGOR_CONTENT_ROOT: /app/content
-      RIGOR_DATABASE_URL: postgresql+psycopg://rigor:rigor_local_only@postgres:5432/rigor
+      RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
+      PGOPTIONS: "-c rigor.maintenance_bypass=on"
     depends_on:
       content-sync:
         condition: service_completed_successfully
@@ -195,6 +203,7 @@ services:
       retries: 20
     volumes:
       - rigor-postgres:/var/lib/postgresql
+      - ./database/init/001_roles.sql:/docker-entrypoint-initdb.d/001_roles.sql:ro
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true

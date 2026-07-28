@@ -40,9 +40,11 @@ from .auth import (
 from .catalog import ManifestCatalog
 from .config import Settings, get_settings
 from .content_factory import ContentFactory
-from .database import DatabaseEngine, create_database_engine
+from .database import DatabaseEngine, OperationalDatabaseEngine, create_database_engine
+from .database_health import readiness_report
 from .import_reports import ContentImportRepository
 from .ingestion import ContentIngestionEngine, IngestionError
+from .persistence import PlatformStatisticsRepository
 from .profiles import ProfileNotFoundError, ProfileRepository
 from .published_catalog import (
     CatalogSort,
@@ -57,6 +59,7 @@ from .schemas import (
     CandidateProfile,
     CandidateProfileInput,
     CandidateQuestionDetail,
+    CatalogAggregateSummary,
     CatalogCollectionRunResult,
     CatalogQuestion,
     CatalogSourceStatus,
@@ -86,10 +89,12 @@ from .schemas import (
     Page,
     PageNumber,
     PageSize,
+    PlatformStatistics,
     PracticeCatalogSummary,
     ProvenanceInventoryRecord,
     QuestionFamilyRecord,
     QuestionFreshnessRecord,
+    ReadinessResponse,
     ReviewActionResult,
     ReviewAssignmentInput,
     ReviewDecisionInput,
@@ -112,8 +117,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.local_oidc_provider = local_provider
     app.state.token_validator = TokenValidator(settings, local_provider)
     app.state.database_engine = create_database_engine(settings)
+    app.state.operational_database_engine = create_database_engine(
+        settings, settings.operational_database_url
+    )
     yield
     app.state.database_engine.dispose()
+    if app.state.operational_database_engine is not app.state.database_engine:
+        app.state.operational_database_engine.dispose()
 
 
 app = FastAPI(
@@ -231,11 +241,10 @@ async def liveness() -> HealthResponse:
     return HealthResponse(status="ok")
 
 
-@app.get("/readyz", response_model=HealthResponse, tags=["operations"])
-async def readiness(request: Request) -> HealthResponse:
-    if not hasattr(request.app.state, "catalog"):
-        return HealthResponse(status="not_ready")
-    return HealthResponse(status="ready")
+@app.get("/readyz", response_model=ReadinessResponse, tags=["operations"])
+async def readiness(request: Request, engine: DatabaseEngine) -> ReadinessResponse:
+    del request
+    return readiness_report(engine, settings)
 
 
 @app.get("/local-oidc/.well-known/openid-configuration", tags=["local-identity"])
@@ -896,6 +905,32 @@ def catalog_status(
 ) -> list[CatalogSourceStatus]:
     del principal
     return SourceRegistryRepository(engine).catalog_status()
+
+
+@app.get(
+    "/api/v1/admin/catalog/summary",
+    response_model=CatalogAggregateSummary,
+    tags=["source-registry"],
+)
+def aggregate_catalog_summary(
+    principal: Annotated[AuthenticatedPrincipal, Depends(require_permissions("source:read"))],
+    engine: OperationalDatabaseEngine,
+) -> CatalogAggregateSummary:
+    del principal
+    return PlatformStatisticsRepository(engine).catalog_summary()
+
+
+@app.get(
+    "/api/v1/platform/statistics",
+    response_model=PlatformStatistics,
+    tags=["operations"],
+)
+def platform_statistics(
+    principal: Annotated[AuthenticatedPrincipal, Depends(require_permissions("source:read"))],
+    engine: OperationalDatabaseEngine,
+) -> PlatformStatistics:
+    del principal
+    return PlatformStatisticsRepository(engine).statistics()
 
 
 @app.post(
