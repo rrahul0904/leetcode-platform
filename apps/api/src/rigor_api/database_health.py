@@ -9,11 +9,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from .config import Settings
 from .schemas import ReadinessCheck, ReadinessResponse
 
-EXPECTED_MIGRATION_VERSION = "20260728_0008"
+EXPECTED_MIGRATION_VERSION = "20260728_0009"
 REQUIRED_TABLES = (
     "practice_sessions",
     "submissions",
     "execution_requests",
+    "execution_payloads",
+    "execution_outbox",
     "submission_evaluations",
     "learning_plans",
     "candidate_competency_evidence",
