@@ -1,0 +1,126 @@
+name: PR validation
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+
+      - name: Activate pnpm 11.10.0
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.10.0 --activate
+          node --version
+          pnpm --version
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.10.0'
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.13.5
+          terraform_wrapper: false
+
+      - name: Refresh lockfile for same-repository feature branches
+        run: pnpm install --lockfile-only --no-frozen-lockfile
+
+      - name: Normalize Terraform formatting
+        run: terraform fmt -recursive infra/terraform
+
+      - name: Commit generated lockfile and Terraform formatting
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        shell: bash
+        run: |
+          if git diff --quiet -- pnpm-lock.yaml infra/terraform; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pnpm-lock.yaml infra/terraform
+          git commit -m "Normalize multiclient dependencies and Terraform"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
+      - name: Verify frozen JavaScript install
+        run: pnpm install --frozen-lockfile
+
+      - name: JavaScript lint
+        run: pnpm lint
+
+      - name: JavaScript typecheck
+        run: pnpm typecheck
+
+      - name: JavaScript tests
+        run: pnpm test
+
+      - name: JavaScript builds
+        run: pnpm build
+
+      - name: Python tests
+        run: uv run pytest -q
+
+      - name: Python lint
+        run: |
+          uv run ruff check \
+            apps/api/src \
+            packages/question-schema/src \
+            scripts \
+            apps/api/tests \
+            packages/question-schema/tests \
+            tests
+
+      - name: Python strict typecheck
+        run: uv run pyright apps/api/src packages/question-schema/src scripts
+
+      - name: Alembic single head
+        shell: bash
+        run: |
+          heads="$(uv run alembic heads | sed '/^$/d')"
+          test "$(printf '%s\n' "$heads" | wc -l)" -eq 1
+          printf '%s\n' "$heads"
+
+      - name: Terraform format is clean
+        run: terraform fmt -check -recursive infra/terraform
+
+      - name: Validate staging Terraform
+        working-directory: infra/terraform/environments/staging
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+      - name: Validate production Terraform
+        working-directory: infra/terraform/environments/production
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+      - name: Validate production Docker images build
+        run: |
+          docker build -f infra/docker/api.Dockerfile -t rigor-api:pr .
+          docker build \
+            --build-arg NEXT_PUBLIC_RIGOR_API_URL= \
+            -f infra/docker/web.Dockerfile \
+            -t rigor-web:pr .
+
+      - name: Diff whitespace check
+        run: git diff --check
