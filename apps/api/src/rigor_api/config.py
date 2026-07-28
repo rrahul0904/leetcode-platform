@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Self
 from urllib.parse import quote
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL
 
@@ -56,6 +57,19 @@ class Settings(BaseSettings):
         "http://localhost:3001/auth/callback",
         "rigor://auth/callback",
     ]
+
+    @model_validator(mode="after")
+    def keep_native_local_oidc_callback(self) -> Self:
+        """Keep local Expo PKCE usable even when Docker overrides web callbacks.
+
+        The production OIDC client configuration is external and this only applies
+        when the intentionally local identity provider is enabled.
+        """
+
+        callback = "rigor://auth/callback"
+        if self.local_oidc_enabled and callback not in self.local_oidc_redirect_uris:
+            self.local_oidc_redirect_uris.append(callback)
+        return self
 
     def resolved_database_url(self) -> str:
         """Build a production DSN from secret fields when ECS injects them separately."""
