@@ -5,8 +5,9 @@ data "aws_availability_zones" "available" {
 data "aws_region" "current" {}
 
 locals {
-  azs  = slice(data.aws_availability_zones.available.names, 0, var.az_count)
-  tags = merge(var.tags, { "rigor:component" = "networking" })
+  azs     = slice(data.aws_availability_zones.available.names, 0, var.az_count)
+  nat_azs = var.enable_nat_gateway_per_az ? local.azs : slice(local.azs, 0, 1)
+  tags    = merge(var.tags, { "rigor:component" = "networking" })
 }
 
 resource "aws_vpc" "this" {
@@ -96,9 +97,7 @@ resource "aws_route_table_association" "public" {
 }
 
 resource "aws_eip" "nat" {
-  for_each = var.enable_nat_gateway_per_az ? aws_subnet.public : {
-    (local.azs[0]) = aws_subnet.public[local.azs[0]]
-  }
+  for_each = toset(local.nat_azs)
 
   domain = "vpc"
   tags   = merge(local.tags, { Name = "${var.name}-nat-${each.key}" })
@@ -155,7 +154,7 @@ resource "aws_route_table" "execution" {
 
   vpc_id = aws_vpc.this.id
   tags = merge(local.tags, {
-    Name                     = "${var.name}-execution-${each.key}"
+    Name                       = "${var.name}-execution-${each.key}"
     "rigor:no-internet-egress" = "true"
   })
 }
