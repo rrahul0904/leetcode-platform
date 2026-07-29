@@ -370,8 +370,10 @@ def _compare_value(actual: object, expected: object, policy: dict[str, object]) 
     if strategy == "unordered":
         if not isinstance(actual, list) or not isinstance(expected, list):
             return False
-        return sorted(_canonical_json(item) for item in actual) == sorted(
-            _canonical_json(item) for item in expected
+        actual_items = cast(list[object], actual)
+        expected_items = cast(list[object], expected)
+        return sorted(_canonical_json(item) for item in actual_items) == sorted(
+            _canonical_json(item) for item in expected_items
         )
     raise TrustedResultError(f"Unsupported trusted comparison strategy {strategy!r}.")
 
