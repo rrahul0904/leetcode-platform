@@ -6,8 +6,8 @@ from typing import Any
 from sqlalchemy import Connection, text
 
 from .execution import source_quality_signals
-from .execution_results import DispatchPackage, TrustedExecutionProjection
 from .execution_domain import ExecutionStatus
+from .execution_results import DispatchPackage, TrustedExecutionProjection
 
 EVALUATOR_VERSION = "deterministic-python-async-v1"
 
@@ -41,7 +41,12 @@ def _evaluation(
         + 0.10 * float(int(str(quality.get("function_count", 0))) >= 1)
     )
     submission_status, _ = _legacy_status(projection)
-    complexity = 1.0 if submission_status == "passed" else (0.5 if submission_status == "failed" else 0.0)
+    if submission_status == "passed":
+        complexity = 1.0
+    elif submission_status == "failed":
+        complexity = 0.5
+    else:
+        complexity = 0.0
     overall = (
         0.60 * correctness
         + 0.15 * code_quality
