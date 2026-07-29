@@ -10,8 +10,9 @@ from .execution_api import (
     queue_run,
     queue_submit,
 )
+from .practice import router as practice_router
 
-router = APIRouter(prefix="/api/v1", tags=["execution"])
+router = APIRouter(tags=["execution"])
 
 router.add_api_route(
     "/executions/run",
@@ -41,7 +42,7 @@ router.add_api_route(
 )
 
 
-def _legacy_synchronous_run_disabled(slug: str) -> None:
+def legacy_synchronous_run_disabled(slug: str) -> None:
     del slug
     raise HTTPException(
         status_code=status.HTTP_410_GONE,
@@ -49,7 +50,7 @@ def _legacy_synchronous_run_disabled(slug: str) -> None:
     )
 
 
-def _legacy_synchronous_submit_disabled(slug: str) -> None:
+def legacy_synchronous_submit_disabled(slug: str) -> None:
     del slug
     raise HTTPException(
         status_code=status.HTTP_410_GONE,
@@ -59,16 +60,22 @@ def _legacy_synchronous_submit_disabled(slug: str) -> None:
 
 router.add_api_route(
     "/questions/{slug}/run",
-    _legacy_synchronous_run_disabled,
+    legacy_synchronous_run_disabled,
     methods=["POST"],
     include_in_schema=False,
 )
 router.add_api_route(
     "/questions/{slug}/submissions",
-    _legacy_synchronous_submit_disabled,
+    legacy_synchronous_submit_disabled,
     methods=["POST"],
     include_in_schema=False,
 )
+
+# main.py already mounts practice_router before the legacy submissions router.
+# Attaching this dedicated router here makes async execution explicit and gives
+# the fail-closed compatibility handlers route priority without rewriting the
+# existing submissions domain in this production-safety phase.
+practice_router.include_router(router)
 
 EXECUTION_ROUTES_REGISTERED = True
 LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED = True
