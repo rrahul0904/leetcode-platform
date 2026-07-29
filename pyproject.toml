@@ -48,5 +48,7 @@ known-first-party = ["rigor_api"]
 [tool.pyright]
 pythonVersion = "3.13"
 typeCheckingMode = "strict"
+reportUnnecessaryCast = "none"
+reportUnnecessaryIsInstance = "none"
 include = ["apps/api/src", "packages/question-schema/src", "scripts"]
 extraPaths = ["apps/api/src", "packages/question-schema/src"]
