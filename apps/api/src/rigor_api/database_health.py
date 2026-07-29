@@ -7,15 +7,17 @@ from sqlalchemy import Engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from .config import Settings
+from .execution_api import EXECUTION_ROUTES_REGISTERED
 from .schemas import ReadinessCheck, ReadinessResponse
 
-EXPECTED_MIGRATION_VERSION = "20260728_0009"
+EXPECTED_MIGRATION_VERSION = "20260729_0010"
 REQUIRED_TABLES = (
     "practice_sessions",
     "submissions",
     "execution_requests",
     "execution_payloads",
     "execution_outbox",
+    "execution_public_results",
     "submission_evaluations",
     "learning_plans",
     "candidate_competency_evidence",
@@ -124,6 +126,11 @@ def readiness_report(engine: Engine, settings: Settings) -> ReadinessResponse:
                     "ready" if settings.execution_adapter in EXECUTION_ADAPTERS else "not_ready"
                 ),
                 detail=settings.execution_adapter,
+            ),
+            ReadinessCheck(
+                name="async_execution_api",
+                status="ready" if EXECUTION_ROUTES_REGISTERED else "not_ready",
+                detail="registered" if EXECUTION_ROUTES_REGISTERED else "missing",
             ),
             ReadinessCheck(
                 name="ai_adapter",
