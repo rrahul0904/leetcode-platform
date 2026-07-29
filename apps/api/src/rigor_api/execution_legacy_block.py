@@ -1,28 +1,28 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from fastapi.routing import APIRoute
 
+from .database import DatabaseEngine
 from .execution_api import (
     AsyncExecutionView,
+    CandidateReadPrincipal,
+    CandidateWritePrincipal,
     ExecutionAccepted,
+    IdempotencyHeader,
     cancel_execution,
     get_execution,
     queue_run,
     queue_submit,
 )
-from .practice import router as practice_router
+from .schemas import PracticeRunRequest, PracticeSubmitRequest
 from .submissions import router as submissions_router
 
 ASYNC_EXECUTION_PATHS = {
-    "/api/v1/executions/run",
-    "/api/v1/executions/submit",
-    "/api/v1/executions/{execution_id}",
-    "/api/v1/executions/{execution_id}/cancel",
-}
-LEGACY_EXECUTION_PATHS = {
     "/api/v1/questions/{slug}/run",
     "/api/v1/questions/{slug}/submissions",
+    "/api/v1/executions/{execution_id}",
+    "/api/v1/executions/{execution_id}/cancel",
 }
 
 
@@ -39,67 +39,78 @@ def _remove_routes(router: APIRouter, paths: set[str]) -> None:
     ]
 
 
-def legacy_synchronous_run_disabled(slug: str) -> None:
-    del slug
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail="Synchronous candidate execution is disabled. Use /api/v1/executions/run.",
-    )
+def queue_run_for_question(
+    slug: str,
+    request: PracticeRunRequest,
+    principal: CandidateWritePrincipal,
+    engine: DatabaseEngine,
+    idempotency_key: IdempotencyHeader,
+) -> ExecutionAccepted:
+    """Create a durable RUN without executing candidate source in FastAPI."""
+
+    return queue_run(request, principal, engine, idempotency_key, slug)
 
 
-def legacy_synchronous_submit_disabled(slug: str) -> None:
-    del slug
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail="Synchronous candidate execution is disabled. Use /api/v1/executions/submit.",
-    )
+def queue_submit_for_question(
+    slug: str,
+    request: PracticeSubmitRequest,
+    principal: CandidateWritePrincipal,
+    engine: DatabaseEngine,
+    idempotency_key: IdempotencyHeader,
+) -> ExecutionAccepted:
+    """Create a durable SUBMIT backed by the same execution service as Run."""
+
+    return queue_submit(request, principal, engine, idempotency_key, slug)
 
 
-# execution_api initially decorates the practice router because it reuses practice
-# domain helpers. Move those routes onto the submissions/execution surface before
-# main mounts either router. More importantly, remove the old synchronous
-# submissions handlers entirely so no HTTP request can reach
-# LocalFunctionalPythonRunner in FastAPI.
-_remove_routes(practice_router, ASYNC_EXECUTION_PATHS)
-_remove_routes(submissions_router, LEGACY_EXECUTION_PATHS | ASYNC_EXECUTION_PATHS)
+def get_candidate_execution(
+    execution_id,
+    principal: CandidateReadPrincipal,
+    engine: DatabaseEngine,
+) -> AsyncExecutionView:
+    return get_execution(execution_id, principal, engine)
+
+
+def cancel_candidate_execution(
+    execution_id,
+    principal: CandidateWritePrincipal,
+    engine: DatabaseEngine,
+) -> AsyncExecutionView:
+    return cancel_execution(execution_id, principal, engine)
+
+
+# The legacy submissions module still contains the old synchronous implementation
+# for trusted development/reference compatibility. Remove those HTTP routes before
+# FastAPI mounts the router, then register the production asynchronous contract on
+# the exact public paths clients already use.
+_remove_routes(submissions_router, ASYNC_EXECUTION_PATHS)
 
 submissions_router.add_api_route(
-    "/executions/run",
-    queue_run,
+    "/questions/{slug}/run",
+    queue_run_for_question,
     methods=["POST"],
     response_model=ExecutionAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
 submissions_router.add_api_route(
-    "/executions/submit",
-    queue_submit,
+    "/questions/{slug}/submissions",
+    queue_submit_for_question,
     methods=["POST"],
     response_model=ExecutionAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
 submissions_router.add_api_route(
     "/executions/{execution_id}",
-    get_execution,
+    get_candidate_execution,
     methods=["GET"],
     response_model=AsyncExecutionView,
 )
 submissions_router.add_api_route(
     "/executions/{execution_id}/cancel",
-    cancel_execution,
+    cancel_candidate_execution,
     methods=["POST"],
     response_model=AsyncExecutionView,
 )
-submissions_router.add_api_route(
-    "/questions/{slug}/run",
-    legacy_synchronous_run_disabled,
-    methods=["POST"],
-    include_in_schema=False,
-)
-submissions_router.add_api_route(
-    "/questions/{slug}/submissions",
-    legacy_synchronous_submit_disabled,
-    methods=["POST"],
-    include_in_schema=False,
-)
 
+EXECUTION_ROUTES_REGISTERED = True
 LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED = True
