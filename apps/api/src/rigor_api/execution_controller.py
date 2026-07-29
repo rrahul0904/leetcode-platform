@@ -86,6 +86,19 @@ class ExecutionControllerSettings:
         )
 
 
+def _positive_limit(limits: dict[str, object], key: str, default: int) -> int:
+    value = limits.get(key)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value if value > 0 else default
+    if isinstance(value, str):
+        try:
+            parsed = int(value)
+        except ValueError:
+            return default
+        return parsed if parsed > 0 else default
+    return default
+
+
 class ExecutionController:
     def __init__(
         self,
@@ -134,7 +147,7 @@ class ExecutionController:
 
     def process_message(self, message: SqsReceivedMessage) -> bool:
         try:
-            raw = json.loads(message.body)
+            raw: object = json.loads(message.body)
             event = parse_execution_queue_event(raw)
         except (ValueError, json.JSONDecodeError) as exc:
             logger.error(
@@ -148,8 +161,6 @@ class ExecutionController:
             self._process_cancel(event)
             self.queue.delete_message(message.receipt_handle)
             return True
-        if not isinstance(event, ExecutionRequestedEvent):
-            return False
 
         self.queue.change_message_visibility(
             message.receipt_handle,
@@ -200,8 +211,8 @@ class ExecutionController:
                 kubernetes_job_name=handle.job_name,
             )
         if not running:
-            # We created this idempotently but did not retain the durable claim.
-            # Cancellation is the common case; cleanup is safe for this attempt.
+            # This worker created the idempotent attempt but no longer owns the
+            # durable claim. Cancellation is the normal path here.
             self.sandbox.cleanup(handle)
             return True
 
@@ -218,7 +229,7 @@ class ExecutionController:
         handle: SandboxHandle,
         message: SqsReceivedMessage,
     ) -> bool:
-        deadline_seconds = int(package.limits.get("job_deadline_seconds") or 30)
+        deadline_seconds = _positive_limit(package.limits, "job_deadline_seconds", 30)
         deadline = time.monotonic() + deadline_seconds + 10
         renew_after = max(5, self.settings.lease_seconds // 2)
         next_renewal = time.monotonic() + renew_after
@@ -309,9 +320,10 @@ class ExecutionController:
         return True
 
     def _persist_timeout(self, package: DispatchPackage) -> None:
+        timeout_seconds = _positive_limit(package.limits, "execution_timeout_seconds", 10)
         projection = TrustedExecutionProjection(
             execution_status=ExecutionStatus.timeout,
-            runtime_ms=int(package.limits.get("execution_timeout_seconds") or 10) * 1000,
+            runtime_ms=timeout_seconds * 1000,
             exit_code=124,
             error_category="timeout",
             public_results=[],
