@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Any
 from uuid import UUID
@@ -14,10 +14,10 @@ from .database import DatabaseEngine, principal_transaction
 from .execution_domain import (
     ExecutionNotFoundError,
     ExecutionRepository,
-    ExecutionStatus,
     ExecutionTransitionError,
     ExecutionType,
     IdempotencyConflictError,
+    execution_request_hash,
 )
 from .practice import (
     PracticeSessionNotFoundError,
@@ -82,11 +82,11 @@ class AsyncExecutionView(ApiExecutionModel):
     status: AsyncExecutionStatus
     execution_type: str
     runtime: str
-    created_at: object
-    queued_at: object
-    dispatch_started_at: object | None
-    running_at: object | None
-    completed_at: object | None
+    created_at: datetime
+    queued_at: datetime
+    dispatch_started_at: datetime | None
+    running_at: datetime | None
+    completed_at: datetime | None
     runtime_ms: int | None = Field(default=None, ge=0)
     error_category: str | None
     result: AsyncExecutionResult | None = None
@@ -104,10 +104,15 @@ IdempotencyHeader = Annotated[
     str,
     Header(alias="Idempotency-Key", min_length=8, max_length=160),
 ]
+QuestionSlugHeader = Annotated[
+    str,
+    Header(alias="X-Rigor-Question-Slug", min_length=3, max_length=180),
+]
 
 MAX_ACTIVE_RUNS_PER_CANDIDATE = 5
 MAX_ACTIVE_SUBMITS_PER_CANDIDATE = 2
 ACTIVE_STATES = ("QUEUED", "DISPATCHING", "RUNNING")
+PYTHON_RUNTIME = "python3.13"
 
 
 def _session_question(
@@ -147,12 +152,13 @@ def _existing_execution(
     connection: Connection,
     *,
     idempotency_key: str,
+    expected_request_hash: str,
 ) -> ExecutionAccepted | None:
     row = (
         connection.execute(
             text(
                 """
-                SELECT id, submission_id, state::text AS state
+                SELECT id, submission_id, state::text AS state, request_hash
                 FROM execution_requests
                 WHERE candidate_id=NULLIF(
                     current_setting('rigor.user_id', true), ''
@@ -167,11 +173,31 @@ def _existing_execution(
     )
     if row is None:
         return None
+    if str(row["request_hash"]) != expected_request_hash:
+        raise IdempotencyConflictError(
+            "The Idempotency-Key was already used for a different execution request."
+        )
     return ExecutionAccepted(
         execution_id=UUID(str(row["id"])),
         submission_id=UUID(str(row["submission_id"])) if row["submission_id"] else None,
         status=AsyncExecutionStatus(str(row["state"])),
         duplicate=True,
+    )
+
+
+def _request_hash(
+    *,
+    execution_type: ExecutionType,
+    session_id: UUID,
+    question_version_id: UUID,
+    source_code: str,
+) -> str:
+    return execution_request_hash(
+        execution_type=execution_type,
+        practice_session_id=session_id,
+        question_version_id=question_version_id,
+        runtime=PYTHON_RUNTIME,
+        source_code=source_code,
     )
 
 
@@ -211,7 +237,11 @@ def _enforce_backpressure(
         )
 
 
-def _candidate_tests(question: dict[str, Any], *, public_only: bool) -> list[dict[str, object]]:
+def _candidate_tests(
+    question: dict[str, Any],
+    *,
+    public_only: bool,
+) -> list[dict[str, object]]:
     sanitized: list[dict[str, object]] = []
     for index, test in enumerate(question_tests(question, public_only=public_only)):
         test_id = str(test.get("id") or f"test-{index + 1}")
@@ -259,18 +289,14 @@ def _queue_execution(
     idempotency_key: str,
     submission_id: UUID | None,
 ) -> ExecutionAccepted:
-    existing = _existing_execution(connection, idempotency_key=idempotency_key)
-    if existing is not None:
-        return existing
     _enforce_backpressure(connection, execution_type=execution_type)
-
     public_only = execution_type is ExecutionType.run
     queued = ExecutionRepository(connection).create_queued(
         execution_type=execution_type,
         practice_session_id=session_id,
         submission_id=submission_id,
         question_version_id=UUID(str(question["question_version_id"])),
-        runtime="python3.13",
+        runtime=PYTHON_RUNTIME,
         language="python",
         source_code=source_code,
         idempotency_key=idempotency_key,
@@ -290,7 +316,10 @@ def _queue_execution(
     )
 
 
-def _public_result(connection: Connection, execution_id: UUID) -> AsyncExecutionResult | None:
+def _public_result(
+    connection: Connection,
+    execution_id: UUID,
+) -> AsyncExecutionResult | None:
     row = (
         connection.execute(
             text(
@@ -345,6 +374,10 @@ def _view(connection: Connection, execution_id: UUID) -> AsyncExecutionView:
     )
 
 
+def _practice_not_found(exc: PracticeSessionNotFoundError) -> HTTPException:
+    return HTTPException(status_code=404, detail="Practice session or question not found.")
+
+
 @router.post(
     "/executions/run",
     response_model=ExecutionAccepted,
@@ -355,11 +388,25 @@ def queue_run(
     principal: CandidateWritePrincipal,
     engine: DatabaseEngine,
     idempotency_key: IdempotencyHeader,
-    slug: Annotated[str, Header(alias="X-Rigor-Question-Slug", min_length=3, max_length=180)],
+    slug: QuestionSlugHeader,
 ) -> ExecutionAccepted:
+    execution_key = f"run:{idempotency_key}"
     try:
         with principal_transaction(engine, principal) as connection:
             question = _session_question(connection, session_id=request.session_id, slug=slug)
+            question_version_id = UUID(str(question["question_version_id"]))
+            existing = _existing_execution(
+                connection,
+                idempotency_key=execution_key,
+                expected_request_hash=_request_hash(
+                    execution_type=ExecutionType.run,
+                    session_id=request.session_id,
+                    question_version_id=question_version_id,
+                    source_code=request.source_code,
+                ),
+            )
+            if existing is not None:
+                return existing
             accepted = _queue_execution(
                 connection,
                 principal,
@@ -367,33 +414,32 @@ def queue_run(
                 session_id=request.session_id,
                 question=question,
                 source_code=request.source_code,
-                idempotency_key=f"run:{idempotency_key}",
+                idempotency_key=execution_key,
                 submission_id=None,
             )
-            if not accepted.duplicate:
-                connection.execute(
-                    text(
-                        """
-                        UPDATE practice_sessions
-                        SET draft_code=:source,
-                            run_count=run_count + 1,
-                            last_activity_at=CURRENT_TIMESTAMP,
-                            updated_at=CURRENT_TIMESTAMP
-                        WHERE id=:session_id
-                        """
-                    ),
-                    {"source": request.source_code, "session_id": request.session_id},
-                )
-                PracticeSessionRepository(connection).append_event(
-                    request.session_id,
-                    PracticeSessionEventInput(
-                        event_type="CODE_RUN_QUEUED",
-                        payload={"execution_id": str(accepted.execution_id)},
-                    ),
-                )
+            connection.execute(
+                text(
+                    """
+                    UPDATE practice_sessions
+                    SET draft_code=:source,
+                        run_count=run_count + 1,
+                        last_activity_at=CURRENT_TIMESTAMP,
+                        updated_at=CURRENT_TIMESTAMP
+                    WHERE id=:session_id
+                    """
+                ),
+                {"source": request.source_code, "session_id": request.session_id},
+            )
+            PracticeSessionRepository(connection).append_event(
+                request.session_id,
+                PracticeSessionEventInput(
+                    event_type="CODE_RUN_QUEUED",
+                    payload={"execution_id": str(accepted.execution_id)},
+                ),
+            )
             return accepted
     except PracticeSessionNotFoundError as exc:
-        raise HTTPException(status_code=404, detail="Practice session or question not found.") from exc
+        raise _practice_not_found(exc) from exc
     except IdempotencyConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -408,17 +454,26 @@ def queue_submit(
     principal: CandidateWritePrincipal,
     engine: DatabaseEngine,
     idempotency_key: IdempotencyHeader,
-    slug: Annotated[str, Header(alias="X-Rigor-Question-Slug", min_length=3, max_length=180)],
+    slug: QuestionSlugHeader,
 ) -> ExecutionAccepted:
     execution_key = f"submit:{idempotency_key}"
     try:
         with principal_transaction(engine, principal) as connection:
-            existing = _existing_execution(connection, idempotency_key=execution_key)
+            question = _session_question(connection, session_id=request.session_id, slug=slug)
+            question_version_id = UUID(str(question["question_version_id"]))
+            existing = _existing_execution(
+                connection,
+                idempotency_key=execution_key,
+                expected_request_hash=_request_hash(
+                    execution_type=ExecutionType.submit,
+                    session_id=request.session_id,
+                    question_version_id=question_version_id,
+                    source_code=request.source_code,
+                ),
+            )
             if existing is not None:
                 return existing
-            question = _session_question(connection, session_id=request.session_id, slug=slug)
             _enforce_backpressure(connection, execution_type=ExecutionType.submit)
-            question_version_id = UUID(str(question["question_version_id"]))
             submission_id = UUID(
                 str(
                     connection.execute(
@@ -493,7 +548,7 @@ def queue_submit(
             )
             return accepted
     except PracticeSessionNotFoundError as exc:
-        raise HTTPException(status_code=404, detail="Practice session or question not found.") from exc
+        raise _practice_not_found(exc) from exc
     except IdempotencyConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -527,7 +582,6 @@ def cancel_execution(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-# This module is intentionally imported during API readiness initialization. The
-# decorators above attach the asynchronous execution endpoints to the already
-# included practice router without creating a second candidate API router.
+# Imported during API readiness initialization. The decorators above attach the
+# async endpoints to the practice router before that router is mounted by main.
 EXECUTION_ROUTES_REGISTERED = True
