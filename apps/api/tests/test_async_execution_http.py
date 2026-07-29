@@ -100,6 +100,21 @@ def _seed_published_python_question(engine: Engine) -> str:
     return TEST_SLUG
 
 
+def _candidate_context(client: TestClient) -> tuple[Engine, dict[str, str], str, str]:
+    engine = cast(Engine, app.state.database_engine)
+    provider = cast(LocalOIDCProvider, app.state.local_oidc_provider)
+    slug = _seed_published_python_question(engine)
+    token = provider.issue_test_access_token("candidate", expires_in=900)
+    auth = {"Authorization": f"Bearer {token}"}
+    session_response = client.post(
+        "/api/v1/practice-sessions",
+        headers=auth,
+        json={"question_slug": slug, "runtime": "python3.13"},
+    )
+    assert session_response.status_code == 201, session_response.text
+    return engine, auth, slug, session_response.json()["id"]
+
+
 def test_http_run_is_queued_transactionally_without_fastapi_execution(monkeypatch) -> None:
     def forbidden_local_execution(*args: object, **kwargs: object) -> NoReturn:
         del args, kwargs
@@ -108,19 +123,7 @@ def test_http_run_is_queued_transactionally_without_fastapi_execution(monkeypatc
     monkeypatch.setattr(submissions.RUNNER, "execute", forbidden_local_execution)
 
     with TestClient(app) as client:
-        engine = cast(Engine, app.state.database_engine)
-        provider = cast(LocalOIDCProvider, app.state.local_oidc_provider)
-        slug = _seed_published_python_question(engine)
-        token = provider.issue_test_access_token("candidate", expires_in=900)
-        auth = {"Authorization": f"Bearer {token}"}
-
-        session_response = client.post(
-            "/api/v1/practice-sessions",
-            headers=auth,
-            json={"question_slug": slug, "runtime": "python3.13"},
-        )
-        assert session_response.status_code == 201, session_response.text
-        session_id = session_response.json()["id"]
+        engine, auth, slug, session_id = _candidate_context(client)
         key = "http-async-run-proof-0001"
         source = "def solve(value):\n    return value\n"
 
@@ -172,10 +175,7 @@ def test_http_run_is_queued_transactionally_without_fastapi_execution(monkeypatc
         assert execution["published_at"] is None
         assert "source_code" not in execution["outbox_payload"]
         assert source not in json.dumps(execution["outbox_payload"])
-        assert all(
-            "expected" not in test
-            for test in execution["input_payload"]["tests"]
-        )
+        assert all("expected" not in test for test in execution["input_payload"]["tests"])
 
         status_response = client.get(
             f"/api/v1/executions/{execution_id}",
@@ -206,21 +206,91 @@ def test_http_run_is_queued_transactionally_without_fastapi_execution(monkeypatc
         assert conflict.status_code == 409
 
 
-def test_public_run_route_authenticates_before_any_execution_work(monkeypatch) -> None:
+def test_http_submit_uses_same_durable_execution_service(monkeypatch) -> None:
     def forbidden_local_execution(*args: object, **kwargs: object) -> NoReturn:
         del args, kwargs
-        raise AssertionError("public route reached LocalFunctionalPythonRunner")
+        raise AssertionError("FastAPI attempted to execute submitted candidate code locally")
 
     monkeypatch.setattr(submissions.RUNNER, "execute", forbidden_local_execution)
 
     with TestClient(app) as client:
+        engine, auth, slug, session_id = _candidate_context(client)
+        source = "def solve(value):\n    return value\n"
         response = client.post(
-            "/api/v1/questions/anything/run",
-            headers={"Idempotency-Key": "unauthenticated-proof-0001"},
+            f"/api/v1/questions/{slug}/submissions",
+            headers={**auth, "Idempotency-Key": "http-async-submit-proof-0001"},
             json={
-                "session_id": "11111111-2222-3333-4444-555555555555",
-                "source_code": "def solve(value): return value",
+                "session_id": session_id,
+                "source_code": source,
+                "runtime": "python3.13",
             },
         )
 
-    assert response.status_code == 401
+        assert response.status_code == 202, response.text
+        body = response.json()
+        assert body["execution_type"] == "SUBMIT"
+        assert body["status"] == "QUEUED"
+        assert body["attempt"] == 0
+        assert body["submission_id"]
+        execution_id = body["execution_id"]
+
+        with engine.connect() as connection:
+            row = (
+                connection.execute(
+                    text(
+                        """
+                        SELECT er.submission_id,
+                               er.state::text AS execution_state,
+                               s.status AS submission_status,
+                               eo.payload AS outbox_payload
+                        FROM execution_requests er
+                        JOIN submissions s ON s.id=er.submission_id
+                        JOIN execution_outbox eo ON eo.aggregate_id=er.id
+                        WHERE er.id=:execution_id
+                          AND eo.event_type='execution.requested'
+                        """
+                    ),
+                    {"execution_id": execution_id},
+                )
+                .mappings()
+                .one()
+            )
+        assert str(row["submission_id"]) == body["submission_id"]
+        assert row["execution_state"] == "QUEUED"
+        assert row["submission_status"] == "queued"
+        assert source not in json.dumps(row["outbox_payload"])
+
+
+def test_execution_http_surface_authenticates_before_execution_work(monkeypatch) -> None:
+    def forbidden_local_execution(*args: object, **kwargs: object) -> NoReturn:
+        del args, kwargs
+        raise AssertionError("public execution surface reached LocalFunctionalPythonRunner")
+
+    monkeypatch.setattr(submissions.RUNNER, "execute", forbidden_local_execution)
+    execution_id = "11111111-2222-3333-4444-555555555555"
+
+    with TestClient(app) as client:
+        run = client.post(
+            "/api/v1/questions/anything/run",
+            headers={"Idempotency-Key": "unauthenticated-run-proof-0001"},
+            json={
+                "session_id": execution_id,
+                "source_code": "def solve(value): return value",
+            },
+        )
+        submit = client.post(
+            "/api/v1/questions/anything/submissions",
+            headers={"Idempotency-Key": "unauthenticated-submit-proof-0001"},
+            json={
+                "session_id": execution_id,
+                "source_code": "def solve(value): return value",
+                "runtime": "python3.13",
+            },
+        )
+        status_response = client.get(f"/api/v1/executions/{execution_id}")
+        cancel = client.post(f"/api/v1/executions/{execution_id}/cancel")
+
+    assert run.status_code == 401
+    assert submit.status_code == 401
+    assert status_response.status_code == 401
+    assert cancel.status_code == 401
