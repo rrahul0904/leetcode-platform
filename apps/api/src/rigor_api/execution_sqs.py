@@ -8,7 +8,7 @@ import os
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, cast
 from urllib import error, parse, request
 
 from .outbox import OutboxMessage
@@ -16,6 +16,7 @@ from .outbox import OutboxMessage
 SQS_CONTENT_TYPE = "application/x-amz-json-1.0"
 SQS_SERVICE = "sqs"
 MAX_CREDENTIAL_RESPONSE_BYTES = 32 * 1024
+MAX_SQS_RESPONSE_BYTES = 1024 * 1024
 CREDENTIAL_REFRESH_SKEW = timedelta(minutes=5)
 
 
@@ -41,6 +42,22 @@ class StaticCredentialProvider:
 
     def load(self) -> AwsCredentials:
         return self.credentials
+
+
+def _json_object(raw: bytes, *, label: str) -> dict[str, object]:
+    try:
+        decoded: object = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise SqsTransportError(f"{label} is malformed JSON.") from exc
+    if not isinstance(decoded, dict):
+        raise SqsTransportError(f"{label} is not a JSON object.")
+    return cast(dict[str, object], decoded)
+
+
+def _json_array(value: object, *, label: str) -> list[object]:
+    if not isinstance(value, list):
+        raise SqsTransportError(f"{label} is not a JSON array.")
+    return cast(list[object], value)
 
 
 def _container_endpoint_allowed(url: str) -> bool:
@@ -131,21 +148,21 @@ class EnvironmentContainerCredentialProvider:
                 raw = response.read(MAX_CREDENTIAL_RESPONSE_BYTES)
         except OSError as exc:
             raise SqsTransportError("Unable to load task or pod credentials.") from exc
-        try:
-            payload = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise SqsTransportError("Container credential response is malformed.") from exc
-        if not isinstance(payload, dict):
-            raise SqsTransportError("Container credential response is invalid.")
+
+        payload = _json_object(raw, label="Container credential response")
         access_key = payload.get("AccessKeyId")
         secret_key = payload.get("SecretAccessKey")
         token = payload.get("Token")
-        if not isinstance(access_key, str) or not isinstance(secret_key, str):
-            raise SqsTransportError("Container credential response is incomplete.")
+        if not isinstance(access_key, str) or not access_key:
+            raise SqsTransportError("Container credential access key is missing.")
+        if not isinstance(secret_key, str) or not secret_key:
+            raise SqsTransportError("Container credential secret key is missing.")
+        if token is not None and not isinstance(token, str):
+            raise SqsTransportError("Container credential session token is invalid.")
         return AwsCredentials(
             access_key_id=access_key,
             secret_access_key=secret_key,
-            session_token=str(token) if token else None,
+            session_token=token,
             expires_at=_parse_expiration(payload.get("Expiration")),
         )
 
@@ -173,7 +190,7 @@ class UrllibTransport:
         http_request = request.Request(url, data=body, headers=headers, method="POST")
         try:
             with request.urlopen(http_request, timeout=timeout_seconds) as response:
-                return response.read(1024 * 1024)
+                return response.read(MAX_SQS_RESPONSE_BYTES)
         except error.HTTPError as exc:
             detail = exc.read(16 * 1024).decode("utf-8", errors="replace")
             raise SqsTransportError(f"SQS HTTP {exc.code}: {detail[:1000]}") from exc
@@ -206,7 +223,7 @@ def _signed_headers(
         raise SqsTransportError("SQS endpoint must be HTTPS.")
     amz_date = now.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
     date_stamp = amz_date[:8]
-    canonical_headers_map = {
+    canonical_headers_map: dict[str, str] = {
         "content-type": SQS_CONTENT_TYPE,
         "host": parsed.netloc,
         "x-amz-date": amz_date,
@@ -250,18 +267,16 @@ def _signed_headers(
         f"Credential={credentials.access_key_id}/{credential_scope}, "
         f"SignedHeaders={signed_headers}, Signature={signature}"
     )
-    return {
+    headers = {
         "Content-Type": SQS_CONTENT_TYPE,
         "Host": parsed.netloc,
         "X-Amz-Date": amz_date,
         "X-Amz-Target": target,
-        **(
-            {"X-Amz-Security-Token": credentials.session_token}
-            if credentials.session_token
-            else {}
-        ),
         "Authorization": authorization,
     }
+    if credentials.session_token:
+        headers["X-Amz-Security-Token"] = credentials.session_token
+    return headers
 
 
 @dataclass(frozen=True)
@@ -322,13 +337,7 @@ class SqsJsonClient:
             body=body,
             timeout_seconds=timeout_seconds,
         )
-        try:
-            decoded = json.loads(raw or b"{}")
-        except json.JSONDecodeError as exc:
-            raise SqsTransportError("SQS returned malformed JSON.") from exc
-        if not isinstance(decoded, dict):
-            raise SqsTransportError("SQS returned an invalid response.")
-        return {str(key): value for key, value in decoded.items()}
+        return _json_object(raw or b"{}", label="SQS response")
 
     def send_message(self, body: str) -> str:
         response = self._call(
@@ -360,24 +369,28 @@ class SqsJsonClient:
             },
             timeout_seconds=float(wait_seconds + 10),
         )
-        value = response.get("Messages", [])
-        if not isinstance(value, list):
-            raise SqsTransportError("SQS ReceiveMessage response is invalid.")
+        raw_messages = response.get("Messages", [])
         messages: list[SqsReceivedMessage] = []
-        for item in value:
-            if not isinstance(item, dict):
+        for raw_item in _json_array(raw_messages, label="SQS Messages"):
+            if not isinstance(raw_item, dict):
                 continue
+            item = cast(dict[str, object], raw_item)
             message_id = item.get("MessageId")
             receipt = item.get("ReceiptHandle")
-            body = item.get("Body")
-            if all(isinstance(field, str) and field for field in (message_id, receipt, body)):
-                messages.append(
-                    SqsReceivedMessage(
-                        message_id=str(message_id),
-                        receipt_handle=str(receipt),
-                        body=str(body),
-                    )
+            message_body = item.get("Body")
+            if not isinstance(message_id, str) or not message_id:
+                continue
+            if not isinstance(receipt, str) or not receipt:
+                continue
+            if not isinstance(message_body, str) or not message_body:
+                continue
+            messages.append(
+                SqsReceivedMessage(
+                    message_id=message_id,
+                    receipt_handle=receipt,
+                    body=message_body,
                 )
+            )
         return messages
 
     def delete_message(self, receipt_handle: str) -> None:
