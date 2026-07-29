@@ -144,18 +144,21 @@ jobs:
           RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
         run: uv run alembic upgrade head
 
-      - name: Verify execution schema
+      - name: Verify execution schema and worker roles
         run: |
-          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260729_0010"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260729_0011"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_outbox') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_payloads') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_public_results') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT NOT rolbypassrls FROM pg_roles WHERE rolname='rigor_execution_worker'")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT NOT rolbypassrls FROM pg_roles WHERE rolname='rigor_execution_reconciler'")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT NOT rolbypassrls FROM pg_roles WHERE rolname='rigor_executor'")" = "t"
 
-      - name: Downgrade and re-upgrade async execution migration
+      - name: Downgrade and re-upgrade worker security migration
         env:
           RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
         run: |
-          uv run alembic downgrade 20260728_0009
+          uv run alembic downgrade 20260729_0010
           uv run alembic upgrade head
 
       - name: Show PostgreSQL logs on failure
