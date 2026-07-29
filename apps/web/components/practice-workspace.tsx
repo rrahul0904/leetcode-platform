@@ -87,8 +87,8 @@ function ResultPanel({
           </strong>
           <span>
             {result?.candidate_message ??
-              (execution.error_category
-                ? `Execution could not complete (${execution.error_category}).`
+              (execution.error
+                ? `Execution could not complete (${execution.error}).`
                 : "Execution finished.")}
           </span>
         </div>
@@ -251,9 +251,10 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
 
   const cancelMutation = useMutation({
     mutationFn: () => cancelExecution(activeExecutionId!),
+    onMutate: () => setNotice("Cancelling execution…"),
     onSuccess: (cancelled) => {
       setLastExecution(cancelled);
-      setNotice("Execution cancelled");
+      setNotice(cancelled.status === "CANCELLED" ? "Execution cancelled" : "Execution already finished");
       window.localStorage.removeItem(storageKey);
       setActiveExecutionId(null);
       setActiveKind(null);
@@ -458,17 +459,11 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
                 ) : (
                   <Square size={14} />
                 )}
-                Cancel
+                Cancel execution
               </button>
             )}
           </div>
-          <div className="result-pane">
-            <div className="pane-heading">
-              <span>RESULTS</span>
-              <small>Hidden expected answers stay in the trusted plane</small>
-            </div>
-            <ResultPanel execution={execution} submission={submission} />
-          </div>
+          <ResultPanel execution={execution} submission={submission} />
         </section>
       </div>
     </div>
