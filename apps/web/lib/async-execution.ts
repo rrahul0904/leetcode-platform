@@ -32,7 +32,11 @@ export type AsyncExecutionResult = {
 export type ExecutionAccepted = {
   execution_id: string;
   submission_id: string | null;
+  execution_type: "RUN" | "SUBMIT";
   status: AsyncExecutionStatus;
+  attempt: number;
+  created_at: string;
+  status_url: string;
   duplicate: boolean;
 };
 
@@ -42,14 +46,16 @@ export type AsyncExecutionView = {
   status: AsyncExecutionStatus;
   execution_type: "RUN" | "SUBMIT";
   runtime: string;
+  attempt: number;
   created_at: string;
   queued_at: string;
   dispatch_started_at: string | null;
   running_at: string | null;
   completed_at: string | null;
   runtime_ms: number | null;
-  error_category: string | null;
+  memory_peak_bytes: number | null;
   result: AsyncExecutionResult | null;
+  error: string | null;
 };
 
 const terminalStates = new Set<AsyncExecutionStatus>([
