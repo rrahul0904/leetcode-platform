@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import Connection, text
@@ -79,6 +79,40 @@ class TrustedExecutionProjection:
         return self.total_tests > 0 and self.passed_tests == self.total_tests
 
 
+def _object_dict(value: object, *, label: str) -> dict[str, object]:
+    if not isinstance(value, dict):
+        raise TrustedResultError(f"{label} must be a JSON object.")
+    return cast(dict[str, object], value)
+
+
+def _optional_object_dict(value: object) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    return cast(dict[str, object], value)
+
+
+def _object_list(value: object, *, label: str) -> list[object]:
+    if not isinstance(value, list):
+        raise TrustedResultError(f"{label} must be a JSON array.")
+    return cast(list[object], value)
+
+
+def _required_string(value: object, *, label: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise TrustedResultError(f"{label} is missing or invalid.")
+    return value
+
+
+def _optional_string(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def _nonnegative_int(value: object, *, label: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise TrustedResultError(f"{label} is invalid.")
+    return value
+
+
 def load_dispatch_package(connection: Connection, execution_id: UUID) -> DispatchPackage:
     row = (
         connection.execute(
@@ -113,6 +147,9 @@ def load_dispatch_package(connection: Connection, execution_id: UUID) -> Dispatc
         raise TrustedResultError("Candidate execution has no practice session.")
     if row["candidate_id"] is None:
         raise TrustedResultError("Candidate execution has no candidate owner.")
+
+    input_payload = _optional_object_dict(cast(object, row["input_payload"]))
+    limits = _optional_object_dict(cast(object, row["limits"]))
     return DispatchPackage(
         execution_id=UUID(str(row["id"])),
         organization_id=UUID(str(row["organization_id"])) if row["organization_id"] else None,
@@ -124,28 +161,26 @@ def load_dispatch_package(connection: Connection, execution_id: UUID) -> Dispatc
         runtime=str(row["runtime"]),
         language=str(row["language"]),
         source_code=str(row["source_code"]),
-        input_payload=(dict(row["input_payload"]) if isinstance(row["input_payload"], dict) else {}),
-        limits=dict(row["limits"]) if isinstance(row["limits"], dict) else {},
+        input_payload=input_payload,
+        limits=limits,
         trace_id=str(row["trace_id"]),
     )
 
 
 def sandbox_request(package: DispatchPackage) -> dict[str, object]:
-    payload = dict(package.input_payload)
-    tests = payload.get("tests")
-    if not isinstance(tests, list):
-        raise TrustedResultError("Execution input has no test list.")
-    for item in tests:
-        if not isinstance(item, dict):
-            raise TrustedResultError("Execution test input is invalid.")
-        if "expected_output" in item or "expected" in item:
+    tests = _object_list(package.input_payload.get("tests"), label="Execution test input")
+    sanitized_tests: list[dict[str, object]] = []
+    for raw_test in tests:
+        test = _object_dict(raw_test, label="Execution test")
+        if "expected_output" in test or "expected" in test:
             raise TrustedResultError("Expected answers must not enter the candidate sandbox.")
+        sanitized_tests.append(test)
     return {
         "schema_version": 1,
         "execution_id": str(package.execution_id),
         "source_code": package.source_code,
-        "entrypoint": str(payload.get("entrypoint") or "solve"),
-        "tests": tests,
+        "entrypoint": str(package.input_payload.get("entrypoint") or "solve"),
+        "tests": sanitized_tests,
     }
 
 
@@ -154,16 +189,15 @@ def parse_runner_result(log_text: str, *, execution_id: UUID) -> SandboxExecutio
     if len(encoded) > MAX_RESULT_LOG_BYTES:
         raise TrustedResultError("Runner result log exceeds the trusted transport limit.")
 
-    payload: dict[str, Any] | None = None
+    payload: dict[str, object] | None = None
     for line in reversed(log_text.splitlines()):
         if not line.startswith(RESULT_PREFIX):
             continue
         try:
-            value = json.loads(line.removeprefix(RESULT_PREFIX))
+            decoded: object = json.loads(line.removeprefix(RESULT_PREFIX))
         except json.JSONDecodeError as exc:
             raise TrustedResultError("Runner emitted malformed result JSON.") from exc
-        if isinstance(value, dict):
-            payload = cast(dict[str, Any], value)
+        payload = _object_dict(decoded, label="Runner result")
         break
     if payload is None:
         raise TrustedResultError("Runner result marker was not found.")
@@ -172,21 +206,21 @@ def parse_runner_result(log_text: str, *, execution_id: UUID) -> SandboxExecutio
     if payload.get("execution_id") != str(execution_id):
         raise TrustedResultError("Runner result execution identifier mismatch.")
 
-    status = str(payload.get("status") or "")
+    status = _required_string(payload.get("status"), label="Runner status")
     if status not in {"COMPLETED", "FAILED", "TIMEOUT"}:
         raise TrustedResultError("Runner emitted an unsupported terminal status.")
-    raw_tests = payload.get("tests")
-    if not isinstance(raw_tests, list) or len(raw_tests) > MAX_RESULT_TESTS:
-        raise TrustedResultError("Runner test result list is invalid.")
+    raw_tests = _object_list(payload.get("tests"), label="Runner test results")
+    if len(raw_tests) > MAX_RESULT_TESTS:
+        raise TrustedResultError("Runner test result list exceeds the trusted limit.")
+
     tests: list[dict[str, object]] = []
     seen: set[str] = set()
-    for item in raw_tests:
-        if not isinstance(item, dict):
-            raise TrustedResultError("Runner test result is invalid.")
-        test_id = str(item.get("id") or "")
-        visibility = str(item.get("visibility") or "")
-        if not test_id or test_id in seen:
-            raise TrustedResultError("Runner test identifiers must be unique and non-empty.")
+    for raw_item in raw_tests:
+        item = _object_dict(raw_item, label="Runner test result")
+        test_id = _required_string(item.get("id"), label="Runner test id")
+        visibility = _required_string(item.get("visibility"), label="Runner test visibility")
+        if test_id in seen:
+            raise TrustedResultError("Runner test identifiers must be unique.")
         if visibility not in {"public", "hidden"}:
             raise TrustedResultError("Runner test visibility is invalid.")
         seen.add(test_id)
@@ -196,17 +230,13 @@ def parse_runner_result(log_text: str, *, execution_id: UUID) -> SandboxExecutio
                 "visibility": visibility,
                 "ok": bool(item.get("ok")),
                 "actual": item.get("actual"),
-                "error_category": (
-                    str(item["error_category"]) if item.get("error_category") else None
-                ),
+                "error_category": _optional_string(item.get("error_category")),
             }
         )
 
-    runtime_ms = payload.get("runtime_ms")
-    exit_code = payload.get("exit_code")
-    if not isinstance(runtime_ms, int) or runtime_ms < 0:
-        raise TrustedResultError("Runner runtime is invalid.")
-    if not isinstance(exit_code, int):
+    runtime_ms = _nonnegative_int(payload.get("runtime_ms"), label="Runner runtime")
+    exit_code_value = payload.get("exit_code")
+    if not isinstance(exit_code_value, int) or isinstance(exit_code_value, bool):
         raise TrustedResultError("Runner exit code is invalid.")
     stdout = str(payload.get("stdout") or "")[:MAX_PUBLIC_STREAM_BYTES]
     stderr = str(payload.get("stderr") or "")[:MAX_PUBLIC_STREAM_BYTES]
@@ -214,11 +244,11 @@ def parse_runner_result(log_text: str, *, execution_id: UUID) -> SandboxExecutio
         execution_id=execution_id,
         status=status,
         runtime_ms=runtime_ms,
-        exit_code=exit_code,
+        exit_code=exit_code_value,
         tests=tests,
         stdout=stdout,
         stderr=stderr,
-        error_category=(str(payload["error_category"]) if payload.get("error_category") else None),
+        error_category=_optional_string(payload.get("error_category")),
     )
 
 
@@ -227,27 +257,33 @@ def load_expected_tests(
     *,
     question_version_id: UUID,
 ) -> dict[str, dict[str, object]]:
-    structured = connection.execute(
+    structured_value = connection.execute(
         text("SELECT structured_content FROM question_versions WHERE id=:id"),
         {"id": question_version_id},
     ).scalar_one_or_none()
-    if not isinstance(structured, dict):
-        raise TrustedResultError("Question execution specification is unavailable.")
-    mode = structured.get("mode_specification")
-    if not isinstance(mode, dict):
-        raise TrustedResultError("Question execution mode is unavailable.")
-    tests = mode.get("tests")
-    if not isinstance(tests, list):
-        raise TrustedResultError("Question expected tests are unavailable.")
+    structured = _object_dict(cast(object, structured_value), label="Question structured content")
+    mode = _object_dict(structured.get("mode_specification"), label="Question execution mode")
+    tests = _object_list(mode.get("tests"), label="Question expected tests")
+
     expected: dict[str, dict[str, object]] = {}
-    for index, item in enumerate(tests):
-        if not isinstance(item, dict):
-            continue
-        test_id = str(item.get("id") or f"test-{index + 1}")
+    for index, raw_item in enumerate(tests):
+        item = _object_dict(raw_item, label="Question expected test")
+        test_id_value = item.get("id")
+        test_id = (
+            test_id_value
+            if isinstance(test_id_value, str) and test_id_value
+            else f"test-{index + 1}"
+        )
+        name_value = item.get("name")
+        visibility_value = item.get("visibility")
         expected[test_id] = {
             "id": test_id,
-            "name": str(item.get("name") or test_id),
-            "visibility": str(item.get("visibility") or "hidden"),
+            "name": name_value if isinstance(name_value, str) and name_value else test_id,
+            "visibility": (
+                visibility_value
+                if isinstance(visibility_value, str) and visibility_value
+                else "hidden"
+            ),
             "expected_output": item.get("expected_output"),
         }
     return expected
