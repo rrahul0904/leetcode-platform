@@ -18,7 +18,7 @@ resource "aws_kms_alias" "execution_queue" {
 resource "aws_sqs_queue" "dlq" {
   name                      = "${var.name_prefix}-execution-dlq"
   message_retention_seconds = var.dlq_retention_seconds
-  receive_wait_time_seconds  = 20
+  receive_wait_time_seconds = 20
 
   kms_master_key_id                 = aws_kms_key.execution_queue.arn
   kms_data_key_reuse_period_seconds = 300
