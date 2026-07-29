@@ -13,21 +13,23 @@ def _post_routes(path: str) -> list[APIRoute]:
     ]
 
 
-def test_legacy_run_route_is_shadowed_by_fail_closed_handler() -> None:
+def test_public_run_route_is_async_handler() -> None:
     routes = _post_routes("/api/v1/questions/{slug}/run")
 
     assert routes
-    assert routes[0].endpoint.__name__ == "legacy_synchronous_run_disabled"
+    assert routes[0].endpoint.__name__ == "queue_run_for_question"
+    assert routes[0].status_code == 202
 
 
-def test_legacy_submit_route_is_shadowed_by_fail_closed_handler() -> None:
+def test_public_submit_route_is_async_handler() -> None:
     routes = _post_routes("/api/v1/questions/{slug}/submissions")
 
     assert routes
-    assert routes[0].endpoint.__name__ == "legacy_synchronous_submit_disabled"
+    assert routes[0].endpoint.__name__ == "queue_submit_for_question"
+    assert routes[0].status_code == 202
 
 
-def test_async_execution_routes_are_registered() -> None:
+def test_execution_status_and_cancel_routes_are_registered() -> None:
     registered = {
         (route.path, method)
         for route in app.routes
@@ -35,7 +37,7 @@ def test_async_execution_routes_are_registered() -> None:
         for method in route.methods
     }
 
-    assert ("/api/v1/executions/run", "POST") in registered
-    assert ("/api/v1/executions/submit", "POST") in registered
     assert ("/api/v1/executions/{execution_id}", "GET") in registered
     assert ("/api/v1/executions/{execution_id}/cancel", "POST") in registered
+    assert ("/api/v1/executions/run", "POST") not in registered
+    assert ("/api/v1/executions/submit", "POST") not in registered
