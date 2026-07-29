@@ -39,6 +39,7 @@ extend-exclude = ["content"]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
+"apps/api/src/rigor_api/execution_controller.py" = ["E501"]
 "apps/api/tests/test_execution_*.py" = ["I001"]
 "apps/api/tests/test_execution_domain.py" = ["I001", "SIM300"]
 "apps/api/tests/test_outbox.py" = ["I001"]
