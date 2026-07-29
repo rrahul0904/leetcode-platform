@@ -27,26 +27,27 @@ EXECUTION_TABLES = (
 
 
 def upgrade() -> None:
-    # Group roles are safe to create without LOGIN. Production can grant these
-    # roles to Secrets-Manager/IAM-authenticated login roles. Local development
-    # creates login variants in database/init/001_roles.sql.
+    # Login/group roles are infrastructure bootstrap concerns, not schema-migration
+    # concerns. The migrator intentionally lacks CREATEROLE. Fail clearly when an
+    # environment was not bootstrapped rather than escalating migration privileges.
     op.execute(
         """
         DO $roles$
         BEGIN
           IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='rigor_execution_worker') THEN
-            CREATE ROLE rigor_execution_worker NOLOGIN
-              NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            RAISE EXCEPTION 'required role rigor_execution_worker is not provisioned';
           END IF;
           IF NOT EXISTS (
             SELECT 1 FROM pg_roles WHERE rolname='rigor_execution_reconciler'
           ) THEN
-            CREATE ROLE rigor_execution_reconciler NOLOGIN
-              NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+            RAISE EXCEPTION 'required role rigor_execution_reconciler is not provisioned';
           END IF;
-          IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='rigor_executor') THEN
-            ALTER ROLE rigor_executor NOBYPASSRLS;
-            GRANT rigor_execution_worker TO rigor_executor;
+          IF EXISTS (
+            SELECT 1 FROM pg_roles
+            WHERE rolname IN ('rigor_execution_worker', 'rigor_execution_reconciler')
+              AND rolbypassrls
+          ) THEN
+            RAISE EXCEPTION 'execution roles must not have BYPASSRLS';
           END IF;
         END
         $roles$;
