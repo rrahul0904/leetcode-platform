@@ -198,6 +198,46 @@ class ExecutionClaimRepository:
         ).scalar_one_or_none()
         return updated_id is not None
 
+    def lock_owned_attempt(
+        self,
+        execution_id: UUID,
+        *,
+        worker_id: str,
+        attempt_count: int,
+    ) -> bool:
+        """Lock the active execution row while a worker persists its terminal result.
+
+        The lock and subsequent result writes must use the same transaction. If the
+        lease expired, ownership changed, cancellation won, or a new attempt exists,
+        the old worker is no longer authoritative and must not persist.
+        """
+
+        if attempt_count < 1:
+            return False
+        locked = self._connection.execute(
+            text(
+                """
+                SELECT id
+                FROM execution_requests
+                WHERE id=:execution_id
+                  AND attempt_count=:attempt_count
+                  AND lease_owner=:worker_id
+                  AND lease_expires_at > CURRENT_TIMESTAMP
+                  AND state IN (
+                    'DISPATCHING'::execution_state,
+                    'RUNNING'::execution_state
+                  )
+                FOR UPDATE
+                """
+            ),
+            {
+                "execution_id": execution_id,
+                "attempt_count": attempt_count,
+                "worker_id": worker_id,
+            },
+        ).scalar_one_or_none()
+        return locked is not None
+
     def expired_leases(self, *, limit: int = 100) -> list[ExpiredExecutionLease]:
         if not 1 <= limit <= 500:
             raise ValueError("limit must be between 1 and 500")
