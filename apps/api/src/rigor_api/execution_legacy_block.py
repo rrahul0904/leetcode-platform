@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import cast
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
@@ -22,7 +23,7 @@ from .execution_api import (
     queue_run,
     queue_submit,
 )
-from .schemas import PracticeRunRequest, PracticeSubmitRequest
+from .schemas import AuthenticatedPrincipal, PracticeRunRequest, PracticeSubmitRequest
 from .submissions import router as submissions_router
 
 ASYNC_EXECUTION_PATHS = {
@@ -95,7 +96,7 @@ def _remove_routes(router: APIRouter, paths: set[str]) -> None:
 
 def _execution_metadata(
     engine: DatabaseEngine,
-    principal,
+    principal: AuthenticatedPrincipal,
     execution_id: UUID,
 ) -> dict[str, object]:
     with principal_transaction(engine, principal) as connection:
@@ -123,7 +124,7 @@ def _accepted_contract(
     accepted: ExecutionAccepted,
     *,
     engine: DatabaseEngine,
-    principal,
+    principal: AuthenticatedPrincipal,
 ) -> CanonicalExecutionAccepted:
     metadata = _execution_metadata(engine, principal, accepted.execution_id)
     return CanonicalExecutionAccepted(
@@ -132,7 +133,7 @@ def _accepted_contract(
         execution_type=str(metadata["execution_type"]),
         status=AsyncExecutionStatus(str(metadata["state"])),
         attempt=int(metadata["attempt_count"]),
-        created_at=metadata["created_at"],
+        created_at=cast(datetime, metadata["created_at"]),
         status_url=f"/api/v1/executions/{accepted.execution_id}",
         duplicate=accepted.duplicate,
     )
@@ -154,7 +155,7 @@ def _view_contract(
     view: AsyncExecutionView,
     *,
     engine: DatabaseEngine,
-    principal,
+    principal: AuthenticatedPrincipal,
 ) -> CanonicalExecutionView:
     metadata = _execution_metadata(engine, principal, view.execution_id)
     memory_value = metadata["memory_peak_bytes"]
