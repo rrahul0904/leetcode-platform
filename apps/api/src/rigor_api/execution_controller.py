@@ -9,11 +9,15 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import Engine, create_engine, text
+from sqlalchemy import Connection, Engine, create_engine, text
 
 from .execution_claims import ExecutionClaimRepository, ExpiredExecutionLease
-from .execution_domain import TERMINAL_EXECUTION_STATUSES, ExecutionRepository, ExecutionStatus
-from .execution_events import ExecutionCancelRequestedEvent, ExecutionRequestedEvent, parse_execution_queue_event
+from .execution_domain import ExecutionRepository, ExecutionStatus
+from .execution_events import (
+    ExecutionCancelRequestedEvent,
+    ExecutionRequestedEvent,
+    parse_execution_queue_event,
+)
 from .execution_kubernetes import (
     KubernetesApiConfig,
     KubernetesSandboxExecutor,
@@ -72,7 +76,13 @@ class ExecutionControllerSettings:
             aws_region=region,
             worker_id=worker_id,
             lease_seconds=int(os.getenv("RIGOR_EXECUTION_LEASE_SECONDS", "60")),
+            reconciliation_limit=int(os.getenv("RIGOR_EXECUTION_RECONCILIATION_LIMIT", "50")),
             outbox_batch_size=int(os.getenv("RIGOR_EXECUTION_OUTBOX_BATCH_SIZE", "25")),
+            receive_wait_seconds=int(os.getenv("RIGOR_EXECUTION_RECEIVE_WAIT_SECONDS", "20")),
+            receive_visibility_seconds=int(
+                os.getenv("RIGOR_EXECUTION_VISIBILITY_SECONDS", "90")
+            ),
+            sandbox_poll_seconds=float(os.getenv("RIGOR_EXECUTION_POLL_SECONDS", "0.5")),
         )
 
 
@@ -131,15 +141,13 @@ class ExecutionController:
                 "execution.queue_invalid_event",
                 extra={"message_id": message.message_id, "error": exc.__class__.__name__},
             )
-            # Poison messages belong in the DLQ after the queue redrive policy;
-            # leave this delivery unacknowledged rather than deleting evidence.
+            # Leave poison deliveries for the configured SQS redrive policy.
             return False
 
         if isinstance(event, ExecutionCancelRequestedEvent):
             self._process_cancel(event)
             self.queue.delete_message(message.receipt_handle)
             return True
-
         if not isinstance(event, ExecutionRequestedEvent):
             return False
 
@@ -147,10 +155,10 @@ class ExecutionController:
             message.receipt_handle,
             self.settings.receive_visibility_seconds,
         )
-        completed = self._process_requested(event, message)
-        if completed:
+        acknowledged = self._process_requested(event, message)
+        if acknowledged:
             self.queue.delete_message(message.receipt_handle)
-        return completed
+        return acknowledged
 
     def _process_requested(
         self,
@@ -165,10 +173,9 @@ class ExecutionController:
                 lease_expires_at=lease_deadline,
             )
             if claim is None:
-                state = self._execution_status(connection, event.execution_id)
-                # Another worker already owns the durable execution, or it is
-                # terminal/cancelled. This delivery is a duplicate and is safe to ack.
-                return state is not None
+                # At-least-once redelivery is expected. If the durable aggregate
+                # exists, another worker already claimed it or it is terminal.
+                return self._execution_status(connection, event.execution_id) is not None
             package = load_dispatch_package(connection, event.execution_id)
 
         if package.language != "python":
@@ -193,15 +200,17 @@ class ExecutionController:
                 kubernetes_job_name=handle.job_name,
             )
         if not running:
+            # We created this idempotently but did not retain the durable claim.
+            # Cancellation is the common case; cleanup is safe for this attempt.
             self.sandbox.cleanup(handle)
             return True
 
-        try:
-            return self._monitor(package, handle, message)
-        finally:
-            # Terminal persistence occurs before cleanup. Any cleanup transport
-            # failure is independently recoverable and must not erase the result.
+        terminal = self._monitor(package, handle, message)
+        if terminal:
+            # Never delete a Job after losing the lease: another controller may
+            # have adopted it. Terminal owners can clean up idempotently.
             self.sandbox.cleanup(handle)
+        return terminal
 
     def _monitor(
         self,
@@ -211,11 +220,15 @@ class ExecutionController:
     ) -> bool:
         deadline_seconds = int(package.limits.get("job_deadline_seconds") or 30)
         deadline = time.monotonic() + deadline_seconds + 10
-        next_renewal = time.monotonic() + max(5, self.settings.lease_seconds // 2)
+        renew_after = max(5, self.settings.lease_seconds // 2)
+        next_renewal = time.monotonic() + renew_after
 
         while True:
             observation = self.sandbox.observe(handle)
             if observation.state in {"SUCCEEDED", "FAILED"}:
+                if observation.reason == "DeadlineExceeded" and not observation.logs:
+                    self._persist_timeout(package)
+                    return True
                 return self._persist_observation(package, observation)
             if observation.state == "MISSING":
                 self._persist_infrastructure_failure(
@@ -228,14 +241,7 @@ class ExecutionController:
                 self._persist_timeout(package)
                 return True
             if time.monotonic() >= next_renewal:
-                renewed_until = datetime.now(UTC) + timedelta(seconds=self.settings.lease_seconds)
-                with self.engine.begin() as connection:
-                    renewed = ExecutionClaimRepository(connection).renew_lease(
-                        package.execution_id,
-                        worker_id=self.settings.worker_id,
-                        lease_expires_at=renewed_until,
-                    )
-                if not renewed:
+                if not self._renew_execution_lease(package.execution_id):
                     logger.warning(
                         "execution.lease_lost",
                         extra={"execution_id": str(package.execution_id)},
@@ -245,8 +251,17 @@ class ExecutionController:
                     message.receipt_handle,
                     self.settings.receive_visibility_seconds,
                 )
-                next_renewal = time.monotonic() + max(5, self.settings.lease_seconds // 2)
+                next_renewal = time.monotonic() + renew_after
             time.sleep(self.settings.sandbox_poll_seconds)
+
+    def _renew_execution_lease(self, execution_id: UUID) -> bool:
+        renewed_until = datetime.now(UTC) + timedelta(seconds=self.settings.lease_seconds)
+        with self.engine.begin() as connection:
+            return ExecutionClaimRepository(connection).renew_lease(
+                execution_id,
+                worker_id=self.settings.worker_id,
+                lease_expires_at=renewed_until,
+            )
 
     def _persist_observation(
         self,
@@ -335,11 +350,6 @@ class ExecutionController:
         projection: TrustedExecutionProjection,
     ) -> None:
         with self.engine.begin() as connection:
-            current = ExecutionRepository(connection).get(package.execution_id)
-            if current.status is ExecutionStatus.dispatching:
-                # Infrastructure failed before the sandbox became RUNNING. FAILED
-                # is a legal terminal transition from DISPATCHING.
-                pass
             terminal = persist_terminal_result(
                 connection,
                 execution_id=package.execution_id,
@@ -368,22 +378,23 @@ class ExecutionController:
             return
         namespace = str(row["kubernetes_namespace"] or self.sandbox.config.namespace)
         job_name = str(row["kubernetes_job_name"] or f"execution-{event.execution_id}")
-        handle = SandboxHandle(
-            execution_id=event.execution_id,
-            namespace=namespace,
-            job_name=job_name,
-            input_secret_name=f"input-{job_name}",
-            network_policy_name=f"deny-{job_name}",
+        self.sandbox.cleanup(
+            SandboxHandle(
+                execution_id=event.execution_id,
+                namespace=namespace,
+                job_name=job_name,
+                input_secret_name=f"input-{job_name}",
+                network_policy_name=f"deny-{job_name}",
+            )
         )
-        self.sandbox.cleanup(handle)
 
     @staticmethod
-    def _execution_status(connection: object, execution_id: UUID) -> ExecutionStatus | None:
-        # ``Connection`` is intentionally duck-typed here so unit tests can use a
-        # minimal fake without constructing a SQLAlchemy engine.
+    def _execution_status(
+        connection: Connection,
+        execution_id: UUID,
+    ) -> ExecutionStatus | None:
         try:
-            repository = ExecutionRepository(connection)  # type: ignore[arg-type]
-            return repository.get(execution_id).status
+            return ExecutionRepository(connection).get(execution_id).status
         except Exception:
             return None
 
@@ -394,8 +405,16 @@ class ExecutionController:
             )
         repaired = 0
         for lease in expired:
-            if self._reconcile_lease(lease):
-                repaired += 1
+            try:
+                repaired += int(self._reconcile_lease(lease))
+            except Exception as exc:
+                logger.exception(
+                    "execution.reconciliation_failed",
+                    extra={
+                        "execution_id": str(lease.execution_id),
+                        "error": exc.__class__.__name__,
+                    },
+                )
         return repaired
 
     def _reconcile_lease(self, lease: ExpiredExecutionLease) -> bool:
@@ -409,6 +428,35 @@ class ExecutionController:
             network_policy_name=f"deny-{job_name}",
         )
         observation = self.sandbox.observe(handle)
+        package = self._reacquire_expired_execution(lease, observation, namespace, job_name)
+        if package is None:
+            return False
+
+        if observation.state in {"SUCCEEDED", "FAILED"}:
+            terminal = self._persist_observation(package, observation)
+            if terminal:
+                self.sandbox.cleanup(handle)
+            return terminal
+        if observation.state == "MISSING":
+            self._persist_infrastructure_failure(
+                package,
+                error_category="sandbox_missing_after_lease_expiry",
+                candidate_message="The isolated execution environment was lost before completion.",
+            )
+            self.sandbox.cleanup(handle)
+            return True
+
+        # The Job still exists and the new lease now owns recovery. A later
+        # reconciliation pass will inspect it after this bounded lease expires.
+        return True
+
+    def _reacquire_expired_execution(
+        self,
+        lease: ExpiredExecutionLease,
+        observation: SandboxObservation,
+        namespace: str,
+        job_name: str,
+    ) -> DispatchPackage | None:
         new_deadline = datetime.now(UTC) + timedelta(seconds=self.settings.lease_seconds)
         with self.engine.begin() as connection:
             reacquired = connection.execute(
@@ -431,26 +479,18 @@ class ExecutionController:
                 },
             ).scalar_one_or_none()
             if reacquired is None:
-                return False
+                return None
             package = load_dispatch_package(connection, lease.execution_id)
             if lease.status is ExecutionStatus.dispatching and observation.state != "MISSING":
-                ExecutionClaimRepository(connection).mark_running(
+                marked_running = ExecutionClaimRepository(connection).mark_running(
                     lease.execution_id,
                     worker_id=self.settings.worker_id,
                     kubernetes_namespace=namespace,
                     kubernetes_job_name=job_name,
                 )
-
-        if observation.state in {"SUCCEEDED", "FAILED"}:
-            return self._persist_observation(package, observation)
-        if observation.state == "MISSING":
-            self._persist_infrastructure_failure(
-                package,
-                error_category="sandbox_missing_after_lease_expiry",
-                candidate_message="The isolated execution environment was lost before completion.",
-            )
-            return True
-        return True
+                if not marked_running:
+                    return None
+            return package
 
     def run_forever(self) -> None:
         logger.info("execution.controller_started", extra={"worker_id": self.settings.worker_id})
