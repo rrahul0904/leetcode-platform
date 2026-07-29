@@ -1,80 +1,262 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from datetime import datetime
+from typing import cast
+from uuid import UUID
 
+from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import text
+
+from .database import DatabaseEngine, principal_transaction
 from .execution_api import (
+    AsyncExecutionResult,
+    AsyncExecutionStatus,
     AsyncExecutionView,
+    CandidateReadPrincipal,
+    CandidateWritePrincipal,
     ExecutionAccepted,
+    IdempotencyHeader,
     cancel_execution,
     get_execution,
     queue_run,
     queue_submit,
 )
 from .practice import router as practice_router
+from .schemas import AuthenticatedPrincipal, PracticeRunRequest, PracticeSubmitRequest
 
 router = APIRouter(tags=["execution"])
-
-router.add_api_route(
-    "/executions/run",
-    queue_run,
-    methods=["POST"],
-    response_model=ExecutionAccepted,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-router.add_api_route(
-    "/executions/submit",
-    queue_submit,
-    methods=["POST"],
-    response_model=ExecutionAccepted,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-router.add_api_route(
-    "/executions/{execution_id}",
-    get_execution,
-    methods=["GET"],
-    response_model=AsyncExecutionView,
-)
-router.add_api_route(
-    "/executions/{execution_id}/cancel",
-    cancel_execution,
-    methods=["POST"],
-    response_model=AsyncExecutionView,
-)
+TERMINAL_STATUSES = {
+    AsyncExecutionStatus.completed,
+    AsyncExecutionStatus.failed,
+    AsyncExecutionStatus.timeout,
+    AsyncExecutionStatus.cancelled,
+}
+INFRASTRUCTURE_ERROR_CATEGORIES = {
+    "execution_attempt_limit",
+    "runner_result_unavailable",
+    "sandbox_missing",
+    "sandbox_missing_after_lease_expiry",
+    "trusted_result_validation_failed",
+    "unsupported_execution_language",
+}
 
 
-def legacy_synchronous_run_disabled(slug: str) -> None:
-    del slug
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail="Synchronous candidate execution is disabled. Use /api/v1/executions/run.",
+class PublicExecutionModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class CanonicalExecutionAccepted(PublicExecutionModel):
+    execution_id: UUID
+    submission_id: UUID | None
+    execution_type: str
+    status: AsyncExecutionStatus
+    attempt: int = Field(ge=0)
+    created_at: datetime
+    status_url: str
+    duplicate: bool = False
+
+
+class CanonicalExecutionView(PublicExecutionModel):
+    execution_id: UUID
+    submission_id: UUID | None
+    status: AsyncExecutionStatus
+    execution_type: str
+    runtime: str
+    attempt: int = Field(ge=0)
+    created_at: datetime
+    queued_at: datetime
+    dispatch_started_at: datetime | None
+    running_at: datetime | None
+    completed_at: datetime | None
+    runtime_ms: int | None = Field(default=None, ge=0)
+    memory_peak_bytes: int | None = Field(default=None, ge=0)
+    result: AsyncExecutionResult | None = None
+    error: str | None = None
+
+
+def _integer(value: object, *, field: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise RuntimeError(f"Execution metadata field {field!r} is invalid.")
+    return value
+
+
+def _execution_metadata(
+    engine: DatabaseEngine,
+    principal: AuthenticatedPrincipal,
+    execution_id: UUID,
+) -> dict[str, object]:
+    with principal_transaction(engine, principal) as connection:
+        row = (
+            connection.execute(
+                text(
+                    """
+                    SELECT execution_type, state::text AS state, attempt_count,
+                           created_at, memory_peak_bytes
+                    FROM execution_requests
+                    WHERE id=:execution_id
+                    """
+                ),
+                {"execution_id": execution_id},
+            )
+            .mappings()
+            .one_or_none()
+        )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Execution not found.")
+    return dict(row)
+
+
+def _accepted_contract(
+    accepted: ExecutionAccepted,
+    *,
+    engine: DatabaseEngine,
+    principal: AuthenticatedPrincipal,
+) -> CanonicalExecutionAccepted:
+    metadata = _execution_metadata(engine, principal, accepted.execution_id)
+    return CanonicalExecutionAccepted(
+        execution_id=accepted.execution_id,
+        submission_id=accepted.submission_id,
+        execution_type=str(metadata["execution_type"]),
+        status=AsyncExecutionStatus(str(metadata["state"])),
+        attempt=_integer(metadata["attempt_count"], field="attempt_count"),
+        created_at=cast(datetime, metadata["created_at"]),
+        status_url=f"/api/v1/executions/{accepted.execution_id}",
+        duplicate=accepted.duplicate,
     )
 
 
-def legacy_synchronous_submit_disabled(slug: str) -> None:
-    del slug
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail="Synchronous candidate execution is disabled. Use /api/v1/executions/submit.",
+def _safe_error(view: AsyncExecutionView) -> str | None:
+    if view.status is AsyncExecutionStatus.timeout:
+        return "TIMEOUT"
+    if view.status is AsyncExecutionStatus.cancelled:
+        return "CANCELLED"
+    if view.status is not AsyncExecutionStatus.failed:
+        return None
+    if view.error_category in INFRASTRUCTURE_ERROR_CATEGORIES:
+        return "INFRASTRUCTURE_ERROR"
+    return "CANDIDATE_EXECUTION_ERROR"
+
+
+def _view_contract(
+    view: AsyncExecutionView,
+    *,
+    engine: DatabaseEngine,
+    principal: AuthenticatedPrincipal,
+) -> CanonicalExecutionView:
+    metadata = _execution_metadata(engine, principal, view.execution_id)
+    memory_value = metadata["memory_peak_bytes"]
+    if memory_value is not None and (
+        not isinstance(memory_value, int) or isinstance(memory_value, bool)
+    ):
+        raise RuntimeError("Execution memory metadata is invalid.")
+    return CanonicalExecutionView(
+        execution_id=view.execution_id,
+        submission_id=view.submission_id,
+        status=view.status,
+        execution_type=view.execution_type,
+        runtime=view.runtime,
+        attempt=_integer(metadata["attempt_count"], field="attempt_count"),
+        created_at=view.created_at,
+        queued_at=view.queued_at,
+        dispatch_started_at=view.dispatch_started_at,
+        running_at=view.running_at,
+        completed_at=view.completed_at,
+        runtime_ms=view.runtime_ms,
+        memory_peak_bytes=memory_value,
+        result=view.result,
+        error=_safe_error(view),
     )
+
+
+def queue_run_for_question(
+    slug: str,
+    request: PracticeRunRequest,
+    principal: CandidateWritePrincipal,
+    engine: DatabaseEngine,
+    idempotency_key: IdempotencyHeader,
+) -> CanonicalExecutionAccepted:
+    """Create a durable RUN without executing candidate source in FastAPI."""
+
+    accepted = queue_run(request, principal, engine, idempotency_key, slug)
+    return _accepted_contract(accepted, engine=engine, principal=principal)
+
+
+def queue_submit_for_question(
+    slug: str,
+    request: PracticeSubmitRequest,
+    principal: CandidateWritePrincipal,
+    engine: DatabaseEngine,
+    idempotency_key: IdempotencyHeader,
+) -> CanonicalExecutionAccepted:
+    """Create a durable SUBMIT backed by the same execution service as Run."""
+
+    accepted = queue_submit(request, principal, engine, idempotency_key, slug)
+    return _accepted_contract(accepted, engine=engine, principal=principal)
+
+
+def get_candidate_execution(
+    execution_id: UUID,
+    principal: CandidateReadPrincipal,
+    engine: DatabaseEngine,
+) -> CanonicalExecutionView:
+    view = get_execution(execution_id, principal, engine)
+    return _view_contract(view, engine=engine, principal=principal)
+
+
+def cancel_candidate_execution(
+    execution_id: UUID,
+    principal: CandidateWritePrincipal,
+    engine: DatabaseEngine,
+) -> CanonicalExecutionView:
+    current = get_execution(execution_id, principal, engine)
+    if current.status in TERMINAL_STATUSES:
+        return _view_contract(current, engine=engine, principal=principal)
+    try:
+        cancelled = cancel_execution(execution_id, principal, engine)
+    except HTTPException as exc:
+        if exc.status_code != 409:
+            raise
+        # Completion may win the cancellation race after the first read. Treat
+        # the now-terminal aggregate as an idempotent cancellation response.
+        raced = get_execution(execution_id, principal, engine)
+        if raced.status not in TERMINAL_STATUSES:
+            raise
+        cancelled = raced
+    return _view_contract(cancelled, engine=engine, principal=principal)
 
 
 router.add_api_route(
     "/questions/{slug}/run",
-    legacy_synchronous_run_disabled,
+    queue_run_for_question,
     methods=["POST"],
-    include_in_schema=False,
+    response_model=CanonicalExecutionAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 router.add_api_route(
     "/questions/{slug}/submissions",
-    legacy_synchronous_submit_disabled,
+    queue_submit_for_question,
     methods=["POST"],
-    include_in_schema=False,
+    response_model=CanonicalExecutionAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+router.add_api_route(
+    "/executions/{execution_id}",
+    get_candidate_execution,
+    methods=["GET"],
+    response_model=CanonicalExecutionView,
+)
+router.add_api_route(
+    "/executions/{execution_id}/cancel",
+    cancel_candidate_execution,
+    methods=["POST"],
+    response_model=CanonicalExecutionView,
 )
 
-# main.py already mounts practice_router before the legacy submissions router.
-# Attaching this dedicated router here makes async execution explicit and gives
-# the fail-closed compatibility handlers route priority without rewriting the
-# existing submissions domain in this production-safety phase.
+# main.py already mounts practice_router ahead of the legacy submissions router.
+# Register the canonical execution surface on that router exactly once. The old
+# synchronous endpoints remain dev/reference code, but production local execution
+# is independently fail-closed by configuration and LocalFunctionalPythonRunner.
 practice_router.include_router(router)
 
 EXECUTION_ROUTES_REGISTERED = True
