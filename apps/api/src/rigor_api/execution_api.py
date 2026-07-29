@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 from uuid import UUID
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import Connection, text
 
@@ -25,7 +25,6 @@ from .practice import (
     published_question_payload,
     question_mode,
     question_tests,
-    router,
 )
 from .sandbox_jobs import sandbox_profile
 from .schemas import (
@@ -68,7 +67,7 @@ class AsyncPublicTestResult(ApiExecutionModel):
 
 
 class AsyncExecutionResult(ApiExecutionModel):
-    public_results: list[AsyncPublicTestResult] = Field(default_factory=list)
+    public_results: list[AsyncPublicTestResult] = []
     hidden_total: int = Field(default=0, ge=0)
     hidden_passed: int = Field(default=0, ge=0)
     stdout: str = ""
@@ -148,6 +147,22 @@ def _session_question(
     return published_question_payload(connection, slug)
 
 
+def _request_hash(
+    *,
+    execution_type: ExecutionType,
+    session_id: UUID,
+    question_version_id: UUID,
+    source_code: str,
+) -> str:
+    return execution_request_hash(
+        execution_type=execution_type,
+        practice_session_id=session_id,
+        question_version_id=question_version_id,
+        runtime=PYTHON_RUNTIME,
+        source_code=source_code,
+    )
+
+
 def _existing_execution(
     connection: Connection,
     *,
@@ -182,22 +197,6 @@ def _existing_execution(
         submission_id=UUID(str(row["submission_id"])) if row["submission_id"] else None,
         status=AsyncExecutionStatus(str(row["state"])),
         duplicate=True,
-    )
-
-
-def _request_hash(
-    *,
-    execution_type: ExecutionType,
-    session_id: UUID,
-    question_version_id: UUID,
-    source_code: str,
-) -> str:
-    return execution_request_hash(
-        execution_type=execution_type,
-        practice_session_id=session_id,
-        question_version_id=question_version_id,
-        runtime=PYTHON_RUNTIME,
-        source_code=source_code,
     )
 
 
@@ -244,12 +243,11 @@ def _candidate_tests(
 ) -> list[dict[str, object]]:
     sanitized: list[dict[str, object]] = []
     for index, test in enumerate(question_tests(question, public_only=public_only)):
-        test_id = str(test.get("id") or f"test-{index + 1}")
         sanitized.append(
             {
-                "id": test_id,
+                "id": str(test.get("id") or f"test-{index + 1}"),
                 "visibility": str(test.get("visibility") or "hidden"),
-                "input": test.get("input"),
+                "input": cast(object, test.get("input")),
             }
         )
     if not sanitized:
@@ -290,7 +288,6 @@ def _queue_execution(
     submission_id: UUID | None,
 ) -> ExecutionAccepted:
     _enforce_backpressure(connection, execution_type=execution_type)
-    public_only = execution_type is ExecutionType.run
     queued = ExecutionRepository(connection).create_queued(
         execution_type=execution_type,
         practice_session_id=session_id,
@@ -305,7 +302,10 @@ def _queue_execution(
         input_payload={
             "schema_version": 1,
             "entrypoint": _entrypoint(question),
-            "tests": _candidate_tests(question, public_only=public_only),
+            "tests": _candidate_tests(
+                question,
+                public_only=execution_type is ExecutionType.run,
+            ),
         },
     )
     return ExecutionAccepted(
@@ -337,13 +337,18 @@ def _public_result(
     )
     if row is None:
         return None
-    raw_results = row["public_results"] if isinstance(row["public_results"], list) else []
+
+    raw_value: object = row["public_results"]
+    raw_results = cast(list[object], raw_value) if isinstance(raw_value, list) else []
+    parsed_results: list[AsyncPublicTestResult] = []
+    for item in raw_results:
+        if isinstance(item, dict):
+            parsed_results.append(
+                AsyncPublicTestResult.model_validate(cast(dict[str, object], item))
+            )
+
     return AsyncExecutionResult(
-        public_results=[
-            AsyncPublicTestResult.model_validate(item)
-            for item in raw_results
-            if isinstance(item, dict)
-        ],
+        public_results=parsed_results,
         hidden_total=int(row["hidden_total"]),
         hidden_passed=int(row["hidden_passed"]),
         stdout=str(row["stdout"] or ""),
@@ -375,14 +380,10 @@ def _view(connection: Connection, execution_id: UUID) -> AsyncExecutionView:
 
 
 def _practice_not_found(exc: PracticeSessionNotFoundError) -> HTTPException:
+    del exc
     return HTTPException(status_code=404, detail="Practice session or question not found.")
 
 
-@router.post(
-    "/executions/run",
-    response_model=ExecutionAccepted,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def queue_run(
     request: PracticeRunRequest,
     principal: CandidateWritePrincipal,
@@ -444,11 +445,6 @@ def queue_run(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-@router.post(
-    "/executions/submit",
-    response_model=ExecutionAccepted,
-    status_code=status.HTTP_202_ACCEPTED,
-)
 def queue_submit(
     request: PracticeSubmitRequest,
     principal: CandidateWritePrincipal,
@@ -473,6 +469,7 @@ def queue_submit(
             )
             if existing is not None:
                 return existing
+
             _enforce_backpressure(connection, execution_type=ExecutionType.submit)
             submission_id = UUID(
                 str(
@@ -553,7 +550,6 @@ def queue_submit(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-@router.get("/executions/{execution_id}", response_model=AsyncExecutionView)
 def get_execution(
     execution_id: UUID,
     principal: CandidateReadPrincipal,
@@ -563,7 +559,6 @@ def get_execution(
         return _view(connection, execution_id)
 
 
-@router.post("/executions/{execution_id}/cancel", response_model=AsyncExecutionView)
 def cancel_execution(
     execution_id: UUID,
     principal: CandidateWritePrincipal,
@@ -582,6 +577,6 @@ def cancel_execution(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-# Imported during API readiness initialization. The decorators above attach the
-# async endpoints to the practice router before that router is mounted by main.
+# The actual FastAPI routes are mounted on the submissions router by
+# execution_legacy_block after the synchronous handlers have been removed.
 EXECUTION_ROUTES_REGISTERED = True
