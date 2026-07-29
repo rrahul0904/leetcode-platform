@@ -38,6 +38,9 @@ extend-exclude = ["content"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["rigor_api"]
+
 [tool.ruff.lint.per-file-ignores]
 "apps/api/tests/test_execution_domain.py" = ["SIM300"]
 "services/python-runner/runner.py" = ["SIM117"]
