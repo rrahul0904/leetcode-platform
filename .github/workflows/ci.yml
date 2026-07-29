@@ -34,7 +34,7 @@ jobs:
           enable-cache: true
 
       - name: Install locked Python workspace
-        run: uv sync --frozen
+        run: uv sync --frozen --all-packages
 
       - name: Ruff
         run: >-
@@ -48,9 +48,11 @@ jobs:
           tests
 
       - name: Pyright
+        if: always()
         run: uv run pyright apps/api/src packages/question-schema/src scripts
 
       - name: Pytest
+        if: always()
         run: uv run pytest -q
 
   web:
@@ -80,12 +82,15 @@ jobs:
         run: pnpm --filter @rigor/web lint
 
       - name: Typecheck
+        if: always()
         run: pnpm --filter @rigor/web typecheck
 
       - name: Test
+        if: always()
         run: pnpm --filter @rigor/web test
 
       - name: Build
+        if: always()
         run: pnpm --filter @rigor/web build
 
   migration:
@@ -107,7 +112,7 @@ jobs:
           enable-cache: true
 
       - name: Install locked Python workspace
-        run: uv sync --frozen
+        run: uv sync --frozen --all-packages
 
       - name: Start PostgreSQL 18 + pgvector
         run: docker compose up -d --wait postgres
@@ -156,7 +161,9 @@ jobs:
         run: terraform fmt -check -recursive infra/terraform
 
       - name: Initialize staging without remote backend
+        if: always()
         run: terraform -chdir=infra/terraform/environments/staging init -backend=false -input=false
 
       - name: Validate staging source
+        if: always()
         run: terraform -chdir=infra/terraform/environments/staging validate
