@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from typing import cast
 from uuid import UUID
@@ -18,6 +19,13 @@ RESULT_PREFIX = "RIGOR_EXECUTION_RESULT:"
 MAX_RESULT_LOG_BYTES = 256 * 1024
 MAX_RESULT_TESTS = 200
 MAX_PUBLIC_STREAM_BYTES = 64 * 1024
+SUPPORTED_COMPARISONS = {
+    "exact",
+    "normalized_text",
+    "numeric_tolerance",
+    "json",
+    "unordered",
+}
 
 
 class TrustedResultError(ValueError):
@@ -39,11 +47,13 @@ class DispatchPackage:
     input_payload: dict[str, object]
     limits: dict[str, object]
     trace_id: str
+    attempt_count: int
 
 
 @dataclass(frozen=True)
 class SandboxExecutionResult:
     execution_id: UUID
+    attempt: int
     status: str
     runtime_ms: int
     exit_code: int
@@ -113,6 +123,13 @@ def _nonnegative_int(value: object, *, label: str) -> int:
     return value
 
 
+def _positive_int(value: object, *, label: str) -> int:
+    parsed = _nonnegative_int(value, label=label)
+    if parsed < 1:
+        raise TrustedResultError(f"{label} must be positive.")
+    return parsed
+
+
 def load_dispatch_package(connection: Connection, execution_id: UUID) -> DispatchPackage:
     row = (
         connection.execute(
@@ -129,6 +146,7 @@ def load_dispatch_package(connection: Connection, execution_id: UUID) -> Dispatc
                        er.language,
                        er.limits,
                        er.trace_id,
+                       er.attempt_count,
                        ep.source_code,
                        ep.input_payload
                 FROM execution_requests er
@@ -164,6 +182,7 @@ def load_dispatch_package(connection: Connection, execution_id: UUID) -> Dispatc
         input_payload=input_payload,
         limits=limits,
         trace_id=str(row["trace_id"]),
+        attempt_count=int(row["attempt_count"]),
     )
 
 
@@ -175,16 +194,24 @@ def sandbox_request(package: DispatchPackage) -> dict[str, object]:
         if "expected_output" in test or "expected" in test:
             raise TrustedResultError("Expected answers must not enter the candidate sandbox.")
         sanitized_tests.append(test)
+    if package.attempt_count < 1:
+        raise TrustedResultError("Execution must be claimed before sandbox dispatch.")
     return {
         "schema_version": 1,
         "execution_id": str(package.execution_id),
+        "attempt": package.attempt_count,
         "source_code": package.source_code,
         "entrypoint": str(package.input_payload.get("entrypoint") or "solve"),
         "tests": sanitized_tests,
     }
 
 
-def parse_runner_result(log_text: str, *, execution_id: UUID) -> SandboxExecutionResult:
+def parse_runner_result(
+    log_text: str,
+    *,
+    execution_id: UUID,
+    expected_attempt: int | None = None,
+) -> SandboxExecutionResult:
     encoded = log_text.encode("utf-8", errors="replace")
     if len(encoded) > MAX_RESULT_LOG_BYTES:
         raise TrustedResultError("Runner result log exceeds the trusted transport limit.")
@@ -205,6 +232,10 @@ def parse_runner_result(log_text: str, *, execution_id: UUID) -> SandboxExecutio
         raise TrustedResultError("Unsupported runner result schema version.")
     if payload.get("execution_id") != str(execution_id):
         raise TrustedResultError("Runner result execution identifier mismatch.")
+
+    attempt = _positive_int(payload.get("attempt"), label="Runner execution attempt")
+    if expected_attempt is not None and attempt != expected_attempt:
+        raise TrustedResultError("Runner result execution attempt mismatch.")
 
     status = _required_string(payload.get("status"), label="Runner status")
     if status not in {"COMPLETED", "FAILED", "TIMEOUT"}:
@@ -242,6 +273,7 @@ def parse_runner_result(log_text: str, *, execution_id: UUID) -> SandboxExecutio
     stderr = str(payload.get("stderr") or "")[:MAX_PUBLIC_STREAM_BYTES]
     return SandboxExecutionResult(
         execution_id=execution_id,
+        attempt=attempt,
         status=status,
         runtime_ms=runtime_ms,
         exit_code=exit_code_value,
@@ -250,6 +282,22 @@ def parse_runner_result(log_text: str, *, execution_id: UUID) -> SandboxExecutio
         stderr=stderr,
         error_category=_optional_string(payload.get("error_category")),
     )
+
+
+def _comparison_policy(item: dict[str, object]) -> dict[str, object]:
+    raw = item.get("comparison")
+    if raw is None:
+        return {"strategy": "exact"}
+    if isinstance(raw, str):
+        policy: dict[str, object] = {"strategy": raw}
+    elif isinstance(raw, dict):
+        policy = cast(dict[str, object], raw)
+    else:
+        raise TrustedResultError("Question comparison policy is invalid.")
+    strategy = str(policy.get("strategy") or "exact")
+    if strategy not in SUPPORTED_COMPARISONS:
+        raise TrustedResultError(f"Unsupported trusted comparison strategy {strategy!r}.")
+    return {**policy, "strategy": strategy}
 
 
 def load_expected_tests(
@@ -264,6 +312,8 @@ def load_expected_tests(
     structured = _object_dict(cast(object, structured_value), label="Question structured content")
     mode = _object_dict(structured.get("mode_specification"), label="Question execution mode")
     tests = _object_list(mode.get("tests"), label="Question expected tests")
+    if not tests or len(tests) > MAX_RESULT_TESTS:
+        raise TrustedResultError("Question expected test set is empty or too large.")
 
     expected: dict[str, dict[str, object]] = {}
     for index, raw_item in enumerate(tests):
@@ -274,6 +324,8 @@ def load_expected_tests(
             if isinstance(test_id_value, str) and test_id_value
             else f"test-{index + 1}"
         )
+        if test_id in expected:
+            raise TrustedResultError("Question expected test identifiers must be unique.")
         name_value = item.get("name")
         visibility_value = item.get("visibility")
         expected[test_id] = {
@@ -281,19 +333,59 @@ def load_expected_tests(
             "name": name_value if isinstance(name_value, str) and name_value else test_id,
             "visibility": (
                 visibility_value
-                if isinstance(visibility_value, str) and visibility_value
+                if isinstance(visibility_value, str) and visibility_value in {"public", "hidden"}
                 else "hidden"
             ),
             "expected_output": item.get("expected_output"),
+            "comparison": _comparison_policy(item),
         }
     return expected
 
 
-def _test_passed(actual: dict[str, object], expected_output: object) -> bool:
+def _canonical_json(value: object) -> str:
+    try:
+        return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    except (TypeError, ValueError) as exc:
+        raise TrustedResultError("Comparison value is not JSON serializable.") from exc
+
+
+def _compare_value(actual: object, expected: object, policy: dict[str, object]) -> bool:
+    strategy = str(policy.get("strategy") or "exact")
+    if strategy in {"exact", "json"}:
+        return actual == expected
+    if strategy == "normalized_text":
+        return " ".join(str(actual).split()) == " ".join(str(expected).split())
+    if strategy == "numeric_tolerance":
+        tolerance_raw = policy.get("tolerance", 1e-9)
+        if not isinstance(tolerance_raw, (int, float)) or isinstance(tolerance_raw, bool):
+            raise TrustedResultError("Numeric comparison tolerance must be numeric.")
+        tolerance = float(tolerance_raw)
+        if not math.isfinite(tolerance) or tolerance < 0:
+            raise TrustedResultError("Numeric comparison tolerance is invalid.")
+        if not isinstance(actual, (int, float)) or isinstance(actual, bool):
+            return False
+        if not isinstance(expected, (int, float)) or isinstance(expected, bool):
+            return False
+        return math.isclose(float(actual), float(expected), rel_tol=0.0, abs_tol=tolerance)
+    if strategy == "unordered":
+        if not isinstance(actual, list) or not isinstance(expected, list):
+            return False
+        return sorted(_canonical_json(item) for item in actual) == sorted(
+            _canonical_json(item) for item in expected
+        )
+    raise TrustedResultError(f"Unsupported trusted comparison strategy {strategy!r}.")
+
+
+def _test_passed(actual: dict[str, object], expected: dict[str, object]) -> bool:
+    expected_output = expected.get("expected_output")
     error_category = actual.get("error_category")
     if isinstance(expected_output, str) and expected_output.endswith("Error"):
         return error_category == expected_output
-    return bool(actual.get("ok")) and actual.get("actual") == expected_output
+    if not bool(actual.get("ok")):
+        return False
+    policy_value = expected.get("comparison")
+    policy = _object_dict(policy_value, label="Trusted comparison policy")
+    return _compare_value(actual.get("actual"), expected_output, policy)
 
 
 def trusted_compare(
@@ -307,18 +399,25 @@ def trusted_compare(
     else:
         terminal = ExecutionStatus.completed
 
+    returned_ids = {str(item["id"]) for item in sandbox.tests}
+    unknown_ids = returned_ids.difference(expected_tests)
+    if unknown_ids:
+        raise TrustedResultError("Runner returned unknown test identifiers.")
+    if terminal is ExecutionStatus.completed and returned_ids != set(expected_tests):
+        raise TrustedResultError("Completed runner result omitted one or more expected tests.")
+
     public_results: list[dict[str, object]] = []
-    hidden_total = 0
+    hidden_total = sum(
+        1 for item in expected_tests.values() if str(item.get("visibility") or "hidden") == "hidden"
+    )
     hidden_passed = 0
     for actual in sandbox.tests:
         test_id = str(actual["id"])
-        expected = expected_tests.get(test_id)
-        if expected is None:
-            raise TrustedResultError(f"Runner returned unknown test {test_id!r}.")
+        expected = expected_tests[test_id]
         expected_visibility = str(expected.get("visibility") or "hidden")
         if actual["visibility"] != expected_visibility:
             raise TrustedResultError(f"Runner changed visibility for test {test_id!r}.")
-        passed = _test_passed(actual, expected.get("expected_output"))
+        passed = _test_passed(actual, expected)
         if expected_visibility == "public":
             public_results.append(
                 {
@@ -331,7 +430,6 @@ def trusted_compare(
                 }
             )
         else:
-            hidden_total += 1
             hidden_passed += int(passed)
 
     if terminal is ExecutionStatus.completed:
