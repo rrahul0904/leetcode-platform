@@ -8,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from .config import Settings
 from .execution_api import EXECUTION_ROUTES_REGISTERED
+from .execution_legacy_block import LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED
 from .schemas import ReadinessCheck, ReadinessResponse
 
 EXPECTED_MIGRATION_VERSION = "20260729_0010"
@@ -131,6 +132,15 @@ def readiness_report(engine: Engine, settings: Settings) -> ReadinessResponse:
                 name="async_execution_api",
                 status="ready" if EXECUTION_ROUTES_REGISTERED else "not_ready",
                 detail="registered" if EXECUTION_ROUTES_REGISTERED else "missing",
+            ),
+            ReadinessCheck(
+                name="legacy_candidate_execution",
+                status="ready" if LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED else "not_ready",
+                detail=(
+                    "synchronous HTTP execution blocked"
+                    if LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED
+                    else "unsafe synchronous route available"
+                ),
             ),
             ReadinessCheck(
                 name="ai_adapter",
