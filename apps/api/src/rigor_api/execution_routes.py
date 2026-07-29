@@ -253,11 +253,9 @@ router.add_api_route(
     response_model=CanonicalExecutionView,
 )
 
-# main.py already mounts practice_router ahead of the legacy submissions router.
-# Register the canonical execution surface on that router exactly once. The old
-# synchronous endpoints remain dev/reference code, but production local execution
-# is independently fail-closed by configuration and LocalFunctionalPythonRunner.
-practice_router.include_router(router)
+# APIRouter.include_router does not inherit the containing router's prefix.
+# Apply the public API prefix explicitly before main.py mounts practice_router.
+practice_router.include_router(router, prefix="/api/v1")
 
 EXECUTION_ROUTES_REGISTERED = True
 LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED = True
