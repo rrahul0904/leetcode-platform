@@ -253,9 +253,8 @@ router.add_api_route(
     response_model=CanonicalExecutionView,
 )
 
-# APIRouter.include_router does not inherit the containing router's prefix.
-# Apply the public API prefix explicitly before main.py mounts practice_router.
-practice_router.include_router(router, prefix="/api/v1")
+# practice_router.add_api_route applies its own /api/v1 prefix to included routes.
+practice_router.include_router(router)
 
 EXECUTION_ROUTES_REGISTERED = True
 LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED = True
