@@ -33,7 +33,8 @@ def _remove_routes(router: APIRouter, paths: set[str]) -> None:
         if not (
             isinstance(route, APIRoute)
             and route.path in paths
-            and bool(route.methods & {"GET", "POST"})
+            and route.methods is not None
+            and not route.methods.isdisjoint({"GET", "POST"})
         )
     ]
 
