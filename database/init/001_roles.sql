@@ -17,6 +17,10 @@ BEGIN
         CREATE ROLE rigor_readonly LOGIN PASSWORD 'rigor_readonly_local_only'
             NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS;
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'rigor_executor') THEN
+        CREATE ROLE rigor_executor LOGIN PASSWORD 'rigor_executor_local_only'
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS;
+    END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'rigor_sql_sandbox') THEN
         CREATE ROLE rigor_sql_sandbox LOGIN PASSWORD 'rigor_sql_sandbox_local_only'
             NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
@@ -27,6 +31,7 @@ $roles$;
 ALTER ROLE rigor_migrator NOBYPASSRLS;
 ALTER ROLE rigor_app NOBYPASSRLS;
 ALTER ROLE rigor_readonly BYPASSRLS;
+ALTER ROLE rigor_executor BYPASSRLS;
 ALTER ROLE rigor_sql_sandbox NOBYPASSRLS;
 
 ALTER DATABASE rigor OWNER TO rigor_owner;
@@ -37,10 +42,10 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 REVOKE ALL ON DATABASE rigor FROM PUBLIC;
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
-GRANT CONNECT ON DATABASE rigor TO rigor_migrator, rigor_app, rigor_readonly;
+GRANT CONNECT ON DATABASE rigor TO rigor_migrator, rigor_app, rigor_readonly, rigor_executor;
 GRANT CONNECT ON DATABASE rigor TO rigor_sql_sandbox;
 GRANT USAGE, CREATE ON SCHEMA public TO rigor_migrator;
-GRANT USAGE ON SCHEMA public TO rigor_app, rigor_readonly;
+GRANT USAGE ON SCHEMA public TO rigor_app, rigor_readonly, rigor_executor;
 
 -- The SQL sandbox role may connect to the cluster, but receives no application
 -- schema or table privileges. Execution adapters provision a disposable schema.
