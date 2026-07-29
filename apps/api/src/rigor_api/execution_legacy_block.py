@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from fastapi import APIRouter, status
 from fastapi.routing import APIRoute
 
@@ -64,7 +66,7 @@ def queue_submit_for_question(
 
 
 def get_candidate_execution(
-    execution_id,
+    execution_id: UUID,
     principal: CandidateReadPrincipal,
     engine: DatabaseEngine,
 ) -> AsyncExecutionView:
@@ -72,7 +74,7 @@ def get_candidate_execution(
 
 
 def cancel_candidate_execution(
-    execution_id,
+    execution_id: UUID,
     principal: CandidateWritePrincipal,
     engine: DatabaseEngine,
 ) -> AsyncExecutionView:
