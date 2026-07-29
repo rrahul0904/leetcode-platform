@@ -7,8 +7,10 @@ from sqlalchemy import Engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from .config import Settings
-from .execution_api import EXECUTION_ROUTES_REGISTERED
-from .execution_legacy_block import LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED
+from .execution_routes import (
+    EXECUTION_ROUTES_REGISTERED,
+    LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED,
+)
 from .schemas import ReadinessCheck, ReadinessResponse
 
 EXPECTED_MIGRATION_VERSION = "20260729_0011"
