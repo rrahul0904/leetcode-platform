@@ -92,7 +92,8 @@ def _seed_published_python_question(engine: Engine) -> str:
         ).scalar_one()
         connection.execute(
             text(
-                "UPDATE questions SET current_published_version_id=:version_id WHERE id=:question_id"
+                "UPDATE questions SET current_published_version_id=:version_id "
+                "WHERE id=:question_id"
             ),
             {"version_id": version_id, "question_id": question_id},
         )
@@ -132,8 +133,11 @@ def test_http_run_is_queued_transactionally_without_fastapi_execution(monkeypatc
         assert response.status_code == 202, response.text
         body = response.json()
         assert body["status"] == "QUEUED"
+        assert body["execution_type"] == "RUN"
+        assert body["attempt"] == 0
         assert body["submission_id"] is None
         execution_id = body["execution_id"]
+        assert body["status_url"] == f"/api/v1/executions/{execution_id}"
 
         with engine.connect() as connection:
             execution = (
@@ -179,6 +183,7 @@ def test_http_run_is_queued_transactionally_without_fastapi_execution(monkeypatc
         )
         assert status_response.status_code == 200
         assert status_response.json()["status"] == "QUEUED"
+        assert status_response.json()["attempt"] == 0
         assert status_response.json()["result"] is None
 
         duplicate = client.post(
@@ -193,7 +198,10 @@ def test_http_run_is_queued_transactionally_without_fastapi_execution(monkeypatc
         conflict = client.post(
             f"/api/v1/questions/{slug}/run",
             headers={**auth, "Idempotency-Key": key},
-            json={"session_id": session_id, "source_code": "def solve(value): return value + 1"},
+            json={
+                "session_id": session_id,
+                "source_code": "def solve(value): return value + 1",
+            },
         )
         assert conflict.status_code == 409
 
