@@ -102,14 +102,14 @@ export function queueRunExecution(
   sourceCode: string,
   idempotencyKey: string,
 ) {
-  return executionRequest<ExecutionAccepted>("/api/v1/executions/run", {
-    method: "POST",
-    headers: {
-      "Idempotency-Key": idempotencyKey,
-      "X-Rigor-Question-Slug": slug,
+  return executionRequest<ExecutionAccepted>(
+    `/api/v1/questions/${encodeURIComponent(slug)}/run`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: { session_id: sessionId, source_code: sourceCode },
     },
-    body: { session_id: sessionId, source_code: sourceCode },
-  });
+  );
 }
 
 export function queueSubmitExecution(
@@ -118,18 +118,18 @@ export function queueSubmitExecution(
   sourceCode: string,
   idempotencyKey: string,
 ) {
-  return executionRequest<ExecutionAccepted>("/api/v1/executions/submit", {
-    method: "POST",
-    headers: {
-      "Idempotency-Key": idempotencyKey,
-      "X-Rigor-Question-Slug": slug,
+  return executionRequest<ExecutionAccepted>(
+    `/api/v1/questions/${encodeURIComponent(slug)}/submissions`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: {
+        session_id: sessionId,
+        source_code: sourceCode,
+        runtime: "python3.13",
+      },
     },
-    body: {
-      session_id: sessionId,
-      source_code: sourceCode,
-      runtime: "python3.13",
-    },
-  });
+  );
 }
 
 export function getExecution(executionId: string, signal?: AbortSignal) {
