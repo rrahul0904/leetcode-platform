@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, cast
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -34,9 +34,10 @@ ExecutionQueueEvent = ExecutionRequestedEvent | ExecutionCancelRequestedEvent
 def parse_execution_queue_event(payload: object) -> ExecutionQueueEvent:
     if not isinstance(payload, dict):
         raise ValueError("Execution queue event must be a JSON object.")
-    event_type = payload.get("event_type")
+    record = cast(dict[str, object], payload)
+    event_type = record.get("event_type")
     if event_type == "execution.requested":
-        return ExecutionRequestedEvent.model_validate(payload)
+        return ExecutionRequestedEvent.model_validate(record)
     if event_type == "execution.cancel_requested":
-        return ExecutionCancelRequestedEvent.model_validate(payload)
+        return ExecutionCancelRequestedEvent.model_validate(record)
     raise ValueError("Unsupported execution queue event type.")
