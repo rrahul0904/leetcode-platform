@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Protocol
 from urllib import error, parse, request
 
@@ -13,6 +15,8 @@ from .outbox import OutboxMessage
 
 SQS_CONTENT_TYPE = "application/x-amz-json-1.0"
 SQS_SERVICE = "sqs"
+MAX_CREDENTIAL_RESPONSE_BYTES = 32 * 1024
+CREDENTIAL_REFRESH_SKEW = timedelta(minutes=5)
 
 
 class SqsTransportError(RuntimeError):
@@ -24,50 +28,125 @@ class AwsCredentials:
     access_key_id: str
     secret_access_key: str
     session_token: str | None = None
+    expires_at: datetime | None = None
 
-    @classmethod
-    def discover(cls) -> AwsCredentials:
-        access_key = os.getenv("AWS_ACCESS_KEY_ID")
-        secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-        if access_key and secret_key:
-            return cls(
-                access_key_id=access_key,
-                secret_access_key=secret_key,
+
+class AwsCredentialProvider(Protocol):
+    def load(self) -> AwsCredentials: ...
+
+
+@dataclass(frozen=True)
+class StaticCredentialProvider:
+    credentials: AwsCredentials
+
+    def load(self) -> AwsCredentials:
+        return self.credentials
+
+
+def _container_endpoint_allowed(url: str) -> bool:
+    parsed = parse.urlsplit(url)
+    if parsed.scheme != "http" or not parsed.hostname:
+        return False
+    if parsed.hostname == "localhost":
+        return True
+    try:
+        address = ipaddress.ip_address(parsed.hostname)
+    except ValueError:
+        return False
+    return address.is_loopback or address.is_link_local
+
+
+def _container_authorization_header() -> str | None:
+    direct = os.getenv("AWS_CONTAINER_AUTHORIZATION_TOKEN")
+    if direct:
+        return direct.strip()
+    token_file = os.getenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE")
+    if not token_file:
+        return None
+    try:
+        return Path(token_file).read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise SqsTransportError("Container credential authorization token is unavailable.") from exc
+
+
+def _parse_expiration(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise SqsTransportError("Container credential expiration is invalid.") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise SqsTransportError("Container credential expiration must include a timezone.")
+    return parsed.astimezone(UTC)
+
+
+class EnvironmentContainerCredentialProvider:
+    """Refreshable credential provider for trusted ECS/EKS controller workloads."""
+
+    def __init__(self) -> None:
+        self._cached: AwsCredentials | None = None
+
+    def load(self) -> AwsCredentials:
+        env_access_key = os.getenv("AWS_ACCESS_KEY_ID")
+        env_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+        if env_access_key and env_secret_key:
+            return AwsCredentials(
+                access_key_id=env_access_key,
+                secret_access_key=env_secret_key,
                 session_token=os.getenv("AWS_SESSION_TOKEN"),
             )
 
+        now = datetime.now(UTC)
+        if self._cached is not None:
+            expires_at = self._cached.expires_at
+            if expires_at is None or expires_at - CREDENTIAL_REFRESH_SKEW > now:
+                return self._cached
+
+        self._cached = self._load_container_credentials()
+        return self._cached
+
+    @staticmethod
+    def _load_container_credentials() -> AwsCredentials:
         relative_uri = os.getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
         full_uri = os.getenv("AWS_CONTAINER_CREDENTIALS_FULL_URI")
         if relative_uri:
             credential_url = f"http://169.254.170.2{relative_uri}"
         elif full_uri:
-            parsed = parse.urlsplit(full_uri)
-            if parsed.scheme != "http" or parsed.hostname not in {
-                "169.254.170.2",
-                "127.0.0.1",
-                "localhost",
-            }:
-                raise SqsTransportError("Untrusted ECS credential endpoint configuration.")
             credential_url = full_uri
         else:
-            raise SqsTransportError("AWS credentials are unavailable to the trusted queue worker.")
+            raise SqsTransportError(
+                "AWS task or pod credentials are unavailable to the trusted controller."
+            )
+        if not _container_endpoint_allowed(credential_url):
+            raise SqsTransportError("Untrusted container credential endpoint configuration.")
 
+        headers: dict[str, str] = {"Accept": "application/json"}
+        authorization = _container_authorization_header()
+        if authorization:
+            headers["Authorization"] = authorization
+        credential_request = request.Request(credential_url, headers=headers, method="GET")
         try:
-            with request.urlopen(credential_url, timeout=2.0) as response:
-                payload = json.loads(response.read(32 * 1024))
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
-            raise SqsTransportError("Unable to load ECS task credentials.") from exc
+            with request.urlopen(credential_request, timeout=2.0) as response:
+                raw = response.read(MAX_CREDENTIAL_RESPONSE_BYTES)
+        except OSError as exc:
+            raise SqsTransportError("Unable to load task or pod credentials.") from exc
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise SqsTransportError("Container credential response is malformed.") from exc
         if not isinstance(payload, dict):
-            raise SqsTransportError("ECS credential response is invalid.")
+            raise SqsTransportError("Container credential response is invalid.")
         access_key = payload.get("AccessKeyId")
         secret_key = payload.get("SecretAccessKey")
         token = payload.get("Token")
         if not isinstance(access_key, str) or not isinstance(secret_key, str):
-            raise SqsTransportError("ECS credential response is incomplete.")
-        return cls(
+            raise SqsTransportError("Container credential response is incomplete.")
+        return AwsCredentials(
             access_key_id=access_key,
             secret_access_key=secret_key,
             session_token=str(token) if token else None,
+            expires_at=_parse_expiration(payload.get("Expiration")),
         )
 
 
@@ -127,18 +206,20 @@ def _signed_headers(
         raise SqsTransportError("SQS endpoint must be HTTPS.")
     amz_date = now.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
     date_stamp = amz_date[:8]
-    headers = {
+    canonical_headers_map = {
         "content-type": SQS_CONTENT_TYPE,
         "host": parsed.netloc,
         "x-amz-date": amz_date,
         "x-amz-target": target,
     }
     if credentials.session_token:
-        headers["x-amz-security-token"] = credentials.session_token
+        canonical_headers_map["x-amz-security-token"] = credentials.session_token
 
-    signed_header_names = sorted(headers)
-    canonical_headers = "".join(f"{name}:{headers[name].strip()}\n" for name in signed_header_names)
-    signed_headers = ";".join(signed_header_names)
+    names = sorted(canonical_headers_map)
+    canonical_headers = "".join(
+        f"{name}:{canonical_headers_map[name].strip()}\n" for name in names
+    )
+    signed_headers = ";".join(names)
     payload_hash = hashlib.sha256(body).hexdigest()
     canonical_request = "\n".join(
         [
@@ -191,13 +272,7 @@ class SqsReceivedMessage:
 
 
 class SqsJsonClient:
-    """Small SQS JSON-protocol client for the trusted execution controller.
-
-    The project intentionally keeps AWS SDK dependencies out of the FastAPI
-    application image. This client supports the exact SQS operations needed by
-    the outbox publisher/dispatcher and uses ECS task-role credentials in
-    production.
-    """
+    """Minimal refreshable SQS JSON-protocol client for trusted execution workers."""
 
     def __init__(
         self,
@@ -205,15 +280,22 @@ class SqsJsonClient:
         queue_url: str,
         region: str,
         credentials: AwsCredentials | None = None,
+        credential_provider: AwsCredentialProvider | None = None,
         transport: HttpTransport | None = None,
     ) -> None:
         queue = parse.urlsplit(queue_url)
         if queue.scheme != "https" or not queue.hostname:
             raise SqsTransportError("Queue URL must be an HTTPS SQS URL.")
+        if credentials is not None and credential_provider is not None:
+            raise ValueError("Provide credentials or a credential provider, not both.")
         self.queue_url = queue_url
         self.region = region
         self.endpoint = f"{queue.scheme}://{queue.netloc}/"
-        self.credentials = credentials or AwsCredentials.discover()
+        self.credential_provider = credential_provider or (
+            StaticCredentialProvider(credentials)
+            if credentials is not None
+            else EnvironmentContainerCredentialProvider()
+        )
         self.transport = transport or UrllibTransport()
 
     def _call(
@@ -231,7 +313,7 @@ class SqsJsonClient:
             target=target,
             body=body,
             region=self.region,
-            credentials=self.credentials,
+            credentials=self.credential_provider.load(),
             now=now or datetime.now(UTC),
         )
         raw = self.transport.post(
