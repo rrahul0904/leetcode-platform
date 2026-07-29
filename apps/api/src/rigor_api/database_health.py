@@ -11,7 +11,7 @@ from .execution_api import EXECUTION_ROUTES_REGISTERED
 from .execution_legacy_block import LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED
 from .schemas import ReadinessCheck, ReadinessResponse
 
-EXPECTED_MIGRATION_VERSION = "20260729_0010"
+EXPECTED_MIGRATION_VERSION = "20260729_0011"
 REQUIRED_TABLES = (
     "practice_sessions",
     "submissions",
