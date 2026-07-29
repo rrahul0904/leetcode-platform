@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import os
 import ssl
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, cast
 from urllib import error, parse, request
 from uuid import UUID
 
@@ -123,7 +124,11 @@ class KubernetesTransport(Protocol):
 
 class UrllibKubernetesTransport:
     def __init__(self, ca_file: str | None) -> None:
-        self._context = ssl.create_default_context(cafile=ca_file) if ca_file else ssl.create_default_context()
+        self._context = (
+            ssl.create_default_context(cafile=ca_file)
+            if ca_file
+            else ssl.create_default_context()
+        )
 
     def request(
         self,
@@ -154,6 +159,22 @@ class UrllibKubernetesTransport:
             raise KubernetesExecutionError("Kubernetes API transport failed.") from exc
 
 
+def _object_dict(value: object, *, label: str) -> dict[str, object]:
+    if not isinstance(value, dict):
+        raise KubernetesExecutionError(f"{label} is not a JSON object.")
+    return cast(dict[str, object], value)
+
+
+def _object_list(value: object) -> list[object]:
+    if not isinstance(value, list):
+        return []
+    return cast(list[object], value)
+
+
+def _positive_int(value: object) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else 0
+
+
 class KubernetesSandboxExecutor:
     def __init__(
         self,
@@ -169,11 +190,11 @@ class KubernetesSandboxExecutor:
         method: str,
         path: str,
         *,
-        payload: dict[str, object] | None = None,
+        payload: Mapping[str, object] | None = None,
         expected: set[int] | None = None,
     ) -> KubernetesResponse:
         body = (
-            json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+            json.dumps(dict(payload), separators=(",", ":"), ensure_ascii=False).encode("utf-8")
             if payload is not None
             else None
         )
@@ -201,12 +222,10 @@ class KubernetesSandboxExecutor:
     @staticmethod
     def _json(response: KubernetesResponse) -> dict[str, object]:
         try:
-            value = json.loads(response.body or b"{}")
+            decoded: object = json.loads(response.body or b"{}")
         except json.JSONDecodeError as exc:
             raise KubernetesExecutionError("Kubernetes API returned malformed JSON.") from exc
-        if not isinstance(value, dict):
-            raise KubernetesExecutionError("Kubernetes API returned an invalid object.")
-        return {str(key): item for key, item in value.items()}
+        return _object_dict(decoded, label="Kubernetes API response")
 
     def create_python_execution(
         self,
@@ -218,19 +237,22 @@ class KubernetesSandboxExecutor:
         namespace = self.config.namespace
         job_name = sandbox_job_name(execution_id)
         secret_name = f"input-{job_name}"
-        policy = build_network_policy(execution_id=execution_id, namespace=namespace)
-        policy_meta = policy.get("metadata")
-        if not isinstance(policy_meta, dict) or not isinstance(policy_meta.get("name"), str):
-            raise KubernetesExecutionError("Execution NetworkPolicy metadata is invalid.")
-        policy_name = str(policy_meta["name"])
+        policy = cast(
+            dict[str, object],
+            build_network_policy(execution_id=execution_id, namespace=namespace),
+        )
+        policy_meta = _object_dict(policy.get("metadata"), label="NetworkPolicy metadata")
+        policy_name_value = policy_meta.get("name")
+        if not isinstance(policy_name_value, str) or not policy_name_value:
+            raise KubernetesExecutionError("Execution NetworkPolicy name is invalid.")
         handle = SandboxHandle(
             execution_id=execution_id,
             namespace=namespace,
             job_name=job_name,
             input_secret_name=secret_name,
-            network_policy_name=policy_name,
+            network_policy_name=policy_name_value,
         )
-        secret = {
+        secret: dict[str, object] = {
             "apiVersion": "v1",
             "kind": "Secret",
             "metadata": {
@@ -247,12 +269,15 @@ class KubernetesSandboxExecutor:
                 )
             },
         }
-        job = build_python_job(
-            execution_id=execution_id,
-            namespace=namespace,
-            input_secret_name=secret_name,
-            runner_image=self.config.runner_image,
-            profile_name=profile_name,
+        job = cast(
+            dict[str, object],
+            build_python_job(
+                execution_id=execution_id,
+                namespace=namespace,
+                input_secret_name=secret_name,
+                runner_image=self.config.runner_image,
+                profile_name=profile_name,
+            ),
         )
 
         try:
@@ -287,23 +312,26 @@ class KubernetesSandboxExecutor:
         )
         if response.status == 404:
             return SandboxObservation(state="MISSING", reason="job_not_found")
+
         job = self._json(response)
-        status_value = job.get("status")
-        status = status_value if isinstance(status_value, dict) else {}
-        conditions_value = status.get("conditions")
-        conditions = conditions_value if isinstance(conditions_value, list) else []
-        for condition in conditions:
-            if not isinstance(condition, dict) or condition.get("status") != "True":
+        status = _object_dict(job.get("status") or {}, label="Job status")
+        for raw_condition in _object_list(status.get("conditions")):
+            if not isinstance(raw_condition, dict):
                 continue
-            if condition.get("type") == "Complete":
+            condition = cast(dict[str, object], raw_condition)
+            if condition.get("status") != "True":
+                continue
+            condition_type = condition.get("type")
+            if condition_type == "Complete":
                 return SandboxObservation(state="SUCCEEDED", logs=self._runner_logs(handle))
-            if condition.get("type") == "Failed":
+            if condition_type == "Failed":
+                reason = condition.get("reason")
                 return SandboxObservation(
                     state="FAILED",
                     logs=self._runner_logs(handle),
-                    reason=str(condition.get("reason") or "job_failed"),
+                    reason=reason if isinstance(reason, str) else "job_failed",
                 )
-        if int(status.get("active") or 0) > 0:
+        if _positive_int(status.get("active")) > 0:
             return SandboxObservation(state="RUNNING")
         return SandboxObservation(state="PENDING")
 
@@ -314,16 +342,15 @@ class KubernetesSandboxExecutor:
             f"/api/v1/namespaces/{handle.namespace}/pods?labelSelector={selector}",
         )
         payload = self._json(response)
-        items = payload.get("items")
-        if not isinstance(items, list) or not items:
+        items = _object_list(payload.get("items"))
+        if not items:
             raise KubernetesExecutionError("Execution Job has no runner Pod.")
-        pod = items[0]
-        if not isinstance(pod, dict):
-            raise KubernetesExecutionError("Execution Pod metadata is invalid.")
-        metadata = pod.get("metadata")
-        if not isinstance(metadata, dict) or not isinstance(metadata.get("name"), str):
+        pod = _object_dict(items[0], label="Execution Pod")
+        metadata = _object_dict(pod.get("metadata"), label="Execution Pod metadata")
+        pod_name_value = metadata.get("name")
+        if not isinstance(pod_name_value, str) or not pod_name_value:
             raise KubernetesExecutionError("Execution Pod name is unavailable.")
-        pod_name = parse.quote(str(metadata["name"]), safe="")
+        pod_name = parse.quote(pod_name_value, safe="")
         log_response = self._request(
             "GET",
             (
@@ -334,10 +361,14 @@ class KubernetesSandboxExecutor:
         return log_response.body.decode("utf-8", errors="replace")
 
     def cleanup(self, handle: SandboxHandle) -> None:
-        resources = (
+        resources: tuple[tuple[str, Mapping[str, object] | None], ...] = (
             (
                 f"/apis/batch/v1/namespaces/{handle.namespace}/jobs/{handle.job_name}",
-                {"apiVersion": "v1", "kind": "DeleteOptions", "propagationPolicy": "Background"},
+                {
+                    "apiVersion": "v1",
+                    "kind": "DeleteOptions",
+                    "propagationPolicy": "Background",
+                },
             ),
             (
                 f"/apis/networking.k8s.io/v1/namespaces/{handle.namespace}/networkpolicies/"
