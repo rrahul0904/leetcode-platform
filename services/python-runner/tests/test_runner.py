@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import signal
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -32,6 +34,7 @@ def test_parse_request_rejects_expected_outputs(tmp_path: Path) -> None:
             {
                 "schema_version": 1,
                 "execution_id": str(execution_id),
+                "attempt": 1,
                 "source_code": "def solve(value): return value",
                 "entrypoint": "solve",
                 "tests": [
@@ -51,9 +54,32 @@ def test_parse_request_rejects_expected_outputs(tmp_path: Path) -> None:
         runner.parse_request(path, execution_id)
 
 
+def test_parse_request_requires_positive_attempt(tmp_path: Path) -> None:
+    runner = load_runner()
+    execution_id = UUID("33333333-3333-3333-3333-333333333333")
+    path = tmp_path / "request.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "execution_id": str(execution_id),
+                "attempt": 0,
+                "source_code": "def solve(value): return value",
+                "entrypoint": "solve",
+                "tests": [{"id": "public-1", "visibility": "public", "input": [1]}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(runner.RunnerInputError, match="attempt"):
+        runner.parse_request(path, execution_id)
+
+
 def test_run_request_executes_public_and_hidden_inputs_without_leaking_hidden_stdout() -> None:
     runner = load_runner()
     request = {
+        "attempt": 2,
         "source_code": "def solve(a, b):\n    print(f'input={a},{b}')\n    return a + b\n",
         "entrypoint": "solve",
         "tests": [
@@ -64,6 +90,7 @@ def test_run_request_executes_public_and_hidden_inputs_without_leaking_hidden_st
 
     result = runner.run_request(request, timeout_seconds=5)
 
+    assert result["attempt"] == 2
     assert result["status"] == "COMPLETED"
     assert result["tests"] == [
         {
@@ -88,11 +115,13 @@ def test_run_request_executes_public_and_hidden_inputs_without_leaking_hidden_st
 def test_candidate_file_access_and_unsafe_imports_are_not_exposed() -> None:
     runner = load_runner()
     file_request = {
+        "attempt": 1,
         "source_code": "def solve(value):\n    return open('/etc/passwd').read()\n",
         "entrypoint": "solve",
         "tests": [{"id": "public-1", "visibility": "public", "input": [1]}],
     }
     import_request = {
+        "attempt": 1,
         "source_code": "import os\ndef solve(value):\n    return dict(os.environ)\n",
         "entrypoint": "solve",
         "tests": [{"id": "public-1", "visibility": "public", "input": [1]}],
@@ -106,3 +135,26 @@ def test_candidate_file_access_and_unsafe_imports_are_not_exposed() -> None:
     assert import_result["tests"][0]["ok"] is False
     assert import_result["tests"][0]["error_category"] == "ImportError"
     assert "AWS_ACCESS_KEY_ID" not in import_result["stdout"]
+
+
+def test_timeout_termination_targets_process_group(monkeypatch) -> None:
+    runner = load_runner()
+    calls: list[tuple[int, signal.Signals]] = []
+
+    class FakeProcess:
+        pid = 4242
+
+        @staticmethod
+        def poll() -> None:
+            return None
+
+        @staticmethod
+        def kill() -> None:
+            raise AssertionError("POSIX path should terminate the process group")
+
+    monkeypatch.setattr(os, "killpg", lambda pid, sig: calls.append((pid, sig)))
+    monkeypatch.setattr(runner.os, "name", "posix")
+
+    runner._terminate_process_group(FakeProcess())
+
+    assert calls == [(4242, signal.SIGKILL)]
