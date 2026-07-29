@@ -5,6 +5,7 @@ import json
 import math
 import os
 import resource
+import signal
 import subprocess
 import sys
 import tempfile
@@ -38,10 +39,16 @@ MAX_CAPTURE = 65536
 SAFE_MODULES = {
     "bisect",
     "collections",
+    "dataclasses",
+    "datetime",
+    "decimal",
+    "enum",
     "functools",
     "heapq",
+    "inspect",
     "itertools",
     "math",
+    "operator",
     "re",
     "statistics",
     "string",
@@ -144,6 +151,10 @@ def parse_request(path: Path, expected_execution_id: UUID) -> dict[str, Any]:
     if payload.get("execution_id") != str(expected_execution_id):
         raise RunnerInputError("Execution input identifier mismatch.")
 
+    attempt = payload.get("attempt")
+    if not isinstance(attempt, int) or isinstance(attempt, bool) or attempt < 1:
+        raise RunnerInputError("Execution attempt is missing or invalid.")
+
     source = payload.get("source_code")
     if not isinstance(source, str) or not source:
         raise RunnerInputError("Candidate source is required.")
@@ -161,6 +172,7 @@ def parse_request(path: Path, expected_execution_id: UUID) -> dict[str, Any]:
         raise RunnerInputError("Execution contains too many test inputs.")
 
     normalized_tests: list[dict[str, Any]] = []
+    seen_test_ids: set[str] = set()
     for index, item in enumerate(tests):
         if not isinstance(item, dict):
             raise RunnerInputError("Each test input must be an object.")
@@ -168,6 +180,9 @@ def parse_request(path: Path, expected_execution_id: UUID) -> dict[str, Any]:
         visibility = item.get("visibility", "hidden")
         if not isinstance(test_id, str) or not test_id:
             raise RunnerInputError(f"Test input {index} has no identifier.")
+        if test_id in seen_test_ids:
+            raise RunnerInputError(f"Duplicate test identifier {test_id!r}.")
+        seen_test_ids.add(test_id)
         if visibility not in {"public", "hidden"}:
             raise RunnerInputError(f"Test input {test_id} has invalid visibility.")
         if "expected_output" in item or "expected" in item:
@@ -181,6 +196,7 @@ def parse_request(path: Path, expected_execution_id: UUID) -> dict[str, Any]:
         )
 
     return {
+        "attempt": attempt,
         "source_code": source,
         "entrypoint": entrypoint,
         "tests": normalized_tests,
@@ -231,6 +247,18 @@ def _workspace() -> Path:
     return fallback
 
 
+def _terminate_process_group(process: subprocess.Popen[str]) -> None:
+    if process.poll() is not None:
+        return
+    try:
+        if os.name == "posix":
+            os.killpg(process.pid, signal.SIGKILL)
+        else:
+            process.kill()
+    except ProcessLookupError:
+        return
+
+
 def execute_test(
     *,
     source_code: str,
@@ -253,6 +281,7 @@ def execute_test(
                 cwd=workspace,
                 env=SAFE_CHILD_ENV,
                 preexec_fn=lambda: _apply_child_limits(timeout_seconds),
+                start_new_session=True,
             )
             child_input = json.dumps(
                 {
@@ -266,7 +295,7 @@ def execute_test(
             try:
                 process.communicate(child_input, timeout=timeout_seconds)
             except subprocess.TimeoutExpired:
-                process.kill()
+                _terminate_process_group(process)
                 process.wait(timeout=2)
                 return (
                     {
@@ -361,6 +390,7 @@ def run_request(
     public_stderr = "".join(public_stderr_parts)[:MAX_STREAM_BYTES]
     return {
         "schema_version": 1,
+        "attempt": int(request["attempt"]),
         "status": terminal_status,
         "runtime_ms": runtime_ms,
         "exit_code": last_exit_code,
@@ -382,15 +412,18 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    attempt = 0
     try:
         execution_id = UUID(args.execution_id)
         if args.timeout_seconds < 1 or args.timeout_seconds > 30:
             raise RunnerInputError("Execution timeout is outside the server policy.")
         request = parse_request(Path(args.input), execution_id)
+        attempt = int(request["attempt"])
         result = run_request(request, timeout_seconds=args.timeout_seconds)
     except (RunnerInputError, ValueError) as exc:
         result = {
             "schema_version": 1,
+            "attempt": attempt,
             "status": "FAILED",
             "runtime_ms": 0,
             "exit_code": 2,
