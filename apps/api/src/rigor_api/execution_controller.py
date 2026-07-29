@@ -12,7 +12,7 @@ from uuid import UUID
 from sqlalchemy import Connection, Engine, create_engine, text
 
 from .execution_claims import ExecutionClaimRepository, ExpiredExecutionLease
-from .execution_domain import ExecutionRepository, ExecutionStatus
+from .execution_domain import TERMINAL_EXECUTION_STATUSES, ExecutionRepository, ExecutionStatus
 from .execution_events import (
     ExecutionCancelRequestedEvent,
     ExecutionRequestedEvent,
@@ -54,6 +54,7 @@ class ExecutionControllerSettings:
     receive_wait_seconds: int = 20
     receive_visibility_seconds: int = 90
     sandbox_poll_seconds: float = 0.5
+    max_attempts: int = 3
 
     @classmethod
     def discover(cls) -> ExecutionControllerSettings:
@@ -70,12 +71,18 @@ class ExecutionControllerSettings:
             "RIGOR_EXECUTION_WORKER_ID",
             f"{socket.gethostname()}:{os.getpid()}",
         )
+        lease_seconds = int(os.getenv("RIGOR_EXECUTION_LEASE_SECONDS", "60"))
+        max_attempts = int(os.getenv("RIGOR_EXECUTION_MAX_ATTEMPTS", "3"))
+        if lease_seconds < 10:
+            raise RuntimeError("RIGOR_EXECUTION_LEASE_SECONDS must be at least 10.")
+        if not 1 <= max_attempts <= 10:
+            raise RuntimeError("RIGOR_EXECUTION_MAX_ATTEMPTS must be between 1 and 10.")
         return cls(
             database_url=database_url,
             queue_url=queue_url,
             aws_region=region,
             worker_id=worker_id,
-            lease_seconds=int(os.getenv("RIGOR_EXECUTION_LEASE_SECONDS", "60")),
+            lease_seconds=lease_seconds,
             reconciliation_limit=int(os.getenv("RIGOR_EXECUTION_RECONCILIATION_LIMIT", "50")),
             outbox_batch_size=int(os.getenv("RIGOR_EXECUTION_OUTBOX_BATCH_SIZE", "25")),
             receive_wait_seconds=int(os.getenv("RIGOR_EXECUTION_RECEIVE_WAIT_SECONDS", "20")),
@@ -83,6 +90,7 @@ class ExecutionControllerSettings:
                 os.getenv("RIGOR_EXECUTION_VISIBILITY_SECONDS", "90")
             ),
             sandbox_poll_seconds=float(os.getenv("RIGOR_EXECUTION_POLL_SECONDS", "0.5")),
+            max_attempts=max_attempts,
         )
 
 
@@ -127,6 +135,16 @@ class ExecutionController:
         sandbox = KubernetesSandboxExecutor(KubernetesApiConfig.discover())
         return cls(settings=settings, engine=engine, queue=queue, sandbox=sandbox)
 
+    @staticmethod
+    def _package_log(package: DispatchPackage, event: str) -> dict[str, object]:
+        return {
+            "component": "execution-controller",
+            "event": event,
+            "execution_id": str(package.execution_id),
+            "attempt": package.attempt_count,
+            "trace_id": package.trace_id,
+        }
+
     def publish_outbox_once(self) -> int:
         with self.engine.begin() as connection:
             result = publish_outbox_batch(
@@ -138,6 +156,8 @@ class ExecutionController:
             logger.info(
                 "execution.outbox_batch",
                 extra={
+                    "component": "execution-controller",
+                    "event": "outbox_batch",
                     "claimed": result.claimed,
                     "published": result.published,
                     "failed": result.failed,
@@ -152,7 +172,12 @@ class ExecutionController:
         except (ValueError, json.JSONDecodeError) as exc:
             logger.error(
                 "execution.queue_invalid_event",
-                extra={"message_id": message.message_id, "error": exc.__class__.__name__},
+                extra={
+                    "component": "execution-controller",
+                    "event": "queue_invalid_event",
+                    "message_id": message.message_id,
+                    "error": exc.__class__.__name__,
+                },
             )
             # Leave poison deliveries for the configured SQS redrive policy.
             return False
@@ -184,18 +209,24 @@ class ExecutionController:
                 lease_expires_at=lease_deadline,
             )
             if claim is None:
-                # At-least-once redelivery is expected. If the durable aggregate
-                # exists, another worker already claimed it or it is terminal.
+                # At-least-once redelivery is expected. The database aggregate,
+                # never the queue delivery, is authoritative.
                 return self._execution_status(connection, event.execution_id) is not None
             package = load_dispatch_package(connection, event.execution_id)
 
+        if package.attempt_count > self.settings.max_attempts:
+            return self._persist_infrastructure_failure(
+                package,
+                error_category="execution_attempt_limit",
+                candidate_message="Execution could not be started after repeated infrastructure failures.",
+            )
+
         if package.language != "python":
-            self._persist_infrastructure_failure(
+            return self._persist_infrastructure_failure(
                 package,
                 error_category="unsupported_execution_language",
                 candidate_message="This runtime is not available in the production executor yet.",
             )
-            return True
 
         profile_name = str(package.limits.get("profile") or "python-small")
         handle = self.sandbox.create_python_execution(
@@ -216,6 +247,14 @@ class ExecutionController:
             self.sandbox.cleanup(handle)
             return True
 
+        logger.info(
+            "execution.running",
+            extra={
+                **self._package_log(package, "running"),
+                "lease_owner": self.settings.worker_id,
+                "job_name": handle.job_name,
+            },
+        )
         terminal = self._monitor(package, handle, message)
         if terminal:
             # Never delete a Job after losing the lease: another controller may
@@ -238,24 +277,24 @@ class ExecutionController:
             observation = self.sandbox.observe(handle)
             if observation.state in {"SUCCEEDED", "FAILED"}:
                 if observation.reason == "DeadlineExceeded" and not observation.logs:
-                    self._persist_timeout(package)
-                    return True
+                    return self._persist_timeout(package)
                 return self._persist_observation(package, observation)
             if observation.state == "MISSING":
-                self._persist_infrastructure_failure(
+                return self._persist_infrastructure_failure(
                     package,
                     error_category="sandbox_missing",
                     candidate_message="The isolated execution environment became unavailable.",
                 )
-                return True
             if time.monotonic() >= deadline:
-                self._persist_timeout(package)
-                return True
+                return self._persist_timeout(package)
             if time.monotonic() >= next_renewal:
                 if not self._renew_execution_lease(package.execution_id):
                     logger.warning(
                         "execution.lease_lost",
-                        extra={"execution_id": str(package.execution_id)},
+                        extra={
+                            **self._package_log(package, "lease_lost"),
+                            "lease_owner": self.settings.worker_id,
+                        },
                     )
                     return False
                 self.queue.change_message_visibility(
@@ -274,24 +313,33 @@ class ExecutionController:
                 lease_expires_at=renewed_until,
             )
 
+    def _owns_locked_attempt(self, connection: Connection, package: DispatchPackage) -> bool:
+        return ExecutionClaimRepository(connection).lock_owned_attempt(
+            package.execution_id,
+            worker_id=self.settings.worker_id,
+            attempt_count=package.attempt_count,
+        )
+
     def _persist_observation(
         self,
         package: DispatchPackage,
         observation: SandboxObservation,
     ) -> bool:
         if not observation.logs:
-            self._persist_infrastructure_failure(
+            return self._persist_infrastructure_failure(
                 package,
                 error_category="runner_result_unavailable",
                 candidate_message="The isolated runner did not return a usable result.",
             )
-            return True
         try:
             sandbox_result = parse_runner_result(
                 observation.logs,
                 execution_id=package.execution_id,
+                expected_attempt=package.attempt_count,
             )
             with self.engine.begin() as connection:
+                if not self._owns_locked_attempt(connection, package):
+                    return self._terminal_or_lost(connection, package.execution_id)
                 expected = load_expected_tests(
                     connection,
                     question_version_id=package.question_version_id,
@@ -304,22 +352,29 @@ class ExecutionController:
                 )
                 if terminal == projection.execution_status:
                     finalize_submission(connection, package=package, projection=projection)
+                logger.info(
+                    "execution.terminal",
+                    extra={
+                        **self._package_log(package, "terminal"),
+                        "status": terminal.value,
+                    },
+                )
+                return True
         except TrustedResultError as exc:
-            self._persist_infrastructure_failure(
+            logger.error(
+                "execution.result_validation_failed",
+                extra={
+                    **self._package_log(package, "result_validation_failed"),
+                    "error": exc.__class__.__name__,
+                },
+            )
+            return self._persist_infrastructure_failure(
                 package,
                 error_category="trusted_result_validation_failed",
                 candidate_message="Execution results could not be validated safely.",
             )
-            logger.error(
-                "execution.result_validation_failed",
-                extra={
-                    "execution_id": str(package.execution_id),
-                    "error": exc.__class__.__name__,
-                },
-            )
-        return True
 
-    def _persist_timeout(self, package: DispatchPackage) -> None:
+    def _persist_timeout(self, package: DispatchPackage) -> bool:
         timeout_seconds = _positive_limit(package.limits, "execution_timeout_seconds", 10)
         projection = TrustedExecutionProjection(
             execution_status=ExecutionStatus.timeout,
@@ -333,7 +388,7 @@ class ExecutionController:
             stderr="",
             candidate_message="Execution exceeded the configured time limit.",
         )
-        self._persist_projection(package, projection)
+        return self._persist_projection(package, projection)
 
     def _persist_infrastructure_failure(
         self,
@@ -341,7 +396,7 @@ class ExecutionController:
         *,
         error_category: str,
         candidate_message: str,
-    ) -> None:
+    ) -> bool:
         projection = TrustedExecutionProjection(
             execution_status=ExecutionStatus.failed,
             runtime_ms=0,
@@ -354,14 +409,16 @@ class ExecutionController:
             stderr="",
             candidate_message=candidate_message,
         )
-        self._persist_projection(package, projection)
+        return self._persist_projection(package, projection)
 
     def _persist_projection(
         self,
         package: DispatchPackage,
         projection: TrustedExecutionProjection,
-    ) -> None:
+    ) -> bool:
         with self.engine.begin() as connection:
+            if not self._owns_locked_attempt(connection, package):
+                return self._terminal_or_lost(connection, package.execution_id)
             terminal = persist_terminal_result(
                 connection,
                 execution_id=package.execution_id,
@@ -369,6 +426,15 @@ class ExecutionController:
             )
             if terminal == projection.execution_status:
                 finalize_submission(connection, package=package, projection=projection)
+            return True
+
+    @staticmethod
+    def _terminal_or_lost(connection: Connection, execution_id: UUID) -> bool:
+        try:
+            status = ExecutionRepository(connection).get(execution_id).status
+        except Exception:
+            return False
+        return status in TERMINAL_EXECUTION_STATUSES
 
     def _process_cancel(self, event: ExecutionCancelRequestedEvent) -> None:
         with self.engine.begin() as connection:
@@ -423,7 +489,10 @@ class ExecutionController:
                 logger.exception(
                     "execution.reconciliation_failed",
                     extra={
+                        "component": "execution-controller",
+                        "event": "reconciliation_failed",
                         "execution_id": str(lease.execution_id),
+                        "attempt": lease.attempt_count,
                         "error": exc.__class__.__name__,
                     },
                 )
@@ -450,13 +519,14 @@ class ExecutionController:
                 self.sandbox.cleanup(handle)
             return terminal
         if observation.state == "MISSING":
-            self._persist_infrastructure_failure(
+            terminal = self._persist_infrastructure_failure(
                 package,
                 error_category="sandbox_missing_after_lease_expiry",
                 candidate_message="The isolated execution environment was lost before completion.",
             )
-            self.sandbox.cleanup(handle)
-            return True
+            if terminal:
+                self.sandbox.cleanup(handle)
+            return terminal
 
         # The Job still exists and the new lease now owns recovery. A later
         # reconciliation pass will inspect it after this bounded lease expires.
@@ -479,6 +549,7 @@ class ExecutionController:
                         lease_expires_at=:lease_expires_at
                     WHERE id=:execution_id
                       AND state::text=:state
+                      AND attempt_count=:attempt_count
                       AND lease_expires_at < CURRENT_TIMESTAMP
                     RETURNING id
                     """
@@ -486,6 +557,7 @@ class ExecutionController:
                 {
                     "execution_id": lease.execution_id,
                     "state": lease.status.value,
+                    "attempt_count": lease.attempt_count,
                     "worker_id": self.settings.worker_id,
                     "lease_expires_at": new_deadline,
                 },
@@ -505,7 +577,14 @@ class ExecutionController:
             return package
 
     def run_forever(self) -> None:
-        logger.info("execution.controller_started", extra={"worker_id": self.settings.worker_id})
+        logger.info(
+            "execution.controller_started",
+            extra={
+                "component": "execution-controller",
+                "event": "controller_started",
+                "worker_id": self.settings.worker_id,
+            },
+        )
         last_reconciliation = 0.0
         while True:
             try:
@@ -526,6 +605,8 @@ class ExecutionController:
                         logger.exception(
                             "execution.message_failed",
                             extra={
+                                "component": "execution-controller",
+                                "event": "message_failed",
                                 "message_id": message.message_id,
                                 "error": exc.__class__.__name__,
                             },
@@ -533,7 +614,11 @@ class ExecutionController:
             except Exception as exc:
                 logger.exception(
                     "execution.controller_iteration_failed",
-                    extra={"error": exc.__class__.__name__},
+                    extra={
+                        "component": "execution-controller",
+                        "event": "controller_iteration_failed",
+                        "error": exc.__class__.__name__,
+                    },
                 )
                 time.sleep(1.0)
 
