@@ -24,8 +24,8 @@ resource "aws_subnet" "control" {
   map_public_ip_on_launch = false
 
   tags = merge(var.tags, {
-    Name                                = "${var.name_prefix}-control-${count.index + 1}"
-    Plane                               = "trusted-control"
+    Name                              = "${var.name_prefix}-control-${count.index + 1}"
+    Plane                             = "trusted-control"
     "kubernetes.io/role/internal-elb" = "1"
   })
 }
