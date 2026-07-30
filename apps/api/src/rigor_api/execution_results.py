@@ -410,13 +410,14 @@ def _canonical_json(value: object) -> str:
 def _sql_result(value: object, expected_columns: object = None) -> dict[str, object] | None:
     if isinstance(value, dict):
         result = cast(dict[str, object], value)
-        columns = result.get("columns")
-        rows = result.get("rows")
-        if isinstance(columns, list) and isinstance(rows, list):
-            return {
-                "columns": [str(column) for column in cast(list[object], columns)],
-                "rows": cast(list[object], rows),
-            }
+        columns_value: object = result.get("columns")
+        rows_value: object = result.get("rows")
+        if isinstance(columns_value, list) and isinstance(rows_value, list):
+            normalized_columns = [
+                str(column) for column in cast(list[object], columns_value)
+            ]
+            normalized_rows = list(cast(list[object], rows_value))
+            return {"columns": normalized_columns, "rows": normalized_rows}
     if not isinstance(value, list):
         return None
 
@@ -425,7 +426,8 @@ def _sql_result(value: object, expected_columns: object = None) -> dict[str, obj
     if isinstance(expected_columns, list):
         columns = [str(column) for column in cast(list[object], expected_columns)]
     elif raw_rows and isinstance(raw_rows[0], dict):
-        columns = [str(column) for column in cast(dict[object, object], raw_rows[0]).keys()]
+        first_row = cast(dict[object, object], raw_rows[0])
+        columns = [str(column) for column in first_row]
     else:
         return None
 
@@ -435,7 +437,7 @@ def _sql_result(value: object, expected_columns: object = None) -> dict[str, obj
             row = cast(dict[object, object], raw_row)
             rows.append([row.get(column) for column in columns])
         elif isinstance(raw_row, list):
-            rows.append(raw_row)
+            rows.append(list(cast(list[object], raw_row)))
         else:
             return None
     return {"columns": columns, "rows": rows}
@@ -454,10 +456,12 @@ def _compare_sql_result(
         return False
     if actual_result["columns"] != expected_result["columns"]:
         return False
-    actual_rows = actual_result["rows"]
-    expected_rows = expected_result["rows"]
-    if not isinstance(actual_rows, list) or not isinstance(expected_rows, list):
+    actual_rows_value: object = actual_result["rows"]
+    expected_rows_value: object = expected_result["rows"]
+    if not isinstance(actual_rows_value, list) or not isinstance(expected_rows_value, list):
         return False
+    actual_rows = cast(list[object], actual_rows_value)
+    expected_rows = cast(list[object], expected_rows_value)
     if unordered:
         return sorted(_canonical_json(row) for row in actual_rows) == sorted(
             _canonical_json(row) for row in expected_rows
