@@ -70,6 +70,16 @@ SANDBOX_PROFILES: dict[str, SandboxProfile] = {
     ),
 }
 
+EXECUTION_NODE_SELECTOR = {"workload": "untrusted-execution"}
+EXECUTION_TOLERATIONS = [
+    {
+        "key": "workload",
+        "operator": "Equal",
+        "value": "untrusted-execution",
+        "effect": "NoSchedule",
+    }
+]
+
 
 class SandboxConfigurationError(ValueError):
     pass
@@ -112,6 +122,22 @@ def build_network_policy(*, execution_id: UUID, namespace: str) -> dict[str, obj
     }
 
 
+def _pod_security_context() -> dict[str, object]:
+    return {
+        "runAsNonRoot": True,
+        "seccompProfile": {"type": "RuntimeDefault"},
+    }
+
+
+def _container_security_context(*, read_only_root: bool = True) -> dict[str, object]:
+    return {
+        "allowPrivilegeEscalation": False,
+        "readOnlyRootFilesystem": read_only_root,
+        "runAsNonRoot": True,
+        "capabilities": {"drop": ["ALL"]},
+    }
+
+
 def build_python_job(
     *,
     execution_id: UUID,
@@ -136,11 +162,7 @@ def build_python_job(
     return {
         "apiVersion": "batch/v1",
         "kind": "Job",
-        "metadata": {
-            "name": name,
-            "namespace": namespace,
-            "labels": labels,
-        },
+        "metadata": {"name": name, "namespace": namespace, "labels": labels},
         "spec": {
             "backoffLimit": 0,
             "ttlSecondsAfterFinished": 120,
@@ -156,12 +178,13 @@ def build_python_job(
                     "hostNetwork": False,
                     "hostPID": False,
                     "hostIPC": False,
+                    "nodeSelector": EXECUTION_NODE_SELECTOR,
+                    "tolerations": EXECUTION_TOLERATIONS,
                     "securityContext": {
-                        "runAsNonRoot": True,
+                        **_pod_security_context(),
                         "runAsUser": 65532,
                         "runAsGroup": 65532,
                         "fsGroup": 65532,
-                        "seccompProfile": {"type": "RuntimeDefault"},
                     },
                     "containers": [
                         {
@@ -180,11 +203,158 @@ def build_python_job(
                                 {"name": "HOME", "value": "/workspace"},
                                 {"name": "TMPDIR", "value": "/workspace/tmp"},
                             ],
+                            "securityContext": _container_security_context(),
+                            "resources": {
+                                "requests": {
+                                    "cpu": profile.cpu_request,
+                                    "memory": profile.memory_request,
+                                },
+                                "limits": {
+                                    "cpu": profile.cpu_limit,
+                                    "memory": profile.memory_limit,
+                                    "ephemeral-storage": profile.ephemeral_storage_limit,
+                                },
+                            },
+                            "volumeMounts": [
+                                {
+                                    "name": "execution-input",
+                                    "mountPath": "/run/rigor/input",
+                                    "readOnly": True,
+                                },
+                                {"name": "workspace", "mountPath": "/workspace"},
+                            ],
+                        }
+                    ],
+                    "volumes": [
+                        {
+                            "name": "execution-input",
+                            "secret": {"secretName": input_secret_name, "defaultMode": 256},
+                        },
+                        {
+                            "name": "workspace",
+                            "emptyDir": {"sizeLimit": profile.ephemeral_storage_limit},
+                        },
+                    ],
+                },
+            },
+        },
+    }
+
+
+def _secret_env(name: str, secret_name: str, key: str) -> dict[str, object]:
+    return {
+        "name": name,
+        "valueFrom": {"secretKeyRef": {"name": secret_name, "key": key}},
+    }
+
+
+def build_sql_job(
+    *,
+    execution_id: UUID,
+    namespace: str,
+    input_secret_name: str,
+    runner_image: str,
+    postgres_image: str,
+    profile_name: str = "sql-small",
+) -> dict[str, object]:
+    """Build one gVisor Job containing a SQL runner and disposable PostgreSQL sidecar."""
+
+    validate_immutable_image_reference(runner_image)
+    validate_immutable_image_reference(postgres_image)
+    profile = sandbox_profile(profile_name)
+    if profile.runtime is not SandboxRuntime.sql:
+        raise SandboxConfigurationError("SQL execution requires a SQL sandbox profile.")
+
+    labels = {
+        "app.kubernetes.io/name": "rigor-sql-runner",
+        "app.kubernetes.io/component": "candidate-execution",
+        "rigor.io/execution-id": str(execution_id),
+        "rigor.io/sandbox-profile": profile.name,
+    }
+    name = sandbox_job_name(execution_id)
+    runner_env: list[dict[str, object]] = [
+        {"name": "HOME", "value": "/workspace"},
+        {"name": "TMPDIR", "value": "/workspace/tmp"},
+        {"name": "RIGOR_SQL_HOST", "value": "127.0.0.1"},
+        {"name": "RIGOR_SQL_PORT", "value": "5432"},
+        {"name": "RIGOR_SQL_DATABASE", "value": "rigor_execution"},
+        {"name": "RIGOR_SQL_OWNER_USER", "value": "rigor_sql_owner"},
+        {"name": "RIGOR_SQL_CANDIDATE_USER", "value": "rigor_sql_candidate"},
+        _secret_env("RIGOR_SQL_OWNER_PASSWORD", input_secret_name, "owner-password"),
+        _secret_env("RIGOR_SQL_CANDIDATE_PASSWORD", input_secret_name, "candidate-password"),
+    ]
+    postgres_env: list[dict[str, object]] = [
+        {"name": "POSTGRES_DB", "value": "rigor_execution"},
+        {"name": "POSTGRES_USER", "value": "rigor_sql_owner"},
+        _secret_env("POSTGRES_PASSWORD", input_secret_name, "owner-password"),
+        {"name": "PGDATA", "value": "/var/lib/postgresql/data/pgdata"},
+    ]
+
+    return {
+        "apiVersion": "batch/v1",
+        "kind": "Job",
+        "metadata": {"name": name, "namespace": namespace, "labels": labels},
+        "spec": {
+            "backoffLimit": 0,
+            "ttlSecondsAfterFinished": 120,
+            "activeDeadlineSeconds": profile.job_deadline_seconds,
+            "template": {
+                "metadata": {"labels": labels},
+                "spec": {
+                    "runtimeClassName": "gvisor",
+                    "serviceAccountName": "candidate-execution",
+                    "restartPolicy": "Never",
+                    "automountServiceAccountToken": False,
+                    "enableServiceLinks": False,
+                    "hostNetwork": False,
+                    "hostPID": False,
+                    "hostIPC": False,
+                    "nodeSelector": EXECUTION_NODE_SELECTOR,
+                    "tolerations": EXECUTION_TOLERATIONS,
+                    "securityContext": _pod_security_context(),
+                    "initContainers": [
+                        {
+                            "name": "postgres",
+                            "image": postgres_image,
+                            "imagePullPolicy": "IfNotPresent",
+                            "restartPolicy": "Always",
+                            "env": postgres_env,
                             "securityContext": {
-                                "allowPrivilegeEscalation": False,
-                                "readOnlyRootFilesystem": True,
-                                "runAsNonRoot": True,
-                                "capabilities": {"drop": ["ALL"]},
+                                **_container_security_context(),
+                                "runAsUser": 999,
+                                "runAsGroup": 999,
+                            },
+                            "resources": {
+                                "requests": {"cpu": "100m", "memory": "128Mi"},
+                                "limits": {
+                                    "cpu": profile.cpu_limit,
+                                    "memory": profile.memory_limit,
+                                    "ephemeral-storage": profile.ephemeral_storage_limit,
+                                },
+                            },
+                            "volumeMounts": [
+                                {"name": "postgres-data", "mountPath": "/var/lib/postgresql/data"},
+                                {"name": "postgres-run", "mountPath": "/var/run/postgresql"},
+                                {"name": "postgres-tmp", "mountPath": "/tmp"},
+                            ],
+                        }
+                    ],
+                    "containers": [
+                        {
+                            "name": "runner",
+                            "image": runner_image,
+                            "imagePullPolicy": "IfNotPresent",
+                            "args": [
+                                "--execution-id",
+                                str(execution_id),
+                                "--input",
+                                "/run/rigor/input/request.json",
+                            ],
+                            "env": runner_env,
+                            "securityContext": {
+                                **_container_security_context(),
+                                "runAsUser": 65532,
+                                "runAsGroup": 65532,
                             },
                             "resources": {
                                 "requests": {
@@ -203,27 +373,25 @@ def build_python_job(
                                     "mountPath": "/run/rigor/input",
                                     "readOnly": True,
                                 },
-                                {
-                                    "name": "workspace",
-                                    "mountPath": "/workspace",
-                                },
+                                {"name": "workspace", "mountPath": "/workspace"},
                             ],
                         }
                     ],
                     "volumes": [
                         {
                             "name": "execution-input",
-                            "secret": {
-                                "secretName": input_secret_name,
-                                "defaultMode": 256,
-                            },
+                            "secret": {"secretName": input_secret_name, "defaultMode": 256},
                         },
                         {
                             "name": "workspace",
-                            "emptyDir": {
-                                "sizeLimit": profile.ephemeral_storage_limit,
-                            },
+                            "emptyDir": {"sizeLimit": "32Mi"},
                         },
+                        {
+                            "name": "postgres-data",
+                            "emptyDir": {"sizeLimit": profile.ephemeral_storage_limit},
+                        },
+                        {"name": "postgres-run", "emptyDir": {"sizeLimit": "8Mi"}},
+                        {"name": "postgres-tmp", "emptyDir": {"sizeLimit": "16Mi"}},
                     ],
                 },
             },
