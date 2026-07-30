@@ -123,6 +123,16 @@ spec:
                 configMapKeyRef:
                   name: rigor-execution-controller
                   key: python-runner-image
+            - name: RIGOR_SQL_RUNNER_IMAGE
+              valueFrom:
+                configMapKeyRef:
+                  name: rigor-execution-controller
+                  key: sql-runner-image
+            - name: RIGOR_SQL_POSTGRES_IMAGE
+              valueFrom:
+                configMapKeyRef:
+                  name: rigor-execution-controller
+                  key: sql-postgres-image
             - name: RIGOR_EXECUTION_NAMESPACE
               value: rigor-execution
             - name: RIGOR_EXECUTION_LEASE_SECONDS
