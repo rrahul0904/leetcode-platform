@@ -143,7 +143,7 @@ class PracticeSessionRepository:
         required_runtime = question_runtime(question)
         if request.runtime is not required_runtime:
             raise PracticeStateTransitionError(
-                f"Question requires runtime {required_runtime.value}; received {request.runtime.value}."
+                f"Question requires {required_runtime.value}; received {request.runtime.value}."
             )
         draft_source = starter_source(question, required_runtime)
         existing = self._connection.execute(
