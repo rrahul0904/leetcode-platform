@@ -18,7 +18,7 @@ jobs:
   python:
     name: Python lint, types, and tests
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,6 +56,7 @@ jobs:
           apps/api/src
           packages/question-schema/src
           services/python-runner
+          services/sql-runner
           scripts
           apps/api/tests
           packages/question-schema/tests
@@ -68,6 +69,13 @@ jobs:
       - name: Pytest
         if: always()
         run: uv run pytest -q
+
+      - name: Build execution images
+        if: always()
+        run: |
+          docker build -t rigor-python-runner:test -f services/python-runner/Dockerfile .
+          docker build -t rigor-sql-runner:test -f services/sql-runner/Dockerfile .
+          docker build -t rigor-execution-controller:test -f services/execution-controller/Dockerfile .
 
       - name: Show PostgreSQL logs on failure
         if: failure()
