@@ -119,6 +119,64 @@ class ExecutionClaimRepository:
             trace_id=str(row["trace_id"]),
         )
 
+    def retry_missing_sandbox(
+        self,
+        execution_id: UUID,
+        *,
+        expected_attempt: int,
+        worker_id: str,
+        lease_expires_at: datetime,
+        max_attempts: int,
+    ) -> int | None:
+        """Start a fresh infrastructure attempt without reopening a terminal state."""
+
+        validate_lease_deadline(lease_expires_at)
+        if expected_attempt < 1 or max_attempts < 1:
+            return None
+        new_attempt = self._connection.execute(
+            text(
+                """
+                UPDATE execution_requests
+                SET state='DISPATCHING'::execution_state,
+                    lease_owner=:worker_id,
+                    lease_expires_at=:lease_expires_at,
+                    attempt_count=attempt_count + 1,
+                    kubernetes_namespace=NULL,
+                    kubernetes_job_name=NULL
+                WHERE id=:execution_id
+                  AND state IN (
+                    'DISPATCHING'::execution_state,
+                    'RUNNING'::execution_state
+                  )
+                  AND attempt_count=:expected_attempt
+                  AND attempt_count < :max_attempts
+                  AND lease_expires_at < CURRENT_TIMESTAMP
+                RETURNING attempt_count
+                """
+            ),
+            {
+                "execution_id": execution_id,
+                "expected_attempt": expected_attempt,
+                "max_attempts": max_attempts,
+                "worker_id": worker_id,
+                "lease_expires_at": lease_expires_at,
+            },
+        ).scalar_one_or_none()
+        if new_attempt is None:
+            return None
+        attempt = int(new_attempt)
+        self._append_event(
+            execution_id,
+            ExecutionStatus.dispatching,
+            {
+                "attempt": attempt,
+                "lease_owner": worker_id,
+                "lease_expires_at": lease_expires_at.isoformat(),
+                "reason": "infrastructure_retry",
+            },
+        )
+        return attempt
+
     def mark_running(
         self,
         execution_id: UUID,
@@ -205,12 +263,7 @@ class ExecutionClaimRepository:
         worker_id: str,
         attempt_count: int,
     ) -> bool:
-        """Lock the active execution row while a worker persists its terminal result.
-
-        The lock and subsequent result writes must use the same transaction. If the
-        lease expired, ownership changed, cancellation won, or a new attempt exists,
-        the old worker is no longer authoritative and must not persist.
-        """
+        """Lock the active execution row while a worker persists its terminal result."""
 
         if attempt_count < 1:
             return False
