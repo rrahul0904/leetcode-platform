@@ -5,14 +5,17 @@ import os
 import subprocess
 import sys
 import time
+from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any
+from typing import cast
 from uuid import uuid4
 
 NAMESPACE = os.getenv("RIGOR_EXECUTION_NAMESPACE", "rigor-execution")
 CONTEXT = os.getenv("RIGOR_STAGING_KUBE_CONTEXT", "")
 PROBE_IMAGE = os.getenv("RIGOR_STAGING_PROBE_IMAGE", "")
 TIMEOUT_SECONDS = int(os.getenv("RIGOR_STAGING_VALIDATION_TIMEOUT_SECONDS", "90"))
+
+JsonObject = dict[str, object]
 
 
 class ValidationError(RuntimeError):
@@ -45,12 +48,17 @@ def run(*args: str, input_text: str | None = None) -> CommandResult:
     return CommandResult(completed.stdout, completed.stderr)
 
 
-def resource_json(*args: str) -> dict[str, Any]:
-    raw = run(*args, "-o", "json").stdout
-    value: object = json.loads(raw)
+def resource_json(*args: str) -> JsonObject:
+    value: object = json.loads(run(*args, "-o", "json").stdout)
     if not isinstance(value, dict):
         raise ValidationError("kubectl returned a non-object resource.")
-    return value
+    return cast(JsonObject, value)
+
+
+def object_field(value: object, field: str) -> JsonObject:
+    if not isinstance(value, dict):
+        raise ValidationError(f"Kubernetes field {field!r} is not an object.")
+    return cast(JsonObject, value)
 
 
 def require(condition: bool, message: str) -> None:
@@ -63,7 +71,8 @@ def validate_static_cluster_contract() -> None:
     require(runtime.get("handler") == "runsc", "RuntimeClass gvisor is not backed by runsc.")
 
     namespace = resource_json("get", "namespace", NAMESPACE)
-    labels = namespace.get("metadata", {}).get("labels", {})
+    metadata = object_field(namespace.get("metadata"), "metadata")
+    labels = object_field(metadata.get("labels"), "metadata.labels")
     require(
         labels.get("rigor.io/trust-plane") == "untrusted-execution",
         "Execution namespace trust-plane label is missing.",
@@ -86,11 +95,12 @@ def validate_static_cluster_contract() -> None:
     )
 
     policy = resource_json("-n", NAMESPACE, "get", "networkpolicy", "default-deny-all")
-    spec = policy.get("spec", {})
+    spec = object_field(policy.get("spec"), "networkpolicy.spec")
     require(spec.get("ingress") == [], "Default deny policy has ingress exceptions.")
     require(spec.get("egress") == [], "Default deny policy has egress exceptions.")
+    policy_types = spec.get("policyTypes")
     require(
-        set(spec.get("policyTypes", [])) == {"Ingress", "Egress"},
+        isinstance(policy_types, list) and set(policy_types) == {"Ingress", "Egress"},
         "Default deny policy must cover ingress and egress.",
     )
 
@@ -133,11 +143,7 @@ def probe_manifest(name: str) -> dict[str, object]:
                     "name": "probe",
                     "image": PROBE_IMAGE,
                     "imagePullPolicy": "IfNotPresent",
-                    "command": [
-                        "/bin/sh",
-                        "-ceu",
-                        "dmesg | head -n 80; sleep 2",
-                    ],
+                    "command": ["/bin/sh", "-ceu", "dmesg | head -n 80; sleep 2"],
                     "securityContext": {
                         "allowPrivilegeEscalation": False,
                         "readOnlyRootFilesystem": True,
@@ -155,11 +161,12 @@ def probe_manifest(name: str) -> dict[str, object]:
     }
 
 
-def wait_for_terminal_pod(name: str) -> dict[str, Any]:
+def wait_for_terminal_pod(name: str) -> JsonObject:
     deadline = time.monotonic() + TIMEOUT_SECONDS
     while time.monotonic() < deadline:
         pod = resource_json("-n", NAMESPACE, "get", "pod", name)
-        phase = pod.get("status", {}).get("phase")
+        status = object_field(pod.get("status"), "pod.status")
+        phase = status.get("phase")
         if phase == "Succeeded":
             return pod
         if phase == "Failed":
@@ -179,13 +186,20 @@ def validate_live_runsc() -> None:
     try:
         run("apply", "-f", "-", input_text=manifest)
         pod = wait_for_terminal_pod(name)
-        spec = pod.get("spec", {})
-        require(spec.get("runtimeClassName") == "gvisor", "Probe Pod did not use gvisor RuntimeClass.")
+        spec = object_field(pod.get("spec"), "pod.spec")
+        require(
+            spec.get("runtimeClassName") == "gvisor",
+            "Probe Pod did not use gvisor RuntimeClass.",
+        )
         node_name = str(spec.get("nodeName") or "")
         require(node_name != "", "Probe Pod was not scheduled to a node.")
         node = resource_json("get", "node", node_name)
-        node_labels = node.get("metadata", {}).get("labels", {})
-        require(node_labels.get("rigor.io/gvisor") == "true", "Probe node lacks rigor.io/gvisor=true.")
+        node_metadata = object_field(node.get("metadata"), "node.metadata")
+        node_labels = object_field(node_metadata.get("labels"), "node.metadata.labels")
+        require(
+            node_labels.get("rigor.io/gvisor") == "true",
+            "Probe node lacks rigor.io/gvisor=true.",
+        )
         require(
             node_labels.get("workload") == "untrusted-execution",
             "Probe node is not dedicated to untrusted execution.",
@@ -196,10 +210,8 @@ def validate_live_runsc() -> None:
             "Live probe did not produce gVisor dmesg evidence; runsc is NOT proven.",
         )
     finally:
-        try:
+        with suppress(ValidationError, subprocess.TimeoutExpired):
             run("-n", NAMESPACE, "delete", "pod", name, "--ignore-not-found=true")
-        except (ValidationError, subprocess.TimeoutExpired):
-            pass
 
 
 def main() -> int:
