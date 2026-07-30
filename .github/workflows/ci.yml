@@ -200,3 +200,25 @@ jobs:
       - name: Validate staging source
         if: always()
         run: terraform -chdir=infra/terraform/environments/staging validate
+
+  packer:
+    name: gVisor execution-node AMI source
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Packer
+        uses: hashicorp/setup-packer@v3.2.0
+        with:
+          version: "1.16.0"
+
+      - name: Initialize Packer plugins
+        run: packer init infra/packer
+
+      - name: Validate Packer syntax
+        run: packer validate -syntax-only infra/packer
+
+      - name: Validate gVisor installer shell
+        run: bash -n infra/packer/scripts/install-gvisor.sh
