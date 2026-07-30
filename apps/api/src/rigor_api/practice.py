@@ -66,11 +66,32 @@ def published_question_payload(connection: Connection, slug: str) -> dict[str, A
 
 
 def question_mode(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return the established execution specification for old and universal content."""
+
     structured = payload.get("structured_content")
     if not isinstance(structured, dict):
         return {}
-    mode = cast(dict[str, Any], structured).get("mode_specification")
-    return cast(dict[str, Any], mode) if isinstance(mode, dict) else {}
+    content = cast(dict[str, Any], structured)
+    for key in ("mode_specification", "type_specification"):
+        mode = content.get(key)
+        if isinstance(mode, dict):
+            return cast(dict[str, Any], mode)
+    return {}
+
+
+def question_runtime(payload: dict[str, Any]) -> SubmissionRuntime:
+    structured = payload.get("structured_content")
+    content = cast(dict[str, Any], structured) if isinstance(structured, dict) else {}
+    mode = question_mode(payload)
+    question_type = str(content.get("question_type") or "")
+    dialect = str(mode.get("dialect") or "")
+    runtime = str(mode.get("runtime") or "")
+
+    if question_type == "sql_coding" or dialect in {"postgresql", "postgresql18"}:
+        return SubmissionRuntime.postgresql
+    if question_type == "python_coding" or runtime in {"3.13", "python3.13"}:
+        return SubmissionRuntime.python
+    raise PracticeStateTransitionError("Question does not define a supported executable runtime.")
 
 
 def question_tests(payload: dict[str, Any], *, public_only: bool) -> list[dict[str, Any]]:
@@ -101,6 +122,14 @@ def question_hints(payload: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def starter_source(payload: dict[str, Any], runtime: SubmissionRuntime) -> str:
+    mode = question_mode(payload)
+    if runtime is SubmissionRuntime.python:
+        return str(mode.get("starter_code") or "")
+    starter = mode.get("starter_sql") or mode.get("starter_code")
+    return str(starter or "-- Write your PostgreSQL 18 query here.\n")
+
+
 class PracticeSessionRepository:
     def __init__(self, connection: Connection) -> None:
         self._connection = connection
@@ -110,13 +139,13 @@ class PracticeSessionRepository:
         principal: AuthenticatedPrincipal,
         request: PracticeSessionCreateRequest,
     ) -> PracticeSessionView:
-        if request.runtime != SubmissionRuntime.python:
-            raise PracticeStateTransitionError(
-                "The Python practice milestone currently accepts python3.13 only."
-            )
         question = published_question_payload(self._connection, request.question_slug)
-        mode = question_mode(question)
-        starter_code = str(mode.get("starter_code") or "")
+        required_runtime = question_runtime(question)
+        if request.runtime is not required_runtime:
+            raise PracticeStateTransitionError(
+                f"Question requires runtime {required_runtime.value}; received {request.runtime.value}."
+            )
+        draft_source = starter_source(question, required_runtime)
         existing = self._connection.execute(
             text(
                 """
@@ -168,14 +197,17 @@ class PracticeSessionRepository:
                 "organization_id": principal.organization_id or "",
                 "question_version_id": question["question_version_id"],
                 "runtime": request.runtime.value,
-                "draft_code": starter_code,
+                "draft_code": draft_source,
             },
         ).scalar_one()
         self.append_event(
             UUID(str(session_id)),
             PracticeSessionEventInput(
                 event_type="SESSION_STARTED",
-                payload={"question_slug": request.question_slug},
+                payload={
+                    "question_slug": request.question_slug,
+                    "runtime": required_runtime.value,
+                },
             ),
         )
         return self.get(UUID(str(session_id)))
