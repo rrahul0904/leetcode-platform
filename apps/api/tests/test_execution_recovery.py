@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime, timedelta
 from typing import cast
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from rigor_api.auth import LocalOIDCProvider
@@ -108,7 +109,7 @@ def _queue_execution(client: TestClient) -> tuple[Engine, str]:
     assert session.status_code == 201, session.text
     queued = client.post(
         f"/api/v1/questions/{slug}/run",
-        headers={**auth, "Idempotency-Key": f"recovery-{session.json()['id']}"},
+        headers={**auth, "Idempotency-Key": f"recovery-{uuid4()}"},
         json={
             "session_id": session.json()["id"],
             "source_code": "def solve(value): return value",
