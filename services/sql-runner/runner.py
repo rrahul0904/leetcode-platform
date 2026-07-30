@@ -67,7 +67,9 @@ def _test_setup_sql(value: object) -> str:
     if isinstance(value, dict):
         setup = value.get("setup_sql", value.get("seed_sql", ""))
         return _optional_string(setup, label="Test setup SQL", max_bytes=MAX_SETUP_BYTES)
-    raise RunnerInputError("SQL test input must be null, SQL text, or an object containing setup_sql.")
+    raise RunnerInputError(
+        "SQL test input must be null, SQL text, or an object containing setup_sql."
+    )
 
 
 def parse_request(path: Path, expected_execution_id: UUID) -> dict[str, Any]:
@@ -208,7 +210,9 @@ def wait_for_database(timeout_seconds: float = 10.0) -> None:
                 return
         except psycopg.Error as exc:
             if time.monotonic() >= deadline:
-                raise RunnerInfrastructureError("Disposable PostgreSQL did not become ready.") from exc
+                raise RunnerInfrastructureError(
+                    "Disposable PostgreSQL did not become ready."
+                ) from exc
             time.sleep(0.1)
 
 
@@ -225,15 +229,15 @@ def ensure_candidate_role(connection: psycopg.Connection[Any]) -> None:
         "SELECT 1 FROM pg_roles WHERE rolname=%s",
         (candidate_user,),
     ).fetchone()
+    candidate = sql.Identifier(candidate_user)
     if exists:
-        connection.execute(sql.SQL("DROP OWNED BY {} CASCADE").format(sql.Identifier(candidate_user)))
-        connection.execute(sql.SQL("DROP ROLE {}").format(sql.Identifier(candidate_user)))
+        connection.execute(sql.SQL("DROP OWNED BY {} CASCADE").format(candidate))
+        connection.execute(sql.SQL("DROP ROLE {}").format(candidate))
     connection.execute(
         sql.SQL(
-            "CREATE ROLE {} LOGIN PASSWORD %s NOSUPERUSER NOCREATEDB NOCREATEROLE "
+            "CREATE ROLE {} LOGIN PASSWORD {} NOSUPERUSER NOCREATEDB NOCREATEROLE "
             "NOINHERIT NOREPLICATION NOBYPASSRLS"
-        ).format(sql.Identifier(candidate_user)),
-        (candidate_password,),
+        ).format(candidate, sql.Literal(candidate_password))
     )
 
 
@@ -260,7 +264,9 @@ def reset_fixture(
         connection.execute(seed_sql)
     if setup_sql.strip():
         connection.execute(setup_sql)
-    connection.execute(sql.SQL("GRANT SELECT ON ALL TABLES IN SCHEMA public TO {}").format(candidate))
+    connection.execute(
+        sql.SQL("GRANT SELECT ON ALL TABLES IN SCHEMA public TO {}").format(candidate)
+    )
     connection.execute(
         sql.SQL("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {}").format(candidate)
     )
@@ -418,7 +424,10 @@ def main() -> int:
         }
 
     result["execution_id"] = str(args.execution_id)
-    print(RESULT_PREFIX + json.dumps(result, separators=(",", ":"), ensure_ascii=False), flush=True)
+    print(
+        RESULT_PREFIX + json.dumps(result, separators=(",", ":"), ensure_ascii=False),
+        flush=True,
+    )
     return 0 if result.get("status") == "COMPLETED" else 1
 
 
