@@ -68,14 +68,17 @@ jobs:
 
       - name: Pytest
         if: always()
+        env:
+          RIGOR_DATABASE_URL: postgresql+psycopg://rigor_app:rigor_app_local_only@localhost:5434/rigor
+          RIGOR_OPERATIONAL_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
         run: uv run pytest -q
 
       - name: Build execution images
         if: always()
         run: |
-          docker build -t rigor-python-runner:test -f services/python-runner/Dockerfile .
-          docker build -t rigor-sql-runner:test -f services/sql-runner/Dockerfile .
-          docker build -t rigor-execution-controller:test -f services/execution-controller/Dockerfile .
+          docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt -t rigor-python-runner:test -f services/python-runner/Dockerfile .
+          docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt -t rigor-sql-runner:test -f services/sql-runner/Dockerfile .
+          docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt -t rigor-execution-controller:test -f services/execution-controller/Dockerfile .
 
       - name: Show PostgreSQL logs on failure
         if: failure()
