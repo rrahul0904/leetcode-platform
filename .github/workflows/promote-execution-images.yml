@@ -1,0 +1,226 @@
+name: Promote execution images
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Exact 40-character commit SHA to build and promote."
+        required: true
+        type: string
+      name_prefix:
+        description: "ECR repository prefix created by Terraform."
+        required: true
+        default: "rigor-staging"
+        type: string
+      aws_region:
+        description: "AWS region containing staging ECR repositories."
+        required: true
+        default: "us-east-1"
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: promote-execution-images-staging
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Build scan sign and promote execution images
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: staging
+    steps:
+      - name: Validate source SHA
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          test "${#SOURCE_SHA}" -eq 40
+          printf '%s' "$SOURCE_SHA" | grep -Eq '^[0-9a-f]{40}$'
+
+      - name: Checkout exact source commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+
+      - name: Configure AWS credentials through OIDC
+        uses: aws-actions/configure-aws-credentials@v6.1.0
+        with:
+          role-to-assume: ${{ vars.AWS_EXECUTION_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Resolve registry and verify immutable repositories
+        id: registry
+        env:
+          AWS_REGION: ${{ inputs.aws_region }}
+          NAME_PREFIX: ${{ inputs.name_prefix }}
+        run: |
+          set -euo pipefail
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          registry="${account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          for component in execution-controller python-runner sql-runner; do
+            aws ecr describe-repositories \
+              --repository-names "${NAME_PREFIX}/${component}" \
+              --query 'repositories[0].imageTagMutability' \
+              --output text | grep -Fx IMMUTABLE
+          done
+          echo "registry=${registry}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to ECR
+        env:
+          AWS_REGION: ${{ inputs.aws_region }}
+          REGISTRY: ${{ steps.registry.outputs.registry }}
+        run: |
+          aws ecr get-login-password --region "$AWS_REGION" \
+            | docker login --username AWS --password-stdin "$REGISTRY"
+
+      - name: Build execution images
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt \
+            --label "org.opencontainers.image.revision=${SOURCE_SHA}" \
+            -t rigor-python-runner:promote \
+            -f services/python-runner/Dockerfile .
+          docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt \
+            --label "org.opencontainers.image.revision=${SOURCE_SHA}" \
+            -t rigor-sql-runner:promote \
+            -f services/sql-runner/Dockerfile .
+          docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt \
+            --label "org.opencontainers.image.revision=${SOURCE_SHA}" \
+            -t rigor-execution-controller:promote \
+            -f services/execution-controller/Dockerfile .
+
+      - name: Scan Python runner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: rigor-python-runner:promote
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+
+      - name: Scan SQL runner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: rigor-sql-runner:promote
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+
+      - name: Scan execution controller
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: rigor-execution-controller:promote
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+
+      - name: Generate Python runner SBOM
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: rigor-python-runner:promote
+          format: cyclonedx
+          output: sbom-python-runner.cdx.json
+          exit-code: "0"
+
+      - name: Generate SQL runner SBOM
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: rigor-sql-runner:promote
+          format: cyclonedx
+          output: sbom-sql-runner.cdx.json
+          exit-code: "0"
+
+      - name: Generate controller SBOM
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: rigor-execution-controller:promote
+          format: cyclonedx
+          output: sbom-execution-controller.cdx.json
+          exit-code: "0"
+
+      - name: Push immutable commit tags and resolve digests
+        env:
+          AWS_REGION: ${{ inputs.aws_region }}
+          NAME_PREFIX: ${{ inputs.name_prefix }}
+          REGISTRY: ${{ steps.registry.outputs.registry }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          : > execution-images.env
+          for pair in \
+            "execution-controller:rigor-execution-controller:RIGOR_EXECUTION_CONTROLLER_IMAGE" \
+            "python-runner:rigor-python-runner:RIGOR_PYTHON_RUNNER_IMAGE" \
+            "sql-runner:rigor-sql-runner:RIGOR_SQL_RUNNER_IMAGE"; do
+            IFS=: read -r repository local_image variable <<< "$pair"
+            remote="${REGISTRY}/${NAME_PREFIX}/${repository}:${SOURCE_SHA}"
+            docker tag "${local_image}:promote" "$remote"
+            docker push "$remote"
+            digest="$(aws ecr describe-images \
+              --repository-name "${NAME_PREFIX}/${repository}" \
+              --image-ids "imageTag=${SOURCE_SHA}" \
+              --query 'imageDetails[0].imageDigest' \
+              --output text)"
+            printf '%s=%s/%s/%s@%s\n' \
+              "$variable" "$REGISTRY" "$NAME_PREFIX" "$repository" "$digest" \
+              >> execution-images.env
+          done
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.1.2
+        with:
+          cosign-release: v3.0.6
+
+      - name: Sign and attest immutable images
+        env:
+          COSIGN_YES: "true"
+        run: |
+          set -euo pipefail
+          source execution-images.env
+          for pair in \
+            "${RIGOR_EXECUTION_CONTROLLER_IMAGE}:sbom-execution-controller.cdx.json" \
+            "${RIGOR_PYTHON_RUNNER_IMAGE}:sbom-python-runner.cdx.json" \
+            "${RIGOR_SQL_RUNNER_IMAGE}:sbom-sql-runner.cdx.json"; do
+            image="${pair%%:*}"
+            sbom="${pair#*:}"
+            cosign sign "$image"
+            cosign attest --predicate "$sbom" --type cyclonedx "$image"
+          done
+
+      - name: Verify promoted signatures
+        env:
+          WORKFLOW_IDENTITY: https://github.com/rrahul0904/leetcode-platform/.github/workflows/promote-execution-images.yml@refs/heads/feature/rigor-multiclient-infrastructure
+        run: |
+          set -euo pipefail
+          source execution-images.env
+          for image in \
+            "$RIGOR_EXECUTION_CONTROLLER_IMAGE" \
+            "$RIGOR_PYTHON_RUNNER_IMAGE" \
+            "$RIGOR_SQL_RUNNER_IMAGE"; do
+            cosign verify \
+              --certificate-identity "$WORKFLOW_IDENTITY" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              "$image" >/dev/null
+          done
+
+      - name: Upload immutable promotion manifest and SBOMs
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: execution-staging-promotion-${{ inputs.source_sha }}
+          path: |
+            execution-images.env
+            sbom-python-runner.cdx.json
+            sbom-sql-runner.cdx.json
+            sbom-execution-controller.cdx.json
+          if-no-files-found: error
+          retention-days: 90
