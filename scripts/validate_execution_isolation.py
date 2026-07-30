@@ -6,7 +6,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import cast
 from uuid import uuid4
 
 NAMESPACE = os.getenv("RIGOR_EXECUTION_NAMESPACE", "rigor-execution")
@@ -24,6 +24,8 @@ AWS_ENV_NAMES = {
     "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
     "AWS_CONTAINER_CREDENTIALS_FULL_URI",
 }
+
+JsonObject = dict[str, object]
 
 
 class ValidationError(RuntimeError):
@@ -61,6 +63,19 @@ def kubectl(*args: str, input_text: str | None = None, check: bool = True) -> Co
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise ValidationError(message)
+
+
+def json_object(raw: str, label: str) -> JsonObject:
+    value: object = json.loads(raw)
+    if not isinstance(value, dict):
+        raise ValidationError(f"{label} is not a JSON object.")
+    return cast(JsonObject, value)
+
+
+def object_field(value: object, field: str) -> JsonObject:
+    if not isinstance(value, dict):
+        raise ValidationError(f"Kubernetes field {field!r} is not an object.")
+    return cast(JsonObject, value)
 
 
 def probe_manifest(name: str) -> dict[str, object]:
@@ -127,8 +142,9 @@ def wait_running(name: str) -> None:
     deadline = time.monotonic() + TIMEOUT_SECONDS
     while time.monotonic() < deadline:
         raw = kubectl("-n", NAMESPACE, "get", "pod", name, "-o", "json").stdout
-        pod: Any = json.loads(raw)
-        phase = pod.get("status", {}).get("phase") if isinstance(pod, dict) else None
+        pod = json_object(raw, "probe Pod")
+        status = object_field(pod.get("status"), "pod.status")
+        phase = status.get("phase")
         if phase == "Running":
             return
         if phase == "Failed":
@@ -225,7 +241,10 @@ def validate_network(name: str) -> None:
 
     for item in filter(None, (part.strip() for part in OPTIONAL_TARGETS.split(","))):
         host, separator, raw_port = item.rpartition(":")
-        require(separator == ":" and host != "", f"Invalid blocked target {item!r}; use host:port.")
+        require(
+            separator == ":" and host != "",
+            f"Invalid blocked target {item!r}; use host:port.",
+        )
         try:
             port = int(raw_port)
         except ValueError as exc:
@@ -259,7 +278,10 @@ def main() -> int:
     except (ValidationError, subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
         print(f"ADVERSARIAL VALIDATION FAILED: {exc}", file=sys.stderr)
         return 1
-    print("ADVERSARIAL STAGING VALIDATED: runtime, credential, filesystem, and network probes passed.")
+    print(
+        "ADVERSARIAL STAGING VALIDATED: runtime, credential, filesystem, "
+        "and network probes passed."
+    )
     return 0
 
 
