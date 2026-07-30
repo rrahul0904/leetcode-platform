@@ -149,7 +149,10 @@ def _session_question(
     try:
         runtime = SubmissionRuntime(str(row["runtime"]))
     except ValueError as exc:
-        raise HTTPException(status_code=409, detail="Practice session runtime is unsupported.") from exc
+        raise HTTPException(
+            status_code=409,
+            detail="Practice session runtime is unsupported.",
+        ) from exc
     question = published_question_payload(connection, slug)
     try:
         required_runtime = question_runtime(question)
