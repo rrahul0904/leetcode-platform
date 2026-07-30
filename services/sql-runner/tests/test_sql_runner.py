@@ -10,8 +10,8 @@ from types import ModuleType
 from uuid import UUID
 
 import psycopg
-from psycopg import sql
 import pytest
+from psycopg import sql
 
 RUNNER_PATH = Path(__file__).resolve().parents[1] / "runner.py"
 EXECUTION_ID = UUID("44444444-4444-4444-4444-444444444444")
@@ -252,7 +252,7 @@ def test_candidate_sql_cannot_submit_multiple_commands() -> None:
     result = runner.run_request(_request("SELECT 1; SELECT 2"))
 
     assert result["tests"][0]["ok"] is False
-    assert result["tests"][0]["error_category"] == "sql_error"
+    assert result["tests"][0]["error_category"] == "sql_syntax_error"
 
 
 def test_candidate_sql_has_no_aws_environment_projection() -> None:
