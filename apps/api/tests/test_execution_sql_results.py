@@ -58,7 +58,11 @@ def test_sql_ordered_comparison_preserves_row_order_and_column_order() -> None:
         {"department": "Data", "employees": 1},
     ]
 
-    assert trusted_compare(_sandbox(actual), _expected(expected_rows, strategy="sql_ordered")).all_tests_passed
+    ordered = trusted_compare(
+        _sandbox(actual),
+        _expected(expected_rows, strategy="sql_ordered"),
+    )
+    assert ordered.all_tests_passed
 
     reversed_actual = {
         "columns": ["department", "employees"],
