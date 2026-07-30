@@ -221,9 +221,13 @@ def ensure_candidate_role(connection: psycopg.Connection[Any]) -> None:
     candidate_password = os.getenv("RIGOR_SQL_CANDIDATE_PASSWORD", "")
     if not candidate_password:
         raise RunnerInfrastructureError("RIGOR_SQL_CANDIDATE_PASSWORD is required.")
-    connection.execute(
-        sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier(candidate_user))
-    )
+    exists = connection.execute(
+        "SELECT 1 FROM pg_roles WHERE rolname=%s",
+        (candidate_user,),
+    ).fetchone()
+    if exists:
+        connection.execute(sql.SQL("DROP OWNED BY {} CASCADE").format(sql.Identifier(candidate_user)))
+        connection.execute(sql.SQL("DROP ROLE {}").format(sql.Identifier(candidate_user)))
     connection.execute(
         sql.SQL(
             "CREATE ROLE {} LOGIN PASSWORD %s NOSUPERUSER NOCREATEDB NOCREATEROLE "
@@ -241,10 +245,15 @@ def reset_fixture(
     setup_sql: str,
 ) -> None:
     candidate = _candidate_identifier()
+    database_name = connection.info.dbname
+    if not database_name:
+        raise RunnerInfrastructureError("Disposable PostgreSQL database name is unavailable.")
+    database = sql.Identifier(database_name)
     connection.execute("DROP SCHEMA IF EXISTS public CASCADE")
     connection.execute("CREATE SCHEMA public")
     connection.execute("REVOKE ALL ON SCHEMA public FROM PUBLIC")
-    connection.execute("REVOKE CREATE, TEMP ON DATABASE CURRENT_DATABASE() FROM PUBLIC")
+    connection.execute(sql.SQL("REVOKE ALL ON DATABASE {} FROM PUBLIC").format(database))
+    connection.execute(sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(database, candidate))
     connection.execute(sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(candidate))
     connection.execute(schema_sql)
     if seed_sql.strip():
