@@ -100,7 +100,13 @@ def validate_static_cluster_contract() -> None:
     require(spec.get("egress") == [], "Default deny policy has egress exceptions.")
     policy_types = spec.get("policyTypes")
     require(
-        isinstance(policy_types, list) and set(policy_types) == {"Ingress", "Egress"},
+        isinstance(policy_types, list)
+        and all(isinstance(item, str) for item in policy_types),
+        "Default deny policyTypes must be strings.",
+    )
+    typed_policy_types = cast(list[str], policy_types)
+    require(
+        set(typed_policy_types) == {"Ingress", "Egress"},
         "Default deny policy must cover ingress and egress.",
     )
 
