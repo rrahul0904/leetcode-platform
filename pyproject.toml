@@ -26,6 +26,7 @@ testpaths = [
   "apps/api/tests",
   "packages/question-schema/tests",
   "services/python-runner/tests",
+  "services/sql-runner/tests",
   "tests",
 ]
 asyncio_mode = "auto"
@@ -46,6 +47,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 "apps/api/tests/test_sandbox_jobs.py" = ["I001"]
 "services/python-runner/tests/test_runner.py" = ["I001"]
 "services/python-runner/runner.py" = ["SIM117"]
+"services/sql-runner/tests/test_runner.py" = ["I001"]
 
 [tool.pyright]
 pythonVersion = "3.13"
