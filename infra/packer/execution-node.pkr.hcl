@@ -30,7 +30,7 @@ variable "gvisor_archive_url" {
 
   validation {
     condition     = can(regex("^https://", var.gvisor_archive_url))
-    error_message = "gvisor_archive_url must use HTTPS."
+    error_message = "The gVisor archive URL must use HTTPS."
   }
 }
 
@@ -40,7 +40,7 @@ variable "gvisor_sha256" {
 
   validation {
     condition     = can(regex("^[0-9a-f]{64}$", var.gvisor_sha256))
-    error_message = "gvisor_sha256 must be a 64-character lowercase hexadecimal SHA-256."
+    error_message = "The gVisor checksum must be a 64-character lowercase hexadecimal SHA-256."
   }
 }
 
