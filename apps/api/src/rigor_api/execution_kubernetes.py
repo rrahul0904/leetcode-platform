@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import ssl
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -10,7 +11,12 @@ from typing import Protocol, cast
 from urllib import error, parse, request
 from uuid import UUID
 
-from .sandbox_jobs import build_network_policy, build_python_job, sandbox_job_name
+from .sandbox_jobs import (
+    build_network_policy,
+    build_python_job,
+    build_sql_job,
+    sandbox_job_name,
+)
 
 MAX_KUBERNETES_RESPONSE_BYTES = 512 * 1024
 
@@ -44,6 +50,14 @@ class SandboxExecutor(Protocol):
         profile_name: str,
     ) -> SandboxHandle: ...
 
+    def create_sql_execution(
+        self,
+        *,
+        execution_id: UUID,
+        request_payload: dict[str, object],
+        profile_name: str,
+    ) -> SandboxHandle: ...
+
     def observe(self, handle: SandboxHandle) -> SandboxObservation: ...
 
     def cleanup(self, handle: SandboxHandle) -> None: ...
@@ -56,6 +70,8 @@ class KubernetesApiConfig:
     ca_file: str | None
     namespace: str
     runner_image: str
+    sql_runner_image: str
+    sql_postgres_image: str
 
     @classmethod
     def discover(cls) -> KubernetesApiConfig:
@@ -93,14 +109,22 @@ class KubernetesApiConfig:
             ca_file = None
         namespace = os.getenv("RIGOR_EXECUTION_NAMESPACE", "rigor-execution")
         runner_image = os.getenv("RIGOR_PYTHON_RUNNER_IMAGE", "")
+        sql_runner_image = os.getenv("RIGOR_SQL_RUNNER_IMAGE", "")
+        sql_postgres_image = os.getenv("RIGOR_SQL_POSTGRES_IMAGE", "")
         if not runner_image:
             raise KubernetesExecutionError("RIGOR_PYTHON_RUNNER_IMAGE is required.")
+        if not sql_runner_image:
+            raise KubernetesExecutionError("RIGOR_SQL_RUNNER_IMAGE is required.")
+        if not sql_postgres_image:
+            raise KubernetesExecutionError("RIGOR_SQL_POSTGRES_IMAGE is required.")
         return cls(
             api_url=api_url.rstrip("/"),
             bearer_token=token,
             ca_file=ca_file,
             namespace=namespace,
             runner_image=runner_image,
+            sql_runner_image=sql_runner_image,
+            sql_postgres_image=sql_postgres_image,
         )
 
 
@@ -227,6 +251,53 @@ class KubernetesSandboxExecutor:
             raise KubernetesExecutionError("Kubernetes API returned malformed JSON.") from exc
         return _object_dict(decoded, label="Kubernetes API response")
 
+    def _execution_handle(self, execution_id: UUID, policy: Mapping[str, object]) -> SandboxHandle:
+        namespace = self.config.namespace
+        job_name = sandbox_job_name(execution_id)
+        policy_meta = _object_dict(policy.get("metadata"), label="NetworkPolicy metadata")
+        policy_name_value = policy_meta.get("name")
+        if not isinstance(policy_name_value, str) or not policy_name_value:
+            raise KubernetesExecutionError("Execution NetworkPolicy name is invalid.")
+        return SandboxHandle(
+            execution_id=execution_id,
+            namespace=namespace,
+            job_name=job_name,
+            input_secret_name=f"input-{job_name}",
+            network_policy_name=policy_name_value,
+        )
+
+    def _create_resources(
+        self,
+        *,
+        handle: SandboxHandle,
+        secret: Mapping[str, object],
+        policy: Mapping[str, object],
+        job: Mapping[str, object],
+    ) -> SandboxHandle:
+        try:
+            self._request(
+                "POST",
+                f"/api/v1/namespaces/{handle.namespace}/secrets",
+                payload=secret,
+                expected={201, 409},
+            )
+            self._request(
+                "POST",
+                f"/apis/networking.k8s.io/v1/namespaces/{handle.namespace}/networkpolicies",
+                payload=policy,
+                expected={201, 409},
+            )
+            self._request(
+                "POST",
+                f"/apis/batch/v1/namespaces/{handle.namespace}/jobs",
+                payload=job,
+                expected={201, 409},
+            )
+        except Exception:
+            self.cleanup(handle)
+            raise
+        return handle
+
     def create_python_execution(
         self,
         *,
@@ -235,28 +306,16 @@ class KubernetesSandboxExecutor:
         profile_name: str,
     ) -> SandboxHandle:
         namespace = self.config.namespace
-        job_name = sandbox_job_name(execution_id)
-        secret_name = f"input-{job_name}"
         policy = cast(
             dict[str, object],
             build_network_policy(execution_id=execution_id, namespace=namespace),
         )
-        policy_meta = _object_dict(policy.get("metadata"), label="NetworkPolicy metadata")
-        policy_name_value = policy_meta.get("name")
-        if not isinstance(policy_name_value, str) or not policy_name_value:
-            raise KubernetesExecutionError("Execution NetworkPolicy name is invalid.")
-        handle = SandboxHandle(
-            execution_id=execution_id,
-            namespace=namespace,
-            job_name=job_name,
-            input_secret_name=secret_name,
-            network_policy_name=policy_name_value,
-        )
+        handle = self._execution_handle(execution_id, policy)
         secret: dict[str, object] = {
             "apiVersion": "v1",
             "kind": "Secret",
             "metadata": {
-                "name": secret_name,
+                "name": handle.input_secret_name,
                 "namespace": namespace,
                 "labels": {"rigor.io/execution-id": str(execution_id)},
             },
@@ -274,35 +333,57 @@ class KubernetesSandboxExecutor:
             build_python_job(
                 execution_id=execution_id,
                 namespace=namespace,
-                input_secret_name=secret_name,
+                input_secret_name=handle.input_secret_name,
                 runner_image=self.config.runner_image,
                 profile_name=profile_name,
             ),
         )
+        return self._create_resources(handle=handle, secret=secret, policy=policy, job=job)
 
-        try:
-            self._request(
-                "POST",
-                f"/api/v1/namespaces/{namespace}/secrets",
-                payload=secret,
-                expected={201, 409},
-            )
-            self._request(
-                "POST",
-                f"/apis/networking.k8s.io/v1/namespaces/{namespace}/networkpolicies",
-                payload=policy,
-                expected={201, 409},
-            )
-            self._request(
-                "POST",
-                f"/apis/batch/v1/namespaces/{namespace}/jobs",
-                payload=job,
-                expected={201, 409},
-            )
-        except Exception:
-            self.cleanup(handle)
-            raise
-        return handle
+    def create_sql_execution(
+        self,
+        *,
+        execution_id: UUID,
+        request_payload: dict[str, object],
+        profile_name: str,
+    ) -> SandboxHandle:
+        namespace = self.config.namespace
+        policy = cast(
+            dict[str, object],
+            build_network_policy(execution_id=execution_id, namespace=namespace),
+        )
+        handle = self._execution_handle(execution_id, policy)
+        secret: dict[str, object] = {
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "metadata": {
+                "name": handle.input_secret_name,
+                "namespace": namespace,
+                "labels": {"rigor.io/execution-id": str(execution_id)},
+            },
+            "type": "Opaque",
+            "stringData": {
+                "request.json": json.dumps(
+                    request_payload,
+                    separators=(",", ":"),
+                    ensure_ascii=False,
+                ),
+                "owner-password": secrets.token_urlsafe(32),
+                "candidate-password": secrets.token_urlsafe(32),
+            },
+        }
+        job = cast(
+            dict[str, object],
+            build_sql_job(
+                execution_id=execution_id,
+                namespace=namespace,
+                input_secret_name=handle.input_secret_name,
+                runner_image=self.config.sql_runner_image,
+                postgres_image=self.config.sql_postgres_image,
+                profile_name=profile_name,
+            ),
+        )
+        return self._create_resources(handle=handle, secret=secret, policy=policy, job=job)
 
     def observe(self, handle: SandboxHandle) -> SandboxObservation:
         response = self._request(
