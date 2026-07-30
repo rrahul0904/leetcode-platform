@@ -64,7 +64,11 @@ def classify_event(
             return DlqDisposition.replay
         if state.status is ExecutionStatus.cancelled:
             return DlqDisposition.discard_terminal
-        if state.status in {ExecutionStatus.queued, ExecutionStatus.dispatching, ExecutionStatus.running}:
+        if state.status in {
+            ExecutionStatus.queued,
+            ExecutionStatus.dispatching,
+            ExecutionStatus.running,
+        }:
             return DlqDisposition.hold_in_progress
         return DlqDisposition.discard_terminal
 
