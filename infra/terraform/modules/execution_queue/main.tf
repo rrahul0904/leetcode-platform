@@ -51,6 +51,75 @@ resource "aws_sqs_queue" "execution" {
   })
 }
 
+resource "aws_cloudwatch_metric_alarm" "execution_backlog" {
+  alarm_name          = "${var.name_prefix}-execution-backlog"
+  alarm_description   = "Execution queue backlog exceeds the configured staging threshold."
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 3
+  threshold           = var.queue_depth_alarm_threshold
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  namespace           = "AWS/SQS"
+  period              = 60
+  statistic           = "Maximum"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alarm_actions
+
+  dimensions = {
+    QueueName = aws_sqs_queue.execution.name
+  }
+
+  tags = merge(var.tags, {
+    Component = "execution"
+    Signal    = "queue-backlog"
+  })
+}
+
+resource "aws_cloudwatch_metric_alarm" "execution_oldest_message" {
+  alarm_name          = "${var.name_prefix}-execution-oldest-message"
+  alarm_description   = "An execution has waited in SQS longer than the configured latency threshold."
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  threshold           = var.oldest_message_age_alarm_seconds
+  metric_name         = "ApproximateAgeOfOldestMessage"
+  namespace           = "AWS/SQS"
+  period              = 60
+  statistic           = "Maximum"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alarm_actions
+
+  dimensions = {
+    QueueName = aws_sqs_queue.execution.name
+  }
+
+  tags = merge(var.tags, {
+    Component = "execution"
+    Signal    = "queue-latency"
+  })
+}
+
+resource "aws_cloudwatch_metric_alarm" "execution_dlq" {
+  alarm_name          = "${var.name_prefix}-execution-dlq-visible"
+  alarm_description   = "At least one execution message requires DLQ operator investigation."
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  threshold           = 1
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  namespace           = "AWS/SQS"
+  period              = 60
+  statistic           = "Maximum"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alarm_actions
+
+  dimensions = {
+    QueueName = aws_sqs_queue.dlq.name
+  }
+
+  tags = merge(var.tags, {
+    Component = "execution"
+    Signal    = "dead-letter"
+  })
+}
+
 data "aws_iam_policy_document" "publisher" {
   statement {
     sid    = "PublishExecutionEvents"
