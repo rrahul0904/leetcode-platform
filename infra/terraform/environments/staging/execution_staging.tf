@@ -11,6 +11,18 @@ resource "terraform_data" "execution_staging_guard" {
   }
 }
 
+module "execution_registry" {
+  count  = var.enable_execution_staging_infrastructure ? 1 : 0
+  source = "../../modules/execution_registry"
+
+  name_prefix = var.name_prefix
+  tags = merge(var.tags, {
+    Plane = "execution"
+  })
+
+  depends_on = [terraform_data.execution_staging_guard]
+}
+
 module "execution_network" {
   count  = var.enable_execution_staging_infrastructure ? 1 : 0
   source = "../../modules/execution_network"
