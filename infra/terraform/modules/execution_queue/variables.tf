@@ -42,6 +42,34 @@ variable "max_receive_count" {
   }
 }
 
+variable "queue_depth_alarm_threshold" {
+  description = "Visible execution messages that trigger the queue-backlog alarm."
+  type        = number
+  default     = 25
+
+  validation {
+    condition     = var.queue_depth_alarm_threshold >= 1
+    error_message = "queue_depth_alarm_threshold must be at least 1."
+  }
+}
+
+variable "oldest_message_age_alarm_seconds" {
+  description = "Age of the oldest queued execution that triggers a latency alarm."
+  type        = number
+  default     = 120
+
+  validation {
+    condition     = var.oldest_message_age_alarm_seconds >= 30
+    error_message = "oldest_message_age_alarm_seconds must be at least 30 seconds."
+  }
+}
+
+variable "alarm_actions" {
+  description = "Optional SNS/action ARNs invoked by execution queue alarms."
+  type        = list(string)
+  default     = []
+}
+
 variable "tags" {
   description = "Tags applied to all resources."
   type        = map(string)
