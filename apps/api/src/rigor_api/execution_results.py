@@ -25,6 +25,8 @@ SUPPORTED_COMPARISONS = {
     "numeric_tolerance",
     "json",
     "unordered",
+    "sql_ordered",
+    "sql_unordered",
 }
 
 
@@ -196,14 +198,36 @@ def sandbox_request(package: DispatchPackage) -> dict[str, object]:
         sanitized_tests.append(test)
     if package.attempt_count < 1:
         raise TrustedResultError("Execution must be claimed before sandbox dispatch.")
-    return {
+
+    request_payload: dict[str, object] = {
         "schema_version": 1,
         "execution_id": str(package.execution_id),
         "attempt": package.attempt_count,
         "source_code": package.source_code,
-        "entrypoint": str(package.input_payload.get("entrypoint") or "solve"),
         "tests": sanitized_tests,
     }
+    if package.language == "python":
+        request_payload["entrypoint"] = str(package.input_payload.get("entrypoint") or "solve")
+        return request_payload
+    if package.language == "sql":
+        schema_sql = package.input_payload.get("schema_sql")
+        seed_sql = package.input_payload.get("seed_sql", "")
+        timeout_ms = package.input_payload.get("statement_timeout_ms")
+        if not isinstance(schema_sql, str) or not schema_sql.strip():
+            raise TrustedResultError("SQL dispatch payload is missing trusted schema SQL.")
+        if not isinstance(seed_sql, str):
+            raise TrustedResultError("SQL dispatch seed SQL is invalid.")
+        if not isinstance(timeout_ms, int) or isinstance(timeout_ms, bool):
+            raise TrustedResultError("SQL dispatch statement timeout is invalid.")
+        request_payload.update(
+            {
+                "schema_sql": schema_sql,
+                "seed_sql": seed_sql,
+                "statement_timeout_ms": timeout_ms,
+            }
+        )
+        return request_payload
+    raise TrustedResultError("Execution language is unsupported by the sandbox protocol.")
 
 
 def parse_runner_result(
@@ -284,17 +308,41 @@ def parse_runner_result(
     )
 
 
-def _comparison_policy(item: dict[str, object]) -> dict[str, object]:
+def _question_mode(structured: dict[str, object]) -> dict[str, object]:
+    for key in ("mode_specification", "type_specification"):
+        value = structured.get(key)
+        if isinstance(value, dict):
+            return cast(dict[str, object], value)
+    raise TrustedResultError("Question execution mode is unavailable.")
+
+
+def _is_sql_mode(structured: dict[str, object], mode: dict[str, object]) -> bool:
+    question_type = structured.get("question_type")
+    dialect = mode.get("dialect")
+    return question_type == "sql_coding" or dialect in {"postgresql", "postgresql18"}
+
+
+def _comparison_policy(
+    item: dict[str, object],
+    *,
+    default_strategy: str,
+) -> dict[str, object]:
     raw = item.get("comparison")
     if raw is None:
-        return {"strategy": "exact"}
+        return {"strategy": default_strategy}
     if isinstance(raw, str):
-        policy: dict[str, object] = {"strategy": raw}
+        strategy = raw
+        policy: dict[str, object] = {"strategy": strategy}
     elif isinstance(raw, dict):
         policy = cast(dict[str, object], raw)
+        strategy = str(policy.get("strategy") or default_strategy)
     else:
         raise TrustedResultError("Question comparison policy is invalid.")
-    strategy = str(policy.get("strategy") or "exact")
+    if default_strategy.startswith("sql_"):
+        if strategy == "ordered":
+            strategy = "sql_ordered"
+        elif strategy == "unordered":
+            strategy = "sql_unordered"
     if strategy not in SUPPORTED_COMPARISONS:
         raise TrustedResultError(f"Unsupported trusted comparison strategy {strategy!r}.")
     return {**policy, "strategy": strategy}
@@ -310,10 +358,20 @@ def load_expected_tests(
         {"id": question_version_id},
     ).scalar_one_or_none()
     structured = _object_dict(cast(object, structured_value), label="Question structured content")
-    mode = _object_dict(structured.get("mode_specification"), label="Question execution mode")
+    mode = _question_mode(structured)
     tests = _object_list(mode.get("tests"), label="Question expected tests")
     if not tests or len(tests) > MAX_RESULT_TESTS:
         raise TrustedResultError("Question expected test set is empty or too large.")
+
+    sql_mode = _is_sql_mode(structured, mode)
+    default_strategy = "sql_ordered" if sql_mode else "exact"
+    top_level_expected = mode.get("expected_result")
+    columns_value = mode.get("expected_output_columns")
+    expected_columns = (
+        [str(column) for column in cast(list[object], columns_value)]
+        if isinstance(columns_value, list)
+        else None
+    )
 
     expected: dict[str, dict[str, object]] = {}
     for index, raw_item in enumerate(tests):
@@ -328,16 +386,16 @@ def load_expected_tests(
             raise TrustedResultError("Question expected test identifiers must be unique.")
         name_value = item.get("name")
         visibility_value = item.get("visibility")
+        expected_output = item.get("expected_output")
+        if sql_mode and expected_output is None and top_level_expected is not None:
+            expected_output = top_level_expected
         expected[test_id] = {
             "id": test_id,
             "name": name_value if isinstance(name_value, str) and name_value else test_id,
-            "visibility": (
-                visibility_value
-                if isinstance(visibility_value, str) and visibility_value in {"public", "hidden"}
-                else "hidden"
-            ),
-            "expected_output": item.get("expected_output"),
-            "comparison": _comparison_policy(item),
+            "visibility": "public" if visibility_value == "public" else "hidden",
+            "expected_output": expected_output,
+            "expected_columns": expected_columns,
+            "comparison": _comparison_policy(item, default_strategy=default_strategy),
         }
     return expected
 
@@ -349,7 +407,71 @@ def _canonical_json(value: object) -> str:
         raise TrustedResultError("Comparison value is not JSON serializable.") from exc
 
 
-def _compare_value(actual: object, expected: object, policy: dict[str, object]) -> bool:
+def _sql_result(value: object, expected_columns: object = None) -> dict[str, object] | None:
+    if isinstance(value, dict):
+        result = cast(dict[str, object], value)
+        columns = result.get("columns")
+        rows = result.get("rows")
+        if isinstance(columns, list) and isinstance(rows, list):
+            return {
+                "columns": [str(column) for column in cast(list[object], columns)],
+                "rows": cast(list[object], rows),
+            }
+    if not isinstance(value, list):
+        return None
+
+    raw_rows = cast(list[object], value)
+    columns: list[str]
+    if isinstance(expected_columns, list):
+        columns = [str(column) for column in cast(list[object], expected_columns)]
+    elif raw_rows and isinstance(raw_rows[0], dict):
+        columns = [str(column) for column in cast(dict[object, object], raw_rows[0]).keys()]
+    else:
+        return None
+
+    rows: list[object] = []
+    for raw_row in raw_rows:
+        if isinstance(raw_row, dict):
+            row = cast(dict[object, object], raw_row)
+            rows.append([row.get(column) for column in columns])
+        elif isinstance(raw_row, list):
+            rows.append(raw_row)
+        else:
+            return None
+    return {"columns": columns, "rows": rows}
+
+
+def _compare_sql_result(
+    actual: object,
+    expected: object,
+    *,
+    expected_columns: object,
+    unordered: bool,
+) -> bool:
+    actual_result = _sql_result(actual)
+    expected_result = _sql_result(expected, expected_columns)
+    if actual_result is None or expected_result is None:
+        return False
+    if actual_result["columns"] != expected_result["columns"]:
+        return False
+    actual_rows = actual_result["rows"]
+    expected_rows = expected_result["rows"]
+    if not isinstance(actual_rows, list) or not isinstance(expected_rows, list):
+        return False
+    if unordered:
+        return sorted(_canonical_json(row) for row in actual_rows) == sorted(
+            _canonical_json(row) for row in expected_rows
+        )
+    return actual_rows == expected_rows
+
+
+def _compare_value(
+    actual: object,
+    expected: object,
+    policy: dict[str, object],
+    *,
+    expected_columns: object = None,
+) -> bool:
     strategy = str(policy.get("strategy") or "exact")
     if strategy in {"exact", "json"}:
         return actual == expected
@@ -375,6 +497,20 @@ def _compare_value(actual: object, expected: object, policy: dict[str, object]) 
         return sorted(_canonical_json(item) for item in actual_items) == sorted(
             _canonical_json(item) for item in expected_items
         )
+    if strategy == "sql_ordered":
+        return _compare_sql_result(
+            actual,
+            expected,
+            expected_columns=expected_columns,
+            unordered=False,
+        )
+    if strategy == "sql_unordered":
+        return _compare_sql_result(
+            actual,
+            expected,
+            expected_columns=expected_columns,
+            unordered=True,
+        )
     raise TrustedResultError(f"Unsupported trusted comparison strategy {strategy!r}.")
 
 
@@ -387,7 +523,12 @@ def _test_passed(actual: dict[str, object], expected: dict[str, object]) -> bool
         return False
     policy_value = expected.get("comparison")
     policy = _object_dict(policy_value, label="Trusted comparison policy")
-    return _compare_value(actual.get("actual"), expected_output, policy)
+    return _compare_value(
+        actual.get("actual"),
+        expected_output,
+        policy,
+        expected_columns=expected.get("expected_columns"),
+    )
 
 
 def trusted_compare(
