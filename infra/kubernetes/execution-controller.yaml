@@ -83,6 +83,13 @@ spec:
       automountServiceAccountToken: true
       enableServiceLinks: false
       terminationGracePeriodSeconds: 30
+      nodeSelector:
+        workload: trusted-execution-control
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: trusted-execution-control
+          effect: NoSchedule
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
