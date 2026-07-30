@@ -68,9 +68,6 @@ jobs:
 
       - name: Pytest
         if: always()
-        env:
-          RIGOR_DATABASE_URL: postgresql+psycopg://rigor_app:rigor_app_local_only@localhost:5434/rigor
-          RIGOR_OPERATIONAL_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
         run: uv run pytest -q
 
       - name: Build execution images
