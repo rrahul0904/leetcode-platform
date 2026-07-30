@@ -22,8 +22,10 @@ from .execution_domain import (
 from .practice import (
     PracticeSessionNotFoundError,
     PracticeSessionRepository,
+    PracticeStateTransitionError,
     published_question_payload,
     question_mode,
+    question_runtime,
     question_tests,
 )
 from .sandbox_jobs import sandbox_profile
@@ -33,6 +35,7 @@ from .schemas import (
     PracticeSessionEventInput,
     PracticeSessionState,
     PracticeSubmitRequest,
+    SubmissionRuntime,
 )
 
 
@@ -111,7 +114,6 @@ QuestionSlugHeader = Annotated[
 MAX_ACTIVE_RUNS_PER_CANDIDATE = 5
 MAX_ACTIVE_SUBMITS_PER_CANDIDATE = 2
 ACTIVE_STATES = ("QUEUED", "DISPATCHING", "RUNNING")
-PYTHON_RUNTIME = "python3.13"
 
 
 def _session_question(
@@ -119,12 +121,12 @@ def _session_question(
     *,
     session_id: UUID,
     slug: str,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], SubmissionRuntime]:
     row = (
         connection.execute(
             text(
                 """
-                SELECT ps.state::text AS state
+                SELECT ps.state::text AS state, ps.runtime
                 FROM practice_sessions ps
                 JOIN question_versions v ON v.id=ps.question_version_id
                 JOIN questions q ON q.id=v.question_id
@@ -144,7 +146,21 @@ def _session_question(
         raise PracticeSessionNotFoundError
     if str(row["state"]) in {"COMPLETED", "ABANDONED"}:
         raise HTTPException(status_code=409, detail="Practice session is no longer executable.")
-    return published_question_payload(connection, slug)
+    try:
+        runtime = SubmissionRuntime(str(row["runtime"]))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail="Practice session runtime is unsupported.") from exc
+    question = published_question_payload(connection, slug)
+    try:
+        required_runtime = question_runtime(question)
+    except PracticeStateTransitionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if runtime is not required_runtime:
+        raise HTTPException(
+            status_code=409,
+            detail="Practice session runtime no longer matches the published question runtime.",
+        )
+    return question, runtime
 
 
 def _request_hash(
@@ -152,13 +168,14 @@ def _request_hash(
     execution_type: ExecutionType,
     session_id: UUID,
     question_version_id: UUID,
+    runtime: SubmissionRuntime,
     source_code: str,
 ) -> str:
     return execution_request_hash(
         execution_type=execution_type,
         practice_session_id=session_id,
         question_version_id=question_version_id,
-        runtime=PYTHON_RUNTIME,
+        runtime=runtime.value,
         source_code=source_code,
     )
 
@@ -243,10 +260,11 @@ def _candidate_tests(
 ) -> list[dict[str, object]]:
     sanitized: list[dict[str, object]] = []
     for index, test in enumerate(question_tests(question, public_only=public_only)):
+        visibility = "public" if test.get("visibility") == "public" else "hidden"
         sanitized.append(
             {
                 "id": str(test.get("id") or f"test-{index + 1}"),
-                "visibility": str(test.get("visibility") or "hidden"),
+                "visibility": visibility,
                 "input": cast(object, test.get("input")),
             }
         )
@@ -264,6 +282,34 @@ def _entrypoint(question: dict[str, Any]) -> str:
     return entrypoint
 
 
+def _sql_input_payload(
+    question: dict[str, Any],
+    *,
+    public_only: bool,
+) -> dict[str, object]:
+    mode = question_mode(question)
+    schema_sql = mode.get("schema_sql", mode.get("ddl"))
+    seed_sql = mode.get("seed_sql", mode.get("seed_data", ""))
+    timeout_value = mode.get("statement_timeout_ms", 5_000)
+    if not isinstance(schema_sql, str) or not schema_sql.strip():
+        raise HTTPException(status_code=409, detail="SQL question is missing trusted schema DDL.")
+    if not isinstance(seed_sql, str):
+        raise HTTPException(status_code=409, detail="SQL question seed data is invalid.")
+    if (
+        not isinstance(timeout_value, int)
+        or isinstance(timeout_value, bool)
+        or not 100 <= timeout_value <= 30_000
+    ):
+        raise HTTPException(status_code=409, detail="SQL statement timeout is invalid.")
+    return {
+        "schema_version": 1,
+        "schema_sql": schema_sql,
+        "seed_sql": seed_sql,
+        "statement_timeout_ms": timeout_value,
+        "tests": _candidate_tests(question, public_only=public_only),
+    }
+
+
 def _limits(profile_name: str) -> dict[str, object]:
     profile = sandbox_profile(profile_name)
     return {
@@ -276,6 +322,27 @@ def _limits(profile_name: str) -> dict[str, object]:
     }
 
 
+def _runtime_execution_config(
+    question: dict[str, Any],
+    runtime: SubmissionRuntime,
+    *,
+    public_only: bool,
+) -> tuple[str, str, dict[str, object]]:
+    if runtime is SubmissionRuntime.python:
+        return (
+            "python",
+            "python-small",
+            {
+                "schema_version": 1,
+                "entrypoint": _entrypoint(question),
+                "tests": _candidate_tests(question, public_only=public_only),
+            },
+        )
+    if runtime is SubmissionRuntime.postgresql:
+        return "sql", "sql-small", _sql_input_payload(question, public_only=public_only)
+    raise HTTPException(status_code=409, detail="Execution runtime is not supported.")
+
+
 def _queue_execution(
     connection: Connection,
     principal: AuthenticatedPrincipal,
@@ -283,30 +350,29 @@ def _queue_execution(
     execution_type: ExecutionType,
     session_id: UUID,
     question: dict[str, Any],
+    runtime: SubmissionRuntime,
     source_code: str,
     idempotency_key: str,
     submission_id: UUID | None,
 ) -> ExecutionAccepted:
     _enforce_backpressure(connection, execution_type=execution_type)
+    language, profile_name, input_payload = _runtime_execution_config(
+        question,
+        runtime,
+        public_only=execution_type is ExecutionType.run,
+    )
     queued = ExecutionRepository(connection).create_queued(
         execution_type=execution_type,
         practice_session_id=session_id,
         submission_id=submission_id,
         question_version_id=UUID(str(question["question_version_id"])),
-        runtime=PYTHON_RUNTIME,
-        language="python",
+        runtime=runtime.value,
+        language=language,
         source_code=source_code,
         idempotency_key=idempotency_key,
         trace_id=principal.correlation_id,
-        limits=_limits("python-small"),
-        input_payload={
-            "schema_version": 1,
-            "entrypoint": _entrypoint(question),
-            "tests": _candidate_tests(
-                question,
-                public_only=execution_type is ExecutionType.run,
-            ),
-        },
+        limits=_limits(profile_name),
+        input_payload=input_payload,
     )
     return ExecutionAccepted(
         execution_id=queued.execution_id,
@@ -394,7 +460,11 @@ def queue_run(
     execution_key = f"run:{idempotency_key}"
     try:
         with principal_transaction(engine, principal) as connection:
-            question = _session_question(connection, session_id=request.session_id, slug=slug)
+            question, runtime = _session_question(
+                connection,
+                session_id=request.session_id,
+                slug=slug,
+            )
             question_version_id = UUID(str(question["question_version_id"]))
             existing = _existing_execution(
                 connection,
@@ -403,6 +473,7 @@ def queue_run(
                     execution_type=ExecutionType.run,
                     session_id=request.session_id,
                     question_version_id=question_version_id,
+                    runtime=runtime,
                     source_code=request.source_code,
                 ),
             )
@@ -414,6 +485,7 @@ def queue_run(
                 execution_type=ExecutionType.run,
                 session_id=request.session_id,
                 question=question,
+                runtime=runtime,
                 source_code=request.source_code,
                 idempotency_key=execution_key,
                 submission_id=None,
@@ -435,7 +507,10 @@ def queue_run(
                 request.session_id,
                 PracticeSessionEventInput(
                     event_type="CODE_RUN_QUEUED",
-                    payload={"execution_id": str(accepted.execution_id)},
+                    payload={
+                        "execution_id": str(accepted.execution_id),
+                        "runtime": runtime.value,
+                    },
                 ),
             )
             return accepted
@@ -455,7 +530,16 @@ def queue_submit(
     execution_key = f"submit:{idempotency_key}"
     try:
         with principal_transaction(engine, principal) as connection:
-            question = _session_question(connection, session_id=request.session_id, slug=slug)
+            question, runtime = _session_question(
+                connection,
+                session_id=request.session_id,
+                slug=slug,
+            )
+            if request.runtime is not runtime:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Submission runtime must match practice runtime {runtime.value}.",
+                )
             question_version_id = UUID(str(question["question_version_id"]))
             existing = _existing_execution(
                 connection,
@@ -464,6 +548,7 @@ def queue_submit(
                     execution_type=ExecutionType.submit,
                     session_id=request.session_id,
                     question_version_id=question_version_id,
+                    runtime=runtime,
                     source_code=request.source_code,
                 ),
             )
@@ -493,7 +578,7 @@ def queue_submit(
                             "organization_id": principal.organization_id or "",
                             "session_id": request.session_id,
                             "question_version_id": question_version_id,
-                            "runtime": request.runtime.value,
+                            "runtime": runtime.value,
                             "source": request.source_code,
                             "idempotency_key": idempotency_key,
                         },
@@ -506,6 +591,7 @@ def queue_submit(
                 execution_type=ExecutionType.submit,
                 session_id=request.session_id,
                 question=question,
+                runtime=runtime,
                 source_code=request.source_code,
                 idempotency_key=execution_key,
                 submission_id=submission_id,
@@ -540,6 +626,7 @@ def queue_submit(
                     payload={
                         "execution_id": str(accepted.execution_id),
                         "submission_id": str(submission_id),
+                        "runtime": runtime.value,
                     },
                 ),
             )
@@ -577,6 +664,4 @@ def cancel_execution(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-# The actual FastAPI routes are mounted on the submissions router by
-# execution_legacy_block after the synchronous handlers have been removed.
 EXECUTION_ROUTES_REGISTERED = True
