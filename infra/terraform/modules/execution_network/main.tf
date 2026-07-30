@@ -143,8 +143,10 @@ locals {
     "ecr.dkr",
     "eks-auth",
     "logs",
+    "monitoring",
     "sqs",
     "sts",
+    "xray",
   ])
 }
 
