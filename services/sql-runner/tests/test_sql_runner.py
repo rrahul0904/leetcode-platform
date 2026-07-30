@@ -10,8 +10,8 @@ from types import ModuleType
 from uuid import UUID
 
 import psycopg
-import pytest
 from psycopg import sql
+import pytest
 
 RUNNER_PATH = Path(__file__).resolve().parents[1] / "runner.py"
 EXECUTION_ID = UUID("44444444-4444-4444-4444-444444444444")
