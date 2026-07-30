@@ -91,9 +91,9 @@ resource "aws_db_instance" "this" {
   parameter_group_name = aws_db_parameter_group.this.name
   multi_az             = var.multi_az
 
-  backup_retention_period = var.backup_retention_days
-  backup_window           = "05:00-06:00"
-  maintenance_window      = "sun:06:00-sun:07:00"
+  backup_retention_period    = var.backup_retention_days
+  backup_window              = "05:00-06:00"
+  maintenance_window         = "sun:06:00-sun:07:00"
   auto_minor_version_upgrade = true
   copy_tags_to_snapshot      = true
 
