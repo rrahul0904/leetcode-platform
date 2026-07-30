@@ -446,9 +446,9 @@ def test_cross_candidate_execution_is_hidden_by_app_role_rls(monkeypatch) -> Non
     )
 
     with TestClient(app) as client:
-        engine = cast(Engine, app.state.database_engine)
+        fixture_engine = cast(Engine, app.state.database_engine)
         provider = cast(LocalOIDCProvider, app.state.local_oidc_provider)
-        slug = _seed_published_python_question(engine)
+        slug = _seed_published_python_question(fixture_engine)
         token_a = provider.issue_test_access_token("rls-candidate-a", expires_in=900)
         token_b = provider.issue_test_access_token("rls-candidate-b", expires_in=900)
         auth_a = {"Authorization": f"Bearer {token_a}"}
@@ -473,80 +473,89 @@ def test_cross_candidate_execution_is_hidden_by_app_role_rls(monkeypatch) -> Non
         execution_id = submission.json()["execution_id"]
         submission_id = submission.json()["submission_id"]
 
-        forbidden_get = client.get(f"/api/v1/executions/{execution_id}", headers=auth_b)
-        forbidden_cancel = client.post(
-            f"/api/v1/executions/{execution_id}/cancel",
-            headers=auth_b,
+        with fixture_engine.begin() as admin:
+            admin.execute(
+                text(
+                    """
+                    INSERT INTO execution_public_results (
+                        execution_request_id, public_results, hidden_total,
+                        hidden_passed, stdout, stderr, candidate_message
+                    ) VALUES (
+                        :execution_id, '[]'::jsonb, 1, 0, '', '', 'private result'
+                    )
+                    ON CONFLICT (execution_request_id) DO NOTHING
+                    """
+                ),
+                {"execution_id": execution_id},
+            )
+
+        app_role_url = fixture_engine.url.set(
+            username="rigor_app",
+            password="rigor_app_local_only",
         )
-        assert forbidden_get.status_code == 404
-        assert forbidden_cancel.status_code == 404
-
-        admin_url = engine.url.set(username="rigor", password="rigor_local_only")
-        admin_engine = create_engine(admin_url)
-        try:
-            with admin_engine.begin() as admin:
-                admin.execute(
-                    text(
-                        """
-                        INSERT INTO execution_public_results (
-                            execution_request_id, public_results, hidden_total,
-                            hidden_passed, stdout, stderr, candidate_message
-                        ) VALUES (
-                            :execution_id, '[]'::jsonb, 1, 0, '', '', 'private result'
-                        )
-                        ON CONFLICT (execution_request_id) DO NOTHING
-                        """
-                    ),
-                    {"execution_id": execution_id},
-                )
-        finally:
-            admin_engine.dispose()
-
+        app_role_engine = create_engine(app_role_url, pool_pre_ping=True)
         principal_b = _principal(identity_b, "rls-direct-candidate-b")
-        with principal_transaction(engine, principal_b) as connection:
-            counts = {
-                "execution": connection.execute(
-                    text("SELECT count(*) FROM execution_requests WHERE id=:id"),
-                    {"id": execution_id},
-                ).scalar_one(),
-                "payload": connection.execute(
-                    text(
-                        "SELECT count(*) FROM execution_payloads "
-                        "WHERE execution_request_id=:id"
-                    ),
-                    {"id": execution_id},
-                ).scalar_one(),
-                "events": connection.execute(
-                    text(
-                        "SELECT count(*) FROM execution_events "
-                        "WHERE execution_request_id=:id"
-                    ),
-                    {"id": execution_id},
-                ).scalar_one(),
-                "outbox": connection.execute(
-                    text("SELECT count(*) FROM execution_outbox WHERE aggregate_id=:id"),
-                    {"id": execution_id},
-                ).scalar_one(),
-                "result": connection.execute(
-                    text(
-                        "SELECT count(*) FROM execution_public_results "
-                        "WHERE execution_request_id=:id"
-                    ),
-                    {"id": execution_id},
-                ).scalar_one(),
-                "submission": connection.execute(
-                    text("SELECT count(*) FROM submissions WHERE id=:id"),
-                    {"id": submission_id},
-                ).scalar_one(),
+        try:
+            app.state.database_engine = app_role_engine
+            forbidden_get = client.get(
+                f"/api/v1/executions/{execution_id}",
+                headers=auth_b,
+            )
+            forbidden_cancel = client.post(
+                f"/api/v1/executions/{execution_id}/cancel",
+                headers=auth_b,
+            )
+            assert forbidden_get.status_code == 404
+            assert forbidden_cancel.status_code == 404
+
+            with principal_transaction(app_role_engine, principal_b) as connection:
+                counts = {
+                    "execution": connection.execute(
+                        text("SELECT count(*) FROM execution_requests WHERE id=:id"),
+                        {"id": execution_id},
+                    ).scalar_one(),
+                    "payload": connection.execute(
+                        text(
+                            "SELECT count(*) FROM execution_payloads "
+                            "WHERE execution_request_id=:id"
+                        ),
+                        {"id": execution_id},
+                    ).scalar_one(),
+                    "events": connection.execute(
+                        text(
+                            "SELECT count(*) FROM execution_events "
+                            "WHERE execution_request_id=:id"
+                        ),
+                        {"id": execution_id},
+                    ).scalar_one(),
+                    "outbox": connection.execute(
+                        text("SELECT count(*) FROM execution_outbox WHERE aggregate_id=:id"),
+                        {"id": execution_id},
+                    ).scalar_one(),
+                    "result": connection.execute(
+                        text(
+                            "SELECT count(*) FROM execution_public_results "
+                            "WHERE execution_request_id=:id"
+                        ),
+                        {"id": execution_id},
+                    ).scalar_one(),
+                    "submission": connection.execute(
+                        text("SELECT count(*) FROM submissions WHERE id=:id"),
+                        {"id": submission_id},
+                    ).scalar_one(),
+                }
+            assert counts == {
+                "execution": 0,
+                "payload": 0,
+                "events": 0,
+                "outbox": 0,
+                "result": 0,
+                "submission": 0,
             }
-        assert counts == {
-            "execution": 0,
-            "payload": 0,
-            "events": 0,
-            "outbox": 0,
-            "result": 0,
-            "submission": 0,
-        }
+        finally:
+            app.state.database_engine = fixture_engine
+            app_role_engine.dispose()
+
         assert identity_a.subject_id != identity_b.subject_id
 
 
