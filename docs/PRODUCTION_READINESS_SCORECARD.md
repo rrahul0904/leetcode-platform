@@ -1,57 +1,83 @@
 # Rigor Platform Production Readiness Scorecard
 
-Updated: 2026-07-29
+Updated: 2026-07-30
 
-These percentages are engineering estimates, not deployment claims. Implementation measures source coverage of the target architecture. Validation measures executed evidence. Production readiness discounts source and CI work heavily until representative AWS/EKS/gVisor behavior is proven live.
+These percentages are engineering estimates, not deployment claims. Implementation measures source coverage of the target architecture. Validation measures executed evidence. Production readiness heavily discounts source and CI work until a representative AWS/EKS/gVisor environment proves the hostile execution boundary live.
 
-GitHub Actions run **234** (`30424496509`) passed the current execution-plane checkpoint across Python, Web, PostgreSQL migration cycle, and Terraform source validation.
+GitHub Actions run **333** (`30562217368`) passed the execution-plane code checkpoint across Python, SQL, Web, PostgreSQL migration cycle, execution image builds, and Terraform source validation. The Python job included **128 passed / 1 skipped** tests plus successful builds of the execution controller, Python runner, and SQL runner images.
 
 | Category | Implementation % | Validation % | Production-readiness % | Current evidence | Dominant blocker |
 | --- | ---: | ---: | ---: | --- | --- |
-| Product functionality | 78 | 60 | 42 | Web practice Run/Submit now use durable async execution contract; CI green | Staging execution and native client gap |
-| Web readiness | 88 | 72 | 52 | Async queue/poll/recovery/cancel integrated; lint/type/test/build green | Real browser E2E against staging execution plane |
-| Mobile readiness | 15 | 0 | 0 | Shared server execution contract is client-neutral | Expo/native workspace and physical-device execution flow not evidenced |
-| API readiness | 90 | 78 | 55 | Canonical async Run/Submit/Status/Cancel, idempotency, sanitized DTOs, HTTP integration tests | Staging and cross-candidate real app-role verification |
-| Data durability | 88 | 74 | 54 | PostgreSQL execution records, payload, events, outbox, leases, result tables, RLS; migration `0011` cycle green | Production RDS/PITR/restore and role provisioning |
-| Execution safety | 82 | 48 | 28 | no-token hardened Job source, server-owned limits, runner/result hardening, hidden-test separation | Live EKS/runsc and adversarial proof |
-| Execution reliability | 80 | 55 | 34 | outbox retry, SQS client, atomic claim, leases, attempt fencing, reconciliation controller | Real SQS/K8s failure injection and complete recovery matrix |
-| Security | 75 | 52 | 32 | candidate RLS, NOBYPASSRLS worker roles, bounded protocol, no source in queue, sandbox source controls | Live network/IAM isolation, image signing/scanning, hostile staging tests |
-| Infrastructure | 38 | 20 | 8 | SQS/KMS/DLQ Terraform validates; K8s controller/boundary source exists | No applied representative AWS execution environment |
-| Observability | 32 | 16 | 10 | execution/trace/attempt fields and structured controller logging | Metrics, tracing backend, dashboards and alerts |
-| Disaster recovery | 12 | 0 | 0 | durable architecture/reconciliation foundations | No RDS restore, queue recovery or RTO/RPO exercise |
-| Performance | 18 | 5 | 2 | bounded profiles/backpressure foundations | No controlled 10/50/100/500 benchmark or capacity data |
-| CI/CD | 82 | 78 | 48 | run 234 passed Python/Web/migration/Terraform jobs | Deploy/security/SBOM/signing stages absent |
-| SQL execution | 15 | 0 | 0 | schema/content concepts and sandbox profiles only | Disposable PostgreSQL execution pipeline not implemented |
-| Release readiness | 52 | 38 | 22 | Strong application baseline and CI-validated Python async execution source | No staging execution proof, SQL/mobile gaps |
+| Product functionality | 84 | 68 | 45 | Web practice supports durable async Python and PostgreSQL Run/Submit with status/recovery/cancel | Staging execution and native-client gap |
+| Web readiness | 90 | 75 | 52 | async queue/poll/recovery/cancel integrated; lint/type/tests/build green | Browser staging E2E against real execution plane |
+| Mobile readiness | 15 | 0 | 0 | server contract remains client-neutral | native Expo/iOS/Android execution workspace not evidenced |
+| API readiness | 94 | 86 | 60 | canonical Run/Submit/Status/Cancel, idempotency, runtime enforcement, sanitization and RLS integration tests | real staging API/RDS/SQS execution |
+| Data durability | 90 | 82 | 58 | execution aggregate/outbox/results/leases/RLS, migration cycle, retry fencing and DLQ state authority | production RDS/PITR and credential provisioning |
+| Execution safety | 92 | 70 | 38 | hardened Python+SQL runner contracts, no-token gVisor Job source, SQL disposable-DB design, hidden-answer separation, adversarial validator | live EKS/runsc and hostile isolation proof |
+| Execution reliability | 90 | 72 | 44 | outbox retry, SQS adapter, atomic claim, leases, attempt fencing, stale queue republish, missing-sandbox retry, retry cap, DLQ-safe replay | real SQS/K8s/controller crash injection |
+| Security | 88 | 70 | 42 | real `rigor_app` cross-candidate RLS proof, NOBYPASSRLS workers, bounded result protocols, SQL privilege tests, deny-all sandbox source | live CNI/IAM/network/filesystem isolation and supply-chain controls |
+| Infrastructure | 45 | 25 | 10 | SQS/KMS/DLQ Terraform validates; controller/boundary manifests and staging validators exist | representative VPC/RDS/EKS execution stack not provisioned |
+| Observability | 35 | 18 | 10 | trace/execution/attempt/state fields and structured controller logs | metric export, tracing backend, dashboards and alerts |
+| Disaster recovery | 20 | 12 | 5 | durable reconciliation and state-aware DLQ operator exist | no RDS restore, real queue recovery or RTO/RPO exercise |
+| Performance | 20 | 8 | 3 | bounded server profiles/backpressure and execution limits | no controlled concurrency/capacity benchmark |
+| CI/CD | 90 | 88 | 55 | run 333 passed Python/SQL/Web/migrations/Terraform and all execution image builds | image scanning/SBOM/signing and deployment promotion absent |
+| SQL execution | 88 | 72 | 38 | `postgresql18` API/runtime integration, disposable PostgreSQL runner, privilege/timeouts/result comparison and integration tests | real gVisor sidecar execution and network isolation proof |
+| Release readiness | 65 | 50 | 28 | strong CI-validated application/execution source for Python and SQL | no live staging execution proof; native/mobile and ops gaps remain |
 
 ## Overall engineering estimate
 
-- Overall implementation: **72%**
-- Overall validation: **45%**
-- Overall production readiness: **28%**
-- Production execution-plane implementation: **82%**
-- Production execution-plane validation: **48%**
+- Overall implementation: **80%**
+- Overall validation: **61%**
+- Overall production readiness: **35%**
+- Production execution-plane implementation: **93%**
+- Production execution-plane validation: **70%**
 - Staging deployment/validation: **0%**
+- Production verification: **0%**
 
 ## Interpretation
 
 ### Implementation
 
-The production-oriented Python execution vertical slice is now substantially wired in source: canonical `202` APIs, durable execution/outbox, SQS transport, trusted controller, Kubernetes sandbox adapter, bounded runner, trusted comparator, persistence, cancellation/reconciliation foundations, and async Web consumption. SQL and native mobile execution remain material source gaps.
+The execution service is now a shared durable runtime for Python and PostgreSQL: canonical `202` APIs, PostgreSQL/outbox state, SQS transport, controller/leases/reconciliation, Python runner, disposable SQL runner contract, trusted Python/SQL comparison, cancellation, DLQ operations, Kubernetes sandbox construction, async Web consumption, and fail-closed staging/adversarial validators are implemented in source.
+
+The largest remaining implementation gaps are not another candidate runner. They are the representative AWS staging stack, observability/export, queue-depth autoscaling/capacity, supply-chain promotion controls, and native mobile integration.
 
 ### Validation
 
-Validation increased materially because the branch now has an actual green GitHub Actions run. CI proves repository semantics and source integration, including HTTP/DB execution creation and migration/role correctness. It does **not** prove AWS SQS delivery, EKS scheduling, gVisor/runtime isolation, CNI/SG egress blocking, AWS credential isolation, or hostile workload containment.
+CI validation materially increased. The current suite proves:
+
+- Python and SQL API queueing through the same execution aggregate;
+- Python/SQL runtime mismatch rejection;
+- transactional payload/outbox creation and queue secrecy;
+- same-key idempotency and conflicting-key rejection;
+- cross-candidate isolation using the real `rigor_app` PostgreSQL role;
+- single-winner duplicate claim semantics;
+- expired missing-sandbox retry, old-attempt fencing and retry bounds;
+- Python runner and PostgreSQL 18 SQL runner behavior/security constraints;
+- ordered/unordered trusted SQL comparison and hidden-result redaction;
+- state-aware DLQ replay classification;
+- Kubernetes manifest security/image contracts;
+- successful controller/Python/SQL Docker image builds.
+
+CI does **not** prove real AWS SQS delivery, EKS scheduling, gVisor runtime isolation, CNI/security-group egress blocking, AWS credential isolation, disposable PostgreSQL behavior inside EKS, or hostile workload containment.
 
 ### Production readiness
 
-Production readiness remains intentionally lower. The next large increase should occur only after a real request crosses:
+Production readiness remains intentionally lower than source and CI validation. The next major increase requires a real request to cross:
 
 ```text
-Web/API → PostgreSQL/outbox → SQS → controller → EKS/runsc → Python runner
-→ trusted evaluator → PostgreSQL → polling client
+Web/API
+  -> PostgreSQL + transactional outbox
+  -> real AWS SQS
+  -> trusted controller
+  -> EKS dedicated untrusted node
+  -> verified runsc/gVisor
+  -> Python or disposable PostgreSQL runner
+  -> trusted evaluator
+  -> PostgreSQL
+  -> client polling
 ```
 
-and the same environment passes duplicate-delivery, crash/reconciliation, cancellation-race, network isolation, credential isolation, timeout, memory/process, and output-flood tests.
+The live environment must also pass the repository's staging/runsc and adversarial validators plus duplicate delivery, controller crash, lease expiry, node/Pod failure, cancellation race, and cleanup tests.
 
-A Terraform/Kubernetes source file remains **SOURCE IMPLEMENTED** or **CI VALIDATED SOURCE**, never **STAGING VALIDATED**, until deployed evidence exists.
+Terraform/Kubernetes source remains `CI VALIDATED SOURCE`, never `STAGING VALIDATED`, until that live evidence exists.
