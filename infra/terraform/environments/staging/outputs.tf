@@ -18,6 +18,11 @@ output "execution_staging_enabled" {
   description = "Whether the cost-bearing representative execution staging stack is enabled."
 }
 
+output "execution_registry_urls" {
+  value       = try(module.execution_registry[0].repository_urls, {})
+  description = "Immutable KMS-encrypted ECR repository URLs keyed by execution component."
+}
+
 output "execution_vpc_id" {
   value       = try(module.execution_network[0].vpc_id, null)
   description = "Private execution staging VPC ID when enabled."
