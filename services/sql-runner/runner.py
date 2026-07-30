@@ -4,7 +4,8 @@ import argparse
 import json
 import os
 import time
-from datetime import date, datetime, time as dt_time
+from datetime import date, datetime
+from datetime import time as dt_time
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
