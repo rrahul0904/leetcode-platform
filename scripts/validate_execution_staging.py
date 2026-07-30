@@ -61,6 +61,18 @@ def object_field(value: object, field: str) -> JsonObject:
     return cast(JsonObject, value)
 
 
+def string_list(value: object, field: str) -> list[str]:
+    if not isinstance(value, list):
+        raise ValidationError(f"Kubernetes field {field!r} is not a list.")
+    raw_items = cast(list[object], value)
+    result: list[str] = []
+    for item in raw_items:
+        if not isinstance(item, str):
+            raise ValidationError(f"Kubernetes field {field!r} contains a non-string value.")
+        result.append(item)
+    return result
+
+
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise ValidationError(message)
@@ -98,15 +110,9 @@ def validate_static_cluster_contract() -> None:
     spec = object_field(policy.get("spec"), "networkpolicy.spec")
     require(spec.get("ingress") == [], "Default deny policy has ingress exceptions.")
     require(spec.get("egress") == [], "Default deny policy has egress exceptions.")
-    policy_types = spec.get("policyTypes")
+    policy_types = string_list(spec.get("policyTypes"), "networkpolicy.spec.policyTypes")
     require(
-        isinstance(policy_types, list)
-        and all(isinstance(item, str) for item in policy_types),
-        "Default deny policyTypes must be strings.",
-    )
-    typed_policy_types = cast(list[str], policy_types)
-    require(
-        set(typed_policy_types) == {"Ingress", "Egress"},
+        set(policy_types) == {"Ingress", "Egress"},
         "Default deny policy must cover ingress and egress.",
     )
 
