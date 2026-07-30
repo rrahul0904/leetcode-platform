@@ -43,3 +43,7 @@ def test_controller_manifest_supplies_all_runtime_images_and_is_least_privileged
     assert "allowPrivilegeEscalation: false" in manifest
     assert "readOnlyRootFilesystem: true" in manifest
     assert "seccompProfile:" in manifest
+    assert "nodeSelector:" in manifest
+    assert "workload: trusted-execution-control" in manifest
+    assert "value: trusted-execution-control" in manifest
+    assert "effect: NoSchedule" in manifest
