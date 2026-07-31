@@ -8,9 +8,10 @@ import {
   Database,
   Route,
   Sparkles,
-  TerminalSquare,
+  SquareTerminal,
 } from "lucide-react";
 import Link from "next/link";
+import type { CSSProperties } from "react";
 
 import { ErrorState, LoadingState } from "@/components/page-ui";
 import { getPracticeSummary, getProfile, getPublishedQuestions } from "@/lib/api";
@@ -20,28 +21,32 @@ import { titleCaseSlug } from "@/lib/product-data";
 const tracks = [
   {
     title: "Coding systems",
-    description: "Python problem solving with isolated execution, deterministic tests, and durable progress.",
+    description:
+      "Python problem solving with isolated execution, deterministic tests, and durable progress.",
     href: "/question-bank?track=python",
     icon: Braces,
     signal: "PYTHON",
   },
   {
     title: "Data reasoning",
-    description: "SQL, modeling, warehousing, and data architecture practice in production-like environments.",
+    description:
+      "SQL, modeling, warehousing, and data architecture practice in production-like environments.",
     href: "/question-bank?track=sql",
     icon: Database,
     signal: "DATA",
   },
   {
     title: "Architecture",
-    description: "System design and AI architecture prompts for senior, staff, and principal interviews.",
+    description:
+      "System design and AI architecture prompts for senior, staff, and principal interviews.",
     href: "/learning-paths",
     icon: Route,
     signal: "SYSTEMS",
   },
   {
     title: "Interview simulation",
-    description: "Timed practice, structured rubrics, and readiness evidence across complete interview loops.",
+    description:
+      "Timed practice, structured rubrics, and readiness evidence across complete interview loops.",
     href: "/mock-interviews",
     icon: Sparkles,
     signal: "SIMULATION",
@@ -84,18 +89,28 @@ export function CinematicDashboard() {
       <section className="cinematic-hero" aria-labelledby="rigor-hero-title">
         <div className="cinematic-hero__glow" aria-hidden="true" />
         <div className="cinematic-hero__copy">
-          <span className="cinematic-kicker">THE TECHNICAL INTERVIEW SYSTEMS LAB</span>
+          <span className="cinematic-kicker">
+            THE TECHNICAL INTERVIEW SYSTEMS LAB
+          </span>
           <h1 id="rigor-hero-title">
             Practise with <em>rigor.</em>
           </h1>
           <p>
-            Build the judgement, speed, and architectural clarity required for elite engineering interviews—through evidence-backed practice, not question memorization.
+            Build the judgement, speed, and architectural clarity required for
+            elite engineering interviews—through evidence-backed practice, not
+            question memorization.
           </p>
           <div className="cinematic-actions">
-            <Link className="cinematic-button cinematic-button--primary" href="/question-bank">
+            <Link
+              className="cinematic-button cinematic-button--primary"
+              href="/question-bank"
+            >
               Enter the question bank <ArrowRight size={16} />
             </Link>
-            <Link className="cinematic-button cinematic-button--quiet" href="/learning-paths">
+            <Link
+              className="cinematic-button cinematic-button--quiet"
+              href="/learning-paths"
+            >
               Explore preparation paths
             </Link>
           </div>
@@ -116,23 +131,29 @@ export function CinematicDashboard() {
             <span className="orb-node orb-node--sql">SQL</span>
             <span className="orb-node orb-node--system">SYS</span>
             <span className="orb-node orb-node--ai">AI</span>
-            <TerminalSquare className="orb-core" size={34} />
+            <SquareTerminal className="orb-core" size={34} />
           </div>
           <div className="capability-orb__caption">
             <span>ACTIVE PREPARATION GRAPH</span>
-            <strong>{profile.data?.target_roles[0] ?? "Senior engineering"}</strong>
+            <strong>
+              {profile.data?.target_roles[0] ?? "Senior engineering"}
+            </strong>
           </div>
         </div>
       </section>
 
       {stats.isError && <ErrorState retry={() => void stats.refetch()} />}
-      {!stats.data && !stats.isError && <LoadingState label="Reading preparation evidence" />}
+      {!stats.data && !stats.isError && (
+        <LoadingState label="Reading preparation evidence" />
+      )}
 
       {stats.data && (
         <section className="cinematic-metrics" aria-label="Platform evidence">
           <article>
             <span>PUBLISHED</span>
-            <strong>{stats.data.published_hosted_questions.toLocaleString()}</strong>
+            <strong>
+              {stats.data.published_hosted_questions.toLocaleString()}
+            </strong>
             <small>hosted questions</small>
           </article>
           <article>
@@ -159,20 +180,32 @@ export function CinematicDashboard() {
             <span className="cinematic-kicker">CURRICULUM & PRACTICE</span>
             <h2>Train across the complete interview loop.</h2>
           </div>
-          <p>Each surface shares one visual language and one durable progress model.</p>
+          <p>
+            Each surface shares one visual language and one durable progress
+            model.
+          </p>
         </div>
         <div className="cinematic-track-grid">
-          {tracks.map(({ title, description, href, icon: Icon, signal }, index) => (
-            <Link className="cinematic-track" href={href} key={href} style={{ "--track-index": index } as React.CSSProperties}>
-              <div className="cinematic-track__top">
-                <span>{signal}</span>
-                <Icon size={20} />
-              </div>
-              <h3>{title}</h3>
-              <p>{description}</p>
-              <span className="cinematic-track__open">Open track <ArrowRight size={14} /></span>
-            </Link>
-          ))}
+          {tracks.map(
+            ({ title, description, href, icon: Icon, signal }, index) => (
+              <Link
+                className="cinematic-track"
+                href={href}
+                key={href}
+                style={{ "--track-index": index } as CSSProperties}
+              >
+                <div className="cinematic-track__top">
+                  <span>{signal}</span>
+                  <Icon size={20} />
+                </div>
+                <h3>{title}</h3>
+                <p>{description}</p>
+                <span className="cinematic-track__open">
+                  Open track <ArrowRight size={14} />
+                </span>
+              </Link>
+            ),
+          )}
         </div>
       </section>
 
@@ -181,7 +214,8 @@ export function CinematicDashboard() {
           <span className="cinematic-kicker">YOUR NEXT SESSION</span>
           <h2>Continue with context, not from scratch.</h2>
           <p>
-            Drafts, active executions, elapsed time, and evaluation evidence survive navigation and reconnects.
+            Drafts, active executions, elapsed time, and evaluation evidence
+            survive navigation and reconnects.
           </p>
           <Link className="cinematic-text-link" href="/question-bank">
             Choose a problem <ArrowRight size={15} />
@@ -193,19 +227,26 @@ export function CinematicDashboard() {
             <Link href="/question-bank">View all</Link>
           </div>
           {questions.data?.items.map((question, index) => (
-            <Link href={`/question-bank/${question.slug}`} key={question.slug}>
+            <Link
+              href={`/question-bank/${question.slug}`}
+              key={question.slug}
+            >
               <span className="cinematic-recent__number">0{index + 1}</span>
               <div>
                 <strong>{question.title}</strong>
                 <small>
-                  {titleCaseSlug(question.track)} · {question.difficulty} · {question.estimated_duration_minutes} min
+                  {titleCaseSlug(question.track)} · {question.difficulty} ·{" "}
+                  {question.estimated_duration_minutes} min
                 </small>
               </div>
               <ArrowRight size={15} />
             </Link>
           ))}
           {questions.data?.items.length === 0 && (
-            <div className="cinematic-empty"><BookOpen size={20} /><span>No published questions yet.</span></div>
+            <div className="cinematic-empty">
+              <BookOpen size={20} />
+              <span>No published questions yet.</span>
+            </div>
           )}
         </div>
       </section>
