@@ -7,6 +7,7 @@ import { AuthProvider } from "@/lib/auth";
 
 import "./globals.css";
 import "./cinematic.css";
+import "./cinematic-catalog.css";
 
 export const metadata: Metadata = {
   title: "Rigor — Interview Systems Lab",
