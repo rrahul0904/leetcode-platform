@@ -28,7 +28,10 @@ LABEL org.opencontainers.image.title="Rigor Execution Controller" \
       org.opencontainers.image.description="Trusted SQS to gVisor execution controller" \
       org.opencontainers.image.version="0.1.0-local"
 
-RUN groupadd --gid 10001 rigor \
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 rigor \
     && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin rigor
 
 WORKDIR /app
