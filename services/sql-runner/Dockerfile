@@ -9,6 +9,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HOME=/workspace \
     TMPDIR=/workspace/tmp
 
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /opt/rigor
 RUN pip install --no-cache-dir "psycopg[binary]==3.3.4"
 COPY services/sql-runner/runner.py /opt/rigor/runner.py
