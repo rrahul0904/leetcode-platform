@@ -9,6 +9,7 @@ import "./globals.css";
 import "./cinematic.css";
 import "./cinematic-catalog.css";
 import "./cinematic-support.css";
+import "./cinematic-workflows.css";
 
 export const metadata: Metadata = {
   title: "Rigor — Interview Systems Lab",
