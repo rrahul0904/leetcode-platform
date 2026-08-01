@@ -1,4 +1,4 @@
-import { KnowledgeProblemWorkspace } from "@/components/knowledge-problem-workspace";
+import { PersistentKnowledgeProblemWorkspace } from "@/components/persistent-knowledge-problem-workspace";
 
 export default async function KnowledgeProblemPage({
   params,
@@ -6,5 +6,5 @@ export default async function KnowledgeProblemPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  return <KnowledgeProblemWorkspace slug={slug} />;
+  return <PersistentKnowledgeProblemWorkspace slug={slug} />;
 }
