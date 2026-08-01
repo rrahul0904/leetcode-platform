@@ -1,0 +1,70 @@
+name: One-time Phase 0-6 formatting
+
+on:
+  push:
+    branches:
+      - agent/question-bank-phases-0-6
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/question-bank-phases-0-6
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install Python workspace
+        run: uv sync --frozen --all-packages
+
+      - name: Format Python implementation
+        run: |
+          uv run ruff format \
+            apps/api/src/rigor_api/knowledge_ingestion.py \
+            apps/api/src/rigor_api/knowledge_progress_routes.py \
+            apps/api/src/rigor_api/knowledge_routes.py \
+            apps/api/src/rigor_api/knowledge_store.py \
+            apps/api/tests/test_execution_contract_regressions.py \
+            apps/api/tests/test_knowledge_ingestion.py \
+            apps/api/tests/test_knowledge_progress.py \
+            scripts/knowledge_bank.py \
+            services/python-runner/runner.py \
+            services/sql-runner/runner.py
+          uv run ruff check --fix \
+            apps/api/src/rigor_api/knowledge_ingestion.py \
+            apps/api/src/rigor_api/knowledge_progress_routes.py \
+            apps/api/src/rigor_api/knowledge_routes.py \
+            apps/api/src/rigor_api/knowledge_store.py \
+            apps/api/tests/test_execution_contract_regressions.py \
+            apps/api/tests/test_knowledge_ingestion.py \
+            apps/api/tests/test_knowledge_progress.py \
+            scripts/knowledge_bank.py \
+            services/python-runner/runner.py \
+            services/sql-runner/runner.py || true
+
+      - name: Remove one-time workflow
+        run: rm .github/workflows/one-time-phase6-format.yml
+
+      - name: Commit formatting
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Format final question-bank implementation"
+          git push origin HEAD:agent/question-bank-phases-0-6
