@@ -419,3 +419,90 @@
   .session-board,
   .mock-config { min-height: auto; }
 }
+.workspace-entry-page {
+  min-height: calc(100vh - 68px);
+}
+
+.workspace-entry-card {
+  position: relative;
+  min-height: 430px;
+  padding: clamp(28px, 5vw, 64px);
+  border: 1px solid var(--rigor-line);
+  color: var(--rigor-ink);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 82% 24%, rgba(140, 125, 255, 0.16), transparent 28%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.025), transparent 42%),
+    var(--rigor-panel);
+  box-shadow: var(--rigor-shadow);
+}
+
+.workspace-entry-card::after {
+  position: absolute;
+  right: -6%;
+  bottom: -45%;
+  width: min(480px, 55vw);
+  aspect-ratio: 1;
+  border: 1px solid var(--rigor-line);
+  border-radius: 50%;
+  content: "";
+  background: repeating-radial-gradient(
+    circle,
+    transparent 0 28px,
+    rgba(184, 173, 255, 0.055) 29px 30px
+  );
+}
+
+.workspace-entry-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.workspace-entry-card > div {
+  color: var(--rigor-indigo-bright);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  font-family: var(--rigor-mono);
+  font-size: 8px;
+  letter-spacing: 0.14em;
+}
+
+.workspace-entry-card > small {
+  margin-top: clamp(64px, 10vw, 120px);
+  color: var(--rigor-mint);
+  display: block;
+  font-family: var(--rigor-mono);
+  font-size: 8px;
+  letter-spacing: 0.09em;
+}
+
+.workspace-entry-card h2 {
+  max-width: 780px;
+  margin: 16px 0 14px;
+  font-family: var(--rigor-serif);
+  font-size: clamp(38px, 5vw, 70px);
+  font-weight: 500;
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+}
+
+.workspace-entry-card p {
+  max-width: 660px;
+  margin: 0 0 28px;
+  color: var(--rigor-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+@media (max-width: 720px) {
+  .workspace-entry-card {
+    min-height: 390px;
+  }
+
+  .workspace-entry-card::after {
+    right: -32%;
+    opacity: 0.6;
+  }
+}

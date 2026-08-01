@@ -147,6 +147,10 @@ body::before {
   opacity: 0.72;
 }
 
+.app-shell--candidate .nav-item svg {
+  display: none;
+}
+
 .nav-item:hover,
 .nav-item--active {
   color: var(--rigor-ink) !important;

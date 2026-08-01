@@ -54,9 +54,9 @@ export function Progress() {
   return (
     <div className="page-content">
       <PageHeader
-        eyebrow="PROGRESS & READINESS"
-        title="Your evidence, translated into the next useful move."
-        description="Scores come from persisted submissions and versioned deterministic evaluation. Confidence stays separate, so sparse evidence is never presented as certainty."
+        eyebrow="READINESS EVIDENCE"
+        title="Progress without false certainty."
+        description="Your score reflects persisted submissions, rubric evidence, recency, and consistency. Confidence stays separate, so sparse evidence is never presented as certainty."
       />
       {!hasEvidence && (
         <EvidenceNote tone="warning">

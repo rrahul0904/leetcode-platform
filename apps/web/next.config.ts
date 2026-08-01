@@ -1,5 +1,9 @@
 import type { NextConfig } from "next";
 
+const apiUrl = process.env.NEXT_PUBLIC_RIGOR_API_URL ?? "http://localhost:8002";
+const apiOrigin = new URL(apiUrl).origin;
+const websocketOrigin = apiOrigin.replace(/^http/, "ws");
+
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -9,7 +13,7 @@ const contentSecurityPolicy = [
   "font-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-  "connect-src 'self' http://localhost:8002 ws://localhost:8002",
+  `connect-src 'self' ${apiOrigin} ${websocketOrigin}`,
   "object-src 'none'",
 ].join("; ");
 

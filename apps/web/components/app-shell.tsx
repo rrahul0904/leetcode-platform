@@ -10,7 +10,6 @@ import {
   Menu,
   Radar,
   Route,
-  Sparkles,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -22,10 +21,9 @@ import { useAuth } from "@/lib/auth";
 const workspaceNav = [
   ["Home", "/", LayoutDashboard],
   ["Question bank", "/question-bank", BookOpen],
-  ["External practice", "/external-practice", Link2],
+  ["Workspace", "/workspace", FileCheck2],
   ["Learning paths", "/learning-paths", Route],
-  ["Mock interviews", "/mock-interviews", Sparkles],
-  ["Progress", "/progress", CircleGauge],
+  ["Readiness", "/progress", CircleGauge],
 ] as const;
 
 const administratorNav = [
@@ -49,6 +47,7 @@ const reviewerNav = [
 ] as const;
 
 function isActive(pathname: string, href: string) {
+  if (href === "/workspace" && pathname.startsWith("/practice/")) return true;
   return href === "/"
     ? pathname === "/"
     : pathname === href || pathname.startsWith(`${href}/`);
@@ -78,6 +77,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       : isReviewer
         ? reviewerNav
         : workspaceNav;
+  const isCandidateWorkspace = !isAdministrator && !isAuthor && !isReviewer;
   const currentLabel = labelFor(pathname, navigation);
   const initials =
     principal?.display_name
@@ -108,7 +108,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     });
 
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell ${isCandidateWorkspace ? "app-shell--candidate" : "app-shell--management"}`}
+    >
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
@@ -218,10 +220,19 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
         {children}
         <footer className="site-footer">
-          <span>
-            Independent preparation platform. No employer affiliation.
-          </span>
-          <span>Content states and readiness claims are evidence-gated.</span>
+          {isCandidateWorkspace ? (
+            <>
+              <span>RIGOR PLATFORM · INTERACTIVE PRACTICE</span>
+              <span>API-BACKED CONTENT · ISOLATED EXECUTION</span>
+            </>
+          ) : (
+            <>
+              <span>
+                Independent preparation platform. No employer affiliation.
+              </span>
+              <span>Content states and readiness claims are evidence-gated.</span>
+            </>
+          )}
         </footer>
       </main>
     </div>

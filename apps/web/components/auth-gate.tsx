@@ -22,6 +22,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     "/",
     "/question-bank",
     "/practice",
+    "/workspace",
     "/learning-paths",
     "/mock-interviews",
     "/progress",
