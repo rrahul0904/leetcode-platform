@@ -1,56 +1,80 @@
 {
   "question_id": "SQL-0001",
-  "question_version": "1.0.0",
-  "reference_solution": "Use the query in reference.sql: SELECT u.cohort_week, COUNT(*) AS users, SUM(CASE WHEN EXISTS (SELECT 1 FROM activity a WHERE a.user_id=u.user_id AND a.activity_week=u.cohort_week+1) THEN 1 ELSE 0 END) AS retained_week_one FROM users u GROUP BY u.cohort_week ORDER BY u.cohort_week;",
-  "explanation": "The reference separates validation from the core SQL behavior, makes tie-breaking explicit, and verifies the result against the stated invariants.",
+  "question_version": "1.1.0",
+  "reference_solution": "WITH eligible_users AS (SELECT user_id, cohort_week FROM users WHERE is_test = FALSE), deduplicated_activity AS (SELECT DISTINCT source_event_id, user_id, activity_week, event_name FROM activity), retained_users AS (SELECT DISTINCT u.user_id, u.cohort_week FROM eligible_users AS u JOIN deduplicated_activity AS a ON a.user_id = u.user_id AND a.activity_week = u.cohort_week + 1 AND a.event_name = 'session_started') SELECT u.cohort_week, COUNT(*) AS users, COUNT(r.user_id) AS retained_week_one FROM eligible_users AS u LEFT JOIN retained_users AS r ON r.user_id = u.user_id AND r.cohort_week = u.cohort_week GROUP BY u.cohort_week ORDER BY u.cohort_week;",
+  "explanation": "The solution establishes the denominator first by filtering out test accounts. It then removes repeated source deliveries using source_event_id before evaluating retention. A second DISTINCT reduces qualifying activity to one retained row per user and cohort, so multiple legitimate sessions still count once. The final LEFT JOIN preserves cohorts with no qualifying week-one activity, and COUNT(r.user_id) returns zero for those cohorts. The explicit activity_week = cohort_week + 1 condition prevents later activity from being counted as week-one retention.",
   "alternatives": [
     {
-      "name": "Simpler centralized implementation",
-      "solution": "Use one authoritative coordinator or query before introducing partitioning.",
+      "name": "Conditional distinct aggregation",
+      "solution": "Join eligible users to deduplicated qualifying activity and use COUNT(DISTINCT CASE WHEN activity_week = cohort_week + 1 THEN user_id END).",
       "advantages": [
-        "lower operational complexity",
-        "easier correctness testing"
+        "compact query",
+        "can be convenient for adding several retention windows"
       ],
       "disadvantages": [
-        "limited scale ceiling",
-        "larger failure domain"
+        "easier to obscure row multiplication",
+        "harder to audit when more dimensions and event filters are added"
+      ]
+    },
+    {
+      "name": "Incremental retained-user fact table",
+      "solution": "Materialize one row per user, cohort, and retained week offset after source-event deduplication, then aggregate the fact table for reporting.",
+      "advantages": [
+        "avoids rescanning the full event stream",
+        "supports repeated cohort reporting and retention matrices"
+      ],
+      "disadvantages": [
+        "requires late-event reconciliation and backfill ownership",
+        "adds another governed data product"
       ]
     }
   ],
   "trade_off_analysis": [
-    "Correctness and explainability are preferred over premature optimization.",
-    "The production extension adds observability and recovery before higher throughput."
+    "The staged CTE form prioritizes correctness and auditability over minimizing query text.",
+    "COUNT(DISTINCT user_id) can protect the final count, but source-event deduplication remains valuable for data-quality observability and future metrics that are event-based.",
+    "At large scale, activity should be partitioned by reporting date or week and clustered or indexed on the retained-window join keys; repeatedly scanning all historical activity is not acceptable.",
+    "Late events require a bounded cohort-recomputation window or an incremental correction process rather than assuming published cohorts never change."
   ],
   "complexity": {
-    "expected_time": "Input dependent; the reference avoids unnecessary full Cartesian comparisons.",
-    "expected_space": "Linear in retained working state.",
-    "explanation": "Candidates should make bounds precise for their implementation."
+    "expected_time": "O(U + A_q) logical work for eligible users U and qualifying activity rows A_q after partition pruning; physical cost depends on indexes, partitions, and deduplication strategy.",
+    "expected_space": "O(D + R) working state for deduplicated source events D and retained users R, subject to PostgreSQL hash/sort spill behavior.",
+    "explanation": "A production plan should prune activity to the relevant week range, avoid a global historical DISTINCT, and monitor sort/hash spills and cardinality estimates."
   },
   "testing_and_debugging": [
-    "Verify the public example, boundary inputs, invalid input, and the named failure scenario.",
-    "Assert deterministic output across repeated runs."
+    "Start with a cohort that has no activity and verify it remains with retained_week_one = 0.",
+    "Replay one source_event_id several times and verify the retained count does not change.",
+    "Give one user several distinct week-one sessions and verify that user still counts once.",
+    "Add page views, test users, and sessions from weeks zero and two to verify exclusion rules.",
+    "Use EXPLAIN (ANALYZE, BUFFERS) on production-shaped data to confirm partition pruning and detect spills or row-estimate errors."
   ],
   "production_follow_ups": [
-    "Add SLO-backed monitoring and traceable decisions.",
-    "Exercise recovery with controlled fault injection."
+    "Add a uniqueness or replay-monitoring control for source_event_id at the ingestion or curated-event layer.",
+    "Partition activity by event/reporting date and index or cluster on activity_week, event_name, and user_id according to observed selectivity.",
+    "Materialize retained-user facts incrementally and recompute a bounded late-arrival window.",
+    "Publish denominator, numerator, late-arrival adjustment, duplicate-rate, and freshness checks alongside the metric."
   ],
   "critical_omissions": [
-    "Missing invariant validation.",
-    "No failure or recovery analysis.",
-    "Nondeterministic results."
+    "Dropping cohorts with no retained users through an inner join.",
+    "Counting activity rows instead of distinct retained users.",
+    "Including test accounts, wrong event types, or activity outside the exact following week.",
+    "Assuming at-least-once source delivery cannot replay events.",
+    "Claiming production scalability without a partition, index, incremental-computation, and late-arrival plan."
   ],
-  "strong_response_example": "I will state the invariant, validate inputs before side effects, use an explicit ordering rule, and prove correctness with boundary and failure cases before discussing scale.",
+  "strong_response_example": "I will first define the eligible cohort denominator, then deduplicate source events, reduce qualifying week-one sessions to one row per user, and left join that retained-user set back to the cohort population. This preserves zero-retention cohorts and prevents both replayed events and multiple sessions from inflating the numerator. For production scale I would prune by reporting week, inspect the execution plan, materialize retained-user facts incrementally, and recompute a bounded late-arrival window while monitoring replay rate and metric freshness.",
   "interviewer_follow_up_tree": {
     "correct_base": [
-      "Increase scale by ten times",
-      "Inject a dependency failure"
+      "Add retention-rate output with safe decimal division",
+      "Extend the result to week offsets zero through eight",
+      "Design the incremental materialization and late-event correction workflow"
     ],
     "misses_validation": [
-      "Provide malformed input"
+      "Replay one source_event_id and add a test account with a qualifying session",
+      "Add a cohort with no activity"
     ],
     "misses_recovery": [
-      "Remove the primary dependency"
+      "Backfill seven days of delayed activity after the weekly report was published",
+      "Handle a producer replay that duplicates one day of source events"
     ]
   },
-  "source_content_hash": "sha256:b9af78d692897daebf13f43aebe232bd817ff6eade259e2c3c29e4db4c8547cf"
+  "source_content_hash": "sha256:69e46b072abde4fbb93c88baec36b84c6462ff02d40bd8f1fafb19d242befffd"
 }
