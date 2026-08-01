@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import shutil
 import zipfile
 from pathlib import Path
 
@@ -24,8 +25,9 @@ def _write_zip(path: Path, members: dict[str, str]) -> None:
 
 def test_inventory_detects_exact_duplicate_archives(tmp_path: Path) -> None:
     members = {"repo/1. Two Sum/README.md": "# Two Sum\n"}
-    _write_zip(tmp_path / "first.zip", members)
-    _write_zip(tmp_path / "second.zip", members)
+    first = tmp_path / "first.zip"
+    _write_zip(first, members)
+    shutil.copyfile(first, tmp_path / "second.zip")
 
     records = inventory_archives(tmp_path)
 
@@ -43,7 +45,9 @@ def test_archive_rejects_path_traversal(tmp_path: Path) -> None:
         inspect_archive(archive)
 
 
-def test_problem_folder_parser_collects_python_and_javascript(tmp_path: Path) -> None:
+def test_problem_folder_parser_collects_python_and_javascript(
+    tmp_path: Path,
+) -> None:
     problem = tmp_path / "Algorithms" / "src" / "1. Two Sum"
     (problem / "Explanation").mkdir(parents=True)
     (problem / "Code").mkdir()
@@ -128,18 +132,29 @@ def test_company_csv_parser_supports_uploaded_formats(tmp_path: Path) -> None:
     assert item.frequency == 87.4
 
 
-def test_merge_preserves_unique_solutions_and_one_problem(tmp_path: Path) -> None:
+def test_merge_preserves_unique_solutions_and_one_problem(
+    tmp_path: Path,
+) -> None:
     first = tmp_path / "first" / "1. Two Sum"
     second = tmp_path / "second" / "1. Two Sum"
     first.mkdir(parents=True)
     second.mkdir(parents=True)
-    (first / "README.md").write_text("# Two Sum\nShort description.\n", encoding="utf-8")
-    (first / "solution.py").write_text("def solve(value): return value\n", encoding="utf-8")
+    (first / "README.md").write_text(
+        "# Two Sum\nShort description.\n",
+        encoding="utf-8",
+    )
+    (first / "solution.py").write_text(
+        "def solve(value): return value\n",
+        encoding="utf-8",
+    )
     (second / "README.md").write_text(
         "# Two Sum\nA much more complete description with examples and constraints.\n",
         encoding="utf-8",
     )
-    (second / "solution.js").write_text("function solve(value) { return value; }\n", encoding="utf-8")
+    (second / "solution.js").write_text(
+        "function solve(value) { return value; }\n",
+        encoding="utf-8",
+    )
 
     first_bundle = parse_repository(
         tmp_path / "first",
@@ -156,4 +171,7 @@ def test_merge_preserves_unique_solutions_and_one_problem(tmp_path: Path) -> Non
 
     assert len(merged.problems) == 1
     assert "much more complete" in (merged.problems[0].description or "")
-    assert {item.language for item in merged.solutions} == {"python", "javascript"}
+    assert {item.language for item in merged.solutions} == {
+        "python",
+        "javascript",
+    }
