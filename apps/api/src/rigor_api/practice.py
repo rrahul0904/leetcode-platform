@@ -141,10 +141,9 @@ class PracticeSessionRepository:
     ) -> PracticeSessionView:
         question = published_question_payload(self._connection, request.question_slug)
         required_runtime = question_runtime(question)
-        if request.runtime is not required_runtime:
-            raise PracticeStateTransitionError(
-                f"Question requires {required_runtime.value}; received {request.runtime.value}."
-            )
+        # The published question is the runtime authority. Older Web clients
+        # sent the default Python enum even for SQL questions; treating that
+        # client hint as authoritative made every SQL workspace fail to open.
         draft_source = starter_source(question, required_runtime)
         existing = self._connection.execute(
             text(
@@ -167,7 +166,7 @@ class PracticeSessionRepository:
             ),
             {
                 "question_version_id": question["question_version_id"],
-                "runtime": request.runtime.value,
+                "runtime": required_runtime.value,
             },
         ).scalar_one_or_none()
         if existing is not None:
@@ -196,7 +195,7 @@ class PracticeSessionRepository:
             {
                 "organization_id": principal.organization_id or "",
                 "question_version_id": question["question_version_id"],
-                "runtime": request.runtime.value,
+                "runtime": required_runtime.value,
                 "draft_code": draft_source,
             },
         ).scalar_one()
