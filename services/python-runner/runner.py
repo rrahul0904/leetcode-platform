@@ -11,7 +11,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 MAX_SOURCE_BYTES = 100_000
@@ -359,7 +359,7 @@ def run_request(
     source_code = str(request["source_code"])
     entrypoint = str(request["entrypoint"])
     invocation_mode = str(request["invocation_mode"])
-    tests = list(request["tests"])
+    tests = cast(list[dict[str, object]], request["tests"])
     deadline = started + timeout_seconds
 
     results: list[dict[str, object]] = []
