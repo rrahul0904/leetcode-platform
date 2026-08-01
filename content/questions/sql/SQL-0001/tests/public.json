@@ -1,23 +1,28 @@
 [
   {
     "id": "SQL-0001-P01",
-    "name": "visible synthetic dataset",
+    "name": "deduplicates week-one sessions and preserves zero-retention cohorts",
     "visibility": "public",
     "input": {
-      "ddl": "CREATE TABLE users(user_id INTEGER PRIMARY KEY, cohort_week INTEGER NOT NULL); CREATE TABLE activity(user_id INTEGER NOT NULL, activity_week INTEGER NOT NULL);",
-      "seed": "INSERT INTO users VALUES (1,10),(2,10),(3,11); INSERT INTO activity VALUES (1,11),(1,12),(3,12);"
+      "ddl": "CREATE TABLE users(user_id INTEGER PRIMARY KEY, cohort_week INTEGER NOT NULL, is_test BOOLEAN NOT NULL); CREATE TABLE activity(source_event_id TEXT NOT NULL, user_id INTEGER NOT NULL, activity_week INTEGER NOT NULL, event_name TEXT NOT NULL);",
+      "seed": "INSERT INTO users VALUES (1,10,FALSE),(2,10,FALSE),(3,11,FALSE),(4,10,TRUE),(5,11,FALSE),(6,12,FALSE); INSERT INTO activity VALUES ('e1',1,11,'session_started'),('e1',1,11,'session_started'),('e2',1,11,'session_started'),('e3',2,12,'session_started'),('e4',3,12,'session_started'),('e5',5,12,'page_view'),('e6',4,11,'session_started');"
     },
     "expected_output": [
-      {
-        "cohort_week": 10,
-        "users": 2,
-        "retained_week_one": 1
-      },
-      {
-        "cohort_week": 11,
-        "users": 1,
-        "retained_week_one": 1
-      }
+      {"cohort_week": 10, "users": 2, "retained_week_one": 1},
+      {"cohort_week": 11, "users": 2, "retained_week_one": 1},
+      {"cohort_week": 12, "users": 1, "retained_week_one": 0}
+    ]
+  },
+  {
+    "id": "SQL-0001-P02",
+    "name": "counts each retained user once despite multiple legitimate sessions",
+    "visibility": "public",
+    "input": {
+      "ddl": "CREATE TABLE users(user_id INTEGER PRIMARY KEY, cohort_week INTEGER NOT NULL, is_test BOOLEAN NOT NULL); CREATE TABLE activity(source_event_id TEXT NOT NULL, user_id INTEGER NOT NULL, activity_week INTEGER NOT NULL, event_name TEXT NOT NULL);",
+      "seed": "INSERT INTO users VALUES (10,20,FALSE),(11,20,FALSE); INSERT INTO activity VALUES ('a',10,21,'session_started'),('b',10,21,'session_started'),('c',11,21,'session_started');"
+    },
+    "expected_output": [
+      {"cohort_week": 20, "users": 2, "retained_week_one": 2}
     ]
   }
 ]
