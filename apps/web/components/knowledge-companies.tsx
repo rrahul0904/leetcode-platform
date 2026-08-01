@@ -13,10 +13,7 @@ export function KnowledgeCompanies() {
     queryKey: ["knowledge-companies"],
     queryFn: ({ signal }) => getKnowledgeCompanies(signal),
   });
-  const filtered = (companies.data ?? []).filter((company) =>
-    company.name.casefold ? company.name : company.name,
-  );
-  const visible = filtered.filter((company) =>
+  const visible = (companies.data ?? []).filter((company) =>
     company.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
   );
 
