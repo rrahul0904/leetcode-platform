@@ -217,21 +217,27 @@ jobs:
           RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
         run: uv run alembic upgrade head
 
-      - name: Verify execution schema and worker roles
+      - name: Verify execution and knowledge schemas
         run: |
-          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260729_0011"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260801_0014"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_outbox') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_payloads') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_public_results') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.knowledge_problems') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.knowledge_solutions') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.knowledge_company_observations') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.knowledge_candidate_problem_state') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='knowledge_candidate_problem_state'::regclass")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='knowledge_activity_events'::regclass")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT NOT rolbypassrls FROM pg_roles WHERE rolname='rigor_execution_worker'")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT NOT rolbypassrls FROM pg_roles WHERE rolname='rigor_execution_reconciler'")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT NOT rolbypassrls FROM pg_roles WHERE rolname='rigor_executor'")" = "t"
 
-      - name: Downgrade and re-upgrade worker security migration
+      - name: Downgrade and re-upgrade knowledge hardening migration
         env:
           RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
         run: |
-          uv run alembic downgrade 20260729_0010
+          uv run alembic downgrade 20260801_0013
           uv run alembic upgrade head
 
       - name: Show PostgreSQL logs on failure
