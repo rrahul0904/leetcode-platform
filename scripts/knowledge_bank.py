@@ -6,7 +6,10 @@ import json
 import shutil
 from dataclasses import asdict
 from pathlib import Path
+from typing import cast
 
+from rigor_api.config import get_settings
+from rigor_api.database import create_database_engine
 from rigor_api.knowledge_ingestion import (
     SourceDisposition,
     extract_archive,
@@ -15,6 +18,7 @@ from rigor_api.knowledge_ingestion import (
     parse_repository,
     write_json,
 )
+from rigor_api.knowledge_store import import_knowledge_file
 
 
 def disposition(value: str) -> SourceDisposition:
@@ -23,6 +27,21 @@ def disposition(value: str) -> SourceDisposition:
     except ValueError as exc:
         choices = ", ".join(item.value for item in SourceDisposition)
         raise argparse.ArgumentTypeError(f"Disposition must be one of: {choices}") from exc
+
+
+def _disposition_map(path: Path | None) -> dict[str, SourceDisposition]:
+    if path is None:
+        return {}
+    try:
+        value: object = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Disposition map is unavailable or invalid: {path}") from exc
+    if not isinstance(value, dict):
+        raise ValueError("Disposition map must be a JSON object")
+    return {
+        str(name): disposition(str(raw_disposition))
+        for name, raw_disposition in cast(dict[object, object], value).items()
+    }
 
 
 def inventory_command(args: argparse.Namespace) -> int:
@@ -64,6 +83,7 @@ def corpus_command(args: argparse.Namespace) -> int:
     extracted.mkdir(parents=True, exist_ok=True)
     reports.mkdir(parents=True, exist_ok=True)
 
+    dispositions = _disposition_map(args.disposition_map)
     inventories = inventory_archives(args.archives)
     write_json(reports / "archive-inventory.json", [asdict(item) for item in inventories])
 
@@ -78,7 +98,7 @@ def corpus_command(args: argparse.Namespace) -> int:
         extract_archive(archive_path, target)
         roots = [item for item in target.iterdir() if item.is_dir()]
         repository_root = roots[0] if len(roots) == 1 else target
-        source_disposition = args.disposition
+        source_disposition = dispositions.get(archive.archive_name, args.disposition)
         bundle = parse_repository(
             repository_root,
             source_name=archive.archive_name.removesuffix(".zip"),
@@ -93,9 +113,21 @@ def corpus_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def import_command(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    database_url = args.database_url or settings.operational_database_url or settings.database_url
+    engine = create_database_engine(settings, database_url)
+    try:
+        result = import_knowledge_file(engine, args.corpus, dry_run=args.dry_run)
+    finally:
+        engine.dispose()
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(
-        description="Build Rigor knowledge-bank staging records from offline source archives."
+        description="Build and import Rigor knowledge-bank records from offline source archives."
     )
     commands = root.add_subparsers(dest="command", required=True)
 
@@ -133,7 +165,21 @@ def parser() -> argparse.ArgumentParser:
         type=disposition,
         default=SourceDisposition.RIGHTS_REVIEW_REQUIRED,
     )
+    corpus.add_argument(
+        "--disposition-map",
+        type=Path,
+        help="JSON object mapping archive filename to a source disposition.",
+    )
     corpus.set_defaults(handler=corpus_command)
+
+    import_parser = commands.add_parser(
+        "import",
+        help="Transactionally import one normalized corpus into PostgreSQL.",
+    )
+    import_parser.add_argument("corpus", type=Path)
+    import_parser.add_argument("--database-url")
+    import_parser.add_argument("--dry-run", action="store_true")
+    import_parser.set_defaults(handler=import_command)
     return root
 
 
