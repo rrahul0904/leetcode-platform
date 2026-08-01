@@ -16,6 +16,17 @@ variable "database_secret_arn" { type = string }
 variable "valkey_url_secret_arn" { type = string }
 variable "oidc_issuer" { type = string }
 variable "oidc_audience" { type = string }
-variable "container_port" { type = number, default = 8002 }
-variable "desired_count" { type = number, default = 2 }
-variable "tags" { type = map(string), default = {} }
+variable "container_port" {
+  type    = number
+  default = 8002
+}
+
+variable "desired_count" {
+  type    = number
+  default = 2
+}
+
+variable "tags" {
+  type    = map(string)
+  default = {}
+}

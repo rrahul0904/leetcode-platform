@@ -14,7 +14,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/rigor
-RUN pip install --no-cache-dir "psycopg[binary]==3.3.4"
+RUN --mount=type=secret,id=build_ca,required=true \
+    PIP_CERT=/run/secrets/build_ca \
+    pip install --no-cache-dir "psycopg[binary]==3.3.4"
 COPY services/sql-runner/runner.py /opt/rigor/runner.py
 
 RUN mkdir -p /workspace/tmp \

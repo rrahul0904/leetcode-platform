@@ -10,7 +10,7 @@ dependencies = [
   "opentelemetry-sdk==1.44.0",
   "pgvector==0.5.0",
   "psycopg[binary]==3.3.4",
-  "pyjwt[crypto]==2.10.1",
+  "pyjwt[crypto]==2.13.0",
   "pydantic-settings==2.14.2",
   "pytest==9.1.1",
   "rigor-question-schema",
@@ -18,7 +18,7 @@ dependencies = [
   "structlog==26.1.0",
   "temporalio==1.30.0",
   "uvicorn==0.51.0",
-  "python-multipart==0.0.22",
+  "python-multipart==0.0.30",
 ]
 
 [build-system]
