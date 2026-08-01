@@ -1,64 +1,107 @@
 {
   "question_id": "SD-0001",
-  "question_version": "1.0.0",
-  "reference_solution": "Use an explicit control plane and partitioned data plane for notification delivery; isolate tenants at storage, quota, and authorization boundaries; make state transitions idempotent; replicate durable state across failure domains; apply backpressure before saturation; and rehearse recovery from provider outages and duplicate callbacks. Quantify storage, throughput, recovery objectives, and cost, then stage migration with dual reads or writes and a tested rollback.",
-  "explanation": "The reference separates validation from the core Architecture behavior, makes tie-breaking explicit, and verifies the result against the stated invariants.",
+  "question_version": "1.1.0",
+  "reference_solution": "Use a regional notification control plane that durably accepts tenant-scoped idempotent requests into a relational source of truth and atomically publishes orchestration work through an outbox. Expand each logical notification into recipient-channel delivery records, schedule transactional and bulk traffic through separate priority classes with per-tenant weighted fairness, and dispatch through channel-specific workers that enforce provider rate limits. Model provider sends as idempotent delivery attempts with stable internal attempt IDs and provider message IDs; treat timeouts as ambiguous until callback or reconciliation evidence resolves them. Keep EU payloads and recipient identifiers in EU data planes, replicate only minimal global routing metadata, and operate each region independently enough to survive another region's outage. Persist explicit accepted, scheduled, dispatched, provider-accepted, delivered, failed, expired, and cancelled states. Use bounded retries, expiration, dead-letter inspection, idempotent replay, webhook outboxes, and periodic provider reconciliation. Quantify peak fan-out at about 126,000 recipient-channel records per second and a two-hour full-provider outage at about 907 million queued delivery records before retries, then provision backlog-drain headroom. Migrate from the synchronous sender through an adapter, shadow writes, delivery-result comparison, tenant cohorts, and a tested rollback.",
+  "explanation": "The design separates durable business state from transient queue delivery and external-provider observations. The submission API returns success only after the logical notification and outbox event commit atomically. Orchestration resolves immutable template versions, preference-policy versions, recipients, channels, priority, quiet-hour scheduling, and expiration into durable delivery records. Schedulers isolate transactional and campaign queues and apply per-tenant quotas so one burst cannot monopolize provider capacity. Channel workers use a stable delivery identity and attempt identity, record every provider interaction, and never interpret a network timeout as proof of failure. Provider callbacks are idempotent observations, while reconciliation jobs close gaps caused by lost callbacks or ambiguous sends. Regional payload placement enforces residency; failover transfers routing and ownership deliberately instead of allowing two regions to send the same delivery concurrently.",
   "alternatives": [
     {
-      "name": "Simpler centralized implementation",
-      "solution": "Use one authoritative coordinator or query before introducing partitioning.",
+      "name": "Managed channel service composition",
+      "solution": "Use managed email, SMS, and push services behind a thin Rigor-owned acceptance, policy, identity, status, and reconciliation control plane.",
       "advantages": [
-        "lower operational complexity",
-        "easier correctness testing"
+        "faster channel onboarding",
+        "less infrastructure and provider protocol ownership",
+        "managed regional scaling for common channels"
       ],
       "disadvantages": [
-        "limited scale ceiling",
-        "larger failure domain"
+        "provider-specific semantics and quotas still leak into orchestration",
+        "data-residency and callback guarantees may constrain service choice",
+        "cost and migration leverage can be weaker"
       ]
     },
     {
-      "name": "Managed service composition",
-      "solution": "Compose managed regional services for notification delivery behind a thin control plane.",
+      "name": "Log-first event-sourced delivery state",
+      "solution": "Persist all notification and provider observations to an ordered event log and derive delivery projections for status and operations.",
       "advantages": [
-        "faster delivery",
-        "reduced operations burden"
+        "complete audit and replay history",
+        "natural support for derived operational projections"
       ],
       "disadvantages": [
-        "provider coupling",
-        "less control over failure behavior and cost"
+        "projection correctness and migration complexity",
+        "ordering and regional ownership require careful design",
+        "operator workflows are harder than a simple state table"
+      ]
+    },
+    {
+      "name": "Single-region active with warm regional recovery",
+      "solution": "Keep each tenant active in one home region and replicate recoverable metadata to a designated warm region rather than running active-active delivery everywhere.",
+      "advantages": [
+        "clear send ownership and simpler duplicate prevention",
+        "lower coordination and cross-region write cost"
+      ],
+      "disadvantages": [
+        "higher recovery time than active-active",
+        "requires tested regional evacuation and backlog transfer",
+        "capacity must be reserved in recovery regions"
       ]
     }
   ],
   "trade_off_analysis": [
-    "Correctness and explainability are preferred over premature optimization.",
-    "The production extension adds observability and recovery before higher throughput."
+    "At-least-once internal delivery is practical, but user-visible duplicate prevention depends on stable business identifiers, conditional state transitions, provider idempotency where available, and reconciliation—not an exactly-once claim.",
+    "Separating transactional and bulk traffic increases operational complexity but is necessary to preserve the five-second transactional SLO during campaigns.",
+    "A relational state store offers strong conditional transitions and auditability; very high-volume history may be tiered to cheaper analytical storage while recent delivery state remains queryable.",
+    "Active-active regions improve availability but make ownership, conflict resolution, and residency harder. Tenant home-region ownership with controlled failover is often safer.",
+    "Evaluating preferences and quiet hours only at submission is simpler but can violate later opt-outs; policy versioning plus a final send-time eligibility check provides clearer semantics.",
+    "Long payload retention simplifies replay but increases privacy and cost. Retain delivery metadata longer than encrypted content and minimize payload copies."
   ],
   "complexity": null,
   "testing_and_debugging": [
-    "Verify the public example, boundary inputs, invalid input, and the named failure scenario.",
-    "Assert deterministic output across repeated runs."
+    "Run an end-to-end invariant test proving that an API success always corresponds to durable notification and outbox records.",
+    "Inject a crash after provider acceptance but before the worker records the response; verify callback or reconciliation resolves the ambiguous attempt without an uncontrolled duplicate.",
+    "Replay provider callbacks and queue messages and verify state transitions and webhooks remain idempotent.",
+    "Saturate one tenant and one bulk campaign while measuring transactional queue age and reserved capacity.",
+    "Disable one provider for two hours, validate backlog growth against the capacity model, and measure controlled drain after recovery.",
+    "Evacuate a tenant from one region, proving only one region owns new sends and accepted work is neither lost nor duplicated.",
+    "Test opt-out, quiet-hour, expiration, and template-version changes while deliveries are delayed.",
+    "Trace one notification through acceptance, orchestration, delivery attempts, provider callbacks, webhook delivery, and reconciliation without logging sensitive content."
   ],
   "production_follow_ups": [
-    "Add SLO-backed monitoring and traceable decisions.",
-    "Exercise recovery with controlled fault injection."
+    "Define SLOs and alerts for API durability latency, transactional queue age, provider acceptance latency, terminal delivery latency, failure rate, reconciliation lag, webhook lag, and DLQ depth.",
+    "Build provider scorecards and routing policies using availability, latency, regional support, deliverability, and marginal cost.",
+    "Add state-aware DLQ tooling that inspects durable delivery state before replay and records every operator action.",
+    "Implement regional evacuation rehearsals, capacity reservations, ownership fencing, and rollback criteria.",
+    "Add per-tenant budgets, campaign admission control, cost attribution, and emergency override audit.",
+    "Continuously validate residency, secret access, payload redaction, and administrative authorization boundaries."
   ],
   "critical_omissions": [
-    "Missing invariant validation.",
-    "No failure or recovery analysis.",
-    "Nondeterministic results."
+    "Returning API success before accepted work is durable.",
+    "Claiming exactly-once delivery through unreliable external providers.",
+    "Using one unbounded queue for transactional and campaign traffic.",
+    "Retrying ambiguous provider timeouts without stable identities or reconciliation.",
+    "Having no source of truth or state-transition fencing during regional failover.",
+    "Replicating EU payloads or recipient data globally despite the residency requirement.",
+    "Providing no numerical fan-out, outage-backlog, drain-rate, or storage model.",
+    "Treating a DLQ as a recovery strategy without inspection, idempotent replay, ownership, and audit.",
+    "Logging notification content, recipient addresses, or provider credentials in ordinary telemetry.",
+    "Migrating all tenants at once without shadow comparison and rollback."
   ],
-  "strong_response_example": "I will state the invariant, validate inputs before side effects, use an explicit ordering rule, and prove correctness with boundary and failure cases before discussing scale.",
+  "strong_response_example": "I will define API success as a committed notification plus outbox event, not as a provider response. Each request has a tenant-scoped idempotency key; each recipient-channel delivery and provider attempt has its own stable identity. Orchestration persists policy and template versions, then priority schedulers reserve capacity for transactional traffic and enforce tenant fairness. Channel workers use at-least-once queues, conditional state transitions, provider rate limits, bounded retries, and explicit ambiguous-attempt reconciliation. EU payloads stay in EU regional data planes, and one fenced home region owns sends for a tenant until a controlled evacuation changes ownership. At the stated peak, fan-out creates about 126,000 deliveries per second, and a two-hour provider outage can create roughly 907 million queued records, so I will size storage and drain capacity explicitly. I will operate the system through queue-age and delivery-latency SLOs, provider scorecards, DLQ runbooks, and regional failure exercises, then migrate with shadow writes, cohort cutovers, comparison, and rollback.",
   "interviewer_follow_up_tree": {
     "correct_base": [
-      "Increase scale by ten times",
-      "Inject a dependency failure"
+      "Inject an ambiguous provider timeout after acceptance",
+      "Launch a 500-million-recipient campaign while preserving transactional latency",
+      "Move one EU tenant to Germany-only residency",
+      "Require a twenty-percent cost reduction without weakening SLOs"
     ],
     "misses_validation": [
-      "Provide malformed input"
+      "Ask exactly when the API may return success",
+      "Replay a provider callback and one queue message",
+      "Change a user's preference while a notification is delayed"
     ],
     "misses_recovery": [
-      "Remove the primary dependency"
+      "Remove the active region after requests are accepted",
+      "Hold webhook delivery down for twelve hours",
+      "Place one provider offline for two hours and require safe backlog replay"
     ]
   },
-  "source_content_hash": "sha256:bb5e8fff9469d5277d22b96f51d383714e65650fe34bd94840c334c9de545c27"
+  "source_content_hash": "sha256:b4ee46f5a071e2ae79f6cee1cb5fa589fa0ae798ade9ce13560d6d69c7ad3020"
 }
