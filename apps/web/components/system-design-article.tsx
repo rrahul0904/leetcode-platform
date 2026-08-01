@@ -57,11 +57,12 @@ export function SystemDesignArticle({ slug }: { slug: string }) {
           </div>
         </header>
         {sections.map((section, index) => {
-          const lines = section.splitlines ? [] : section.split("\n");
-          const heading = lines[0]?.replace(/^#{1,6}\s*/, "") || item.headings[index] || "Overview";
+          const lines = section.split("\n");
+          const heading =
+            lines[0]?.replace(/^#{1,6}\s*/, "") || item.headings[index] || "Overview";
           const body = lines.slice(1).join("\n").trim();
           return (
-            <section id={`section-${index}`} key={index}>
+            <section id={`section-${index}`} key={`${heading}-${index}`}>
               <span>{String(index + 1).padStart(2, "0")}</span>
               <h2>{heading}</h2>
               <pre>{body || section}</pre>
