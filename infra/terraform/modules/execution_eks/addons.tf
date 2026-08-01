@@ -13,6 +13,14 @@ resource "aws_eks_addon" "managed" {
   cluster_name = aws_eks_cluster.this.name
   addon_name   = each.value
 
+  # Amazon VPC CNI NetworkPolicy enforcement is opt-in. Without this setting,
+  # Kubernetes accepts the sandbox default-deny policies but does not enforce
+  # them. Keep the setting attached to the managed add-on so a newly-created
+  # cluster fails safe instead of depending on an out-of-band console change.
+  configuration_values = each.value == "vpc-cni" ? jsonencode({
+    enableNetworkPolicy = "true"
+  }) : null
+
   tags = merge(var.tags, {
     Plane = "trusted-control"
   })
