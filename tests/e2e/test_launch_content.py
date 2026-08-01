@@ -54,9 +54,9 @@ def test_launch_allocation_is_exact() -> None:
         "ai-infrastructure": 1,
     }
     assert Counter(item["difficulty"] for item in questions.values()) == {
-        "foundational": 5,
+        "foundational": 4,
         "intermediate": 10,
-        "advanced": 18,
+        "advanced": 19,
         "staff": 12,
         "principal": 5,
     }
