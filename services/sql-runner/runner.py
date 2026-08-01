@@ -402,9 +402,7 @@ def run_request(request: dict[str, Any]) -> dict[str, object]:
                     else str(request["schema_sql"])
                 ),
                 seed_sql=(
-                    str(test_seed)
-                    if isinstance(test_seed, str)
-                    else str(request["seed_sql"])
+                    str(test_seed) if isinstance(test_seed, str) else str(request["seed_sql"])
                 ),
                 setup_sql=str(test.get("setup_sql") or ""),
             )

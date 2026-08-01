@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal, cast
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -166,9 +166,10 @@ def knowledge_stats(
 ) -> KnowledgeStats:
     del principal
     with engine.connect() as connection:
-        row = connection.execute(
-            text(
-                """
+        row = (
+            connection.execute(
+                text(
+                    """
                 SELECT
                   (SELECT count(*) FROM knowledge_problems WHERE deleted_at IS NULL) AS problems,
                   (SELECT count(*) FROM knowledge_problems
@@ -187,8 +188,11 @@ def knowledge_stats(
                     AS system_design_articles,
                   (SELECT count(*) FROM knowledge_source_files) AS source_files
                 """
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
     return KnowledgeStats.model_validate(dict(row))
 
 
@@ -245,8 +249,7 @@ def list_problems(
     where = " AND ".join(conditions)
     order = {
         "relevance": (
-            "ts_rank(p.search_document, websearch_to_tsquery('english', :query)) DESC, "
-            "p.title ASC"
+            "ts_rank(p.search_document, websearch_to_tsquery('english', :query)) DESC, p.title ASC"
             if query
             else "COALESCE(p.popularity, 0) DESC, p.title ASC"
         ),
@@ -269,17 +272,21 @@ def list_problems(
                 parameters,
             ).scalar_one()
         )
-        rows = connection.execute(
-            text(
-                f"""
+        rows = (
+            connection.execute(
+                text(
+                    f"""
                 {_problem_select()}
                 WHERE {where}
                 ORDER BY {order}
                 LIMIT :limit OFFSET :offset
                 """
-            ),
-            parameters,
-        ).mappings().all()
+                ),
+                parameters,
+            )
+            .mappings()
+            .all()
+        )
     return KnowledgePage[ProblemSummary](
         items=[ProblemSummary.model_validate(dict(row)) for row in rows],
         page=page,
@@ -297,9 +304,10 @@ def get_problem(
 ) -> ProblemDetail:
     del principal
     with engine.connect() as connection:
-        row = connection.execute(
-            text(
-                f"""
+        row = (
+            connection.execute(
+                text(
+                    f"""
                 SELECT base.*, p.description, p.input_format, p.output_format,
                        p.examples, p.constraints, p.hints,
                        (p.editorial IS NOT NULL AND length(p.editorial) > 0)
@@ -313,9 +321,12 @@ def get_problem(
                 WHERE p.deleted_at IS NULL
                   AND p.publication_status IN ('published', 'metadata_only')
                 """
-            ),
-            {"slug": slug},
-        ).mappings().one_or_none()
+                ),
+                {"slug": slug},
+            )
+            .mappings()
+            .one_or_none()
+        )
     if row is None:
         raise HTTPException(status_code=404, detail="Knowledge-bank problem not found")
     return ProblemDetail.model_validate(dict(row))
@@ -335,9 +346,10 @@ def problem_solutions(
         parameters["language"] = language.casefold()
         language_condition = "AND s.language=:language"
     with engine.connect() as connection:
-        rows = connection.execute(
-            text(
-                f"""
+        rows = (
+            connection.execute(
+                text(
+                    f"""
                 SELECT s.id, a.id AS approach_id, a.name AS approach_name,
                        s.language, s.runtime, s.source_code, s.explanation,
                        a.time_complexity, a.space_complexity, s.is_executable
@@ -350,9 +362,12 @@ def problem_solutions(
                   {language_condition}
                 ORDER BY a.sequence_number, s.language, s.created_at
                 """
-            ),
-            parameters,
-        ).mappings().all()
+                ),
+                parameters,
+            )
+            .mappings()
+            .all()
+        )
     return [SolutionVariant.model_validate(dict(row)) for row in rows]
 
 
@@ -370,9 +385,10 @@ def list_companies(
         condition = "WHERE c.name ILIKE '%' || :query || '%'"
         parameters["query"] = query
     with engine.connect() as connection:
-        rows = connection.execute(
-            text(
-                f"""
+        rows = (
+            connection.execute(
+                text(
+                    f"""
                 SELECT c.id, c.slug, c.name,
                        count(DISTINCT o.problem_id) AS problem_count,
                        count(DISTINCT o.problem_id) FILTER (WHERE o.difficulty='easy')
@@ -389,9 +405,12 @@ def list_companies(
                 ORDER BY problem_count DESC, c.name ASC
                 LIMIT :limit
                 """
-            ),
-            parameters,
-        ).mappings().all()
+                ),
+                parameters,
+            )
+            .mappings()
+            .all()
+        )
     return [CompanySummary.model_validate(dict(row)) for row in rows]
 
 
@@ -420,9 +439,10 @@ def list_topics(
 ) -> list[TopicSummary]:
     del principal
     with engine.connect() as connection:
-        rows = connection.execute(
-            text(
-                """
+        rows = (
+            connection.execute(
+                text(
+                    """
                 SELECT t.id, t.slug, t.name, t.category,
                        count(DISTINCT pt.problem_id) AS problem_count
                 FROM knowledge_topics t
@@ -430,8 +450,11 @@ def list_topics(
                 GROUP BY t.id, t.slug, t.name, t.category
                 ORDER BY problem_count DESC, t.name ASC
                 """
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
     return [TopicSummary.model_validate(dict(row)) for row in rows]
 
 
@@ -448,9 +471,10 @@ def list_system_design(
         condition += " AND search_document @@ websearch_to_tsquery('english', :query)"
         parameters["query"] = query
     with engine.connect() as connection:
-        rows = connection.execute(
-            text(
-                f"""
+        rows = (
+            connection.execute(
+                text(
+                    f"""
                 SELECT id, slug, title, headings,
                        jsonb_array_length(image_paths) AS image_count,
                        publication_status
@@ -458,9 +482,12 @@ def list_system_design(
                 WHERE {condition}
                 ORDER BY title
                 """
-            ),
-            parameters,
-        ).mappings().all()
+                ),
+                parameters,
+            )
+            .mappings()
+            .all()
+        )
     return [SystemDesignSummary.model_validate(dict(row)) for row in rows]
 
 
@@ -472,18 +499,22 @@ def get_system_design(
 ) -> SystemDesignDetail:
     del principal
     with engine.connect() as connection:
-        row = connection.execute(
-            text(
-                """
+        row = (
+            connection.execute(
+                text(
+                    """
                 SELECT id, slug, title, headings, body, image_paths,
                        jsonb_array_length(image_paths) AS image_count,
                        publication_status
                 FROM knowledge_system_design_articles
                 WHERE slug=:slug AND publication_status='published'
                 """
-            ),
-            {"slug": slug},
-        ).mappings().one_or_none()
+                ),
+                {"slug": slug},
+            )
+            .mappings()
+            .one_or_none()
+        )
     if row is None:
         raise HTTPException(status_code=404, detail="System-design article not found")
     return SystemDesignDetail.model_validate(dict(row))
@@ -518,18 +549,22 @@ def publish_problem(
                 status_code=409,
                 detail="Problem has no hostable licensed source and cannot be published.",
             )
-        updated = connection.execute(
-            text(
-                """
+        updated = (
+            connection.execute(
+                text(
+                    """
                 UPDATE knowledge_problems
                 SET publication_status='published', review_status='approved',
                     updated_at=CURRENT_TIMESTAMP
                 WHERE id=:problem_id AND deleted_at IS NULL
                 RETURNING id, publication_status, review_status
                 """
-            ),
-            {"problem_id": problem_id},
-        ).mappings().one_or_none()
+                ),
+                {"problem_id": problem_id},
+            )
+            .mappings()
+            .one_or_none()
+        )
         if updated is None:
             raise HTTPException(status_code=404, detail="Knowledge-bank problem not found")
         solution_count = int(

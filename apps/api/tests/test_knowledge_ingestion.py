@@ -6,7 +6,6 @@ import zipfile
 from pathlib import Path
 
 import pytest
-
 from rigor_api.knowledge_ingestion import (
     ArchiveSafetyError,
     SourceDisposition,

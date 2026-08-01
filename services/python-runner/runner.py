@@ -18,7 +18,13 @@ MAX_SOURCE_BYTES = 100_000
 MAX_TESTS = 200
 MAX_STREAM_BYTES = 64 * 1024
 CHILD_FILE_LIMIT_BYTES = 128 * 1024
-INVOCATION_MODES = {"auto", "keyword_arguments", "positional_arguments", "single_payload", "no_arguments"}
+INVOCATION_MODES = {
+    "auto",
+    "keyword_arguments",
+    "positional_arguments",
+    "single_payload",
+    "no_arguments",
+}
 
 SAFE_CHILD_ENV = {
     "HOME": "/workspace",
@@ -30,7 +36,7 @@ SAFE_CHILD_ENV = {
     "TMPDIR": "/workspace/tmp",
 }
 
-CHILD_PROGRAM = r'''
+CHILD_PROGRAM = r"""
 import builtins
 import io
 import json
@@ -143,7 +149,7 @@ finally:
     protocol["stderr_truncated"] = captured_stderr.truncated
 
 print("RIGOR_RESULT:" + json.dumps(protocol, separators=(",", ":"), ensure_ascii=False))
-'''
+"""
 
 
 class RunnerInputError(ValueError):
@@ -297,7 +303,11 @@ def execute_test(
                 stderr=stderr_file,
                 text=True,
                 cwd=workspace,
-                env=SAFE_CHILD_ENV,
+                env={
+                    **SAFE_CHILD_ENV,
+                    "HOME": str(workspace),
+                    "TMPDIR": str(temp_root),
+                },
                 preexec_fn=lambda: _apply_child_limits(timeout_seconds),
                 start_new_session=True,
             )
@@ -358,7 +368,7 @@ def run_request(
     started = time.monotonic()
     source_code = str(request["source_code"])
     entrypoint = str(request["entrypoint"])
-    invocation_mode = str(request["invocation_mode"])
+    invocation_mode = str(request.get("invocation_mode", "auto"))
     tests = cast(list[dict[str, object]], request["tests"])
     deadline = started + timeout_seconds
 
@@ -456,8 +466,7 @@ def main() -> int:
 
     result["execution_id"] = str(args.execution_id)
     print(
-        "RIGOR_EXECUTION_RESULT:"
-        + json.dumps(result, separators=(",", ":"), ensure_ascii=False),
+        "RIGOR_EXECUTION_RESULT:" + json.dumps(result, separators=(",", ":"), ensure_ascii=False),
         flush=True,
     )
     return 0 if result.get("status") == "COMPLETED" else 1

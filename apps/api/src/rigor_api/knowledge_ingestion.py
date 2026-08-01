@@ -223,9 +223,7 @@ class IngestionBundle:
             "problems": [serialize_dataclass(item) for item in self.problems],
             "solutions": [serialize_dataclass(item) for item in self.solutions],
             "companies": [serialize_dataclass(item) for item in self.companies],
-            "system_design": [
-                serialize_dataclass(item) for item in self.system_design
-            ],
+            "system_design": [serialize_dataclass(item) for item in self.system_design],
             "resources": [serialize_dataclass(item) for item in self.resources],
             "warnings": self.warnings,
         }
@@ -292,10 +290,14 @@ def normalize_topic(value: str) -> str:
         "linked list": "linked-list",
         "hash table": "hashing",
     }
-    normalized = SPACE.sub(
-        " ",
-        value.replace("_", " ").replace("-", " "),
-    ).strip().casefold()
+    normalized = (
+        SPACE.sub(
+            " ",
+            value.replace("_", " ").replace("-", " "),
+        )
+        .strip()
+        .casefold()
+    )
     return aliases.get(normalized, slugify(normalized))
 
 
@@ -397,36 +399,23 @@ def inspect_archive(
     with archive:
         entries = archive.infolist()
         if len(entries) > MAX_ARCHIVE_ENTRIES:
-            raise ArchiveSafetyError(
-                f"Archive contains too many entries: {path.name}"
-            )
+            raise ArchiveSafetyError(f"Archive contains too many entries: {path.name}")
         total = 0
         suffixes: Counter[str] = Counter()
         for member in entries:
             relative = PurePosixPath(member.filename)
-            if (
-                relative.is_absolute()
-                or ".." in relative.parts
-                or "\\" in member.filename
-            ):
+            if relative.is_absolute() or ".." in relative.parts or "\\" in member.filename:
                 raise ArchiveSafetyError(f"Unsafe archive path: {member.filename}")
             if _zip_member_is_symlink(member):
-                raise ArchiveSafetyError(
-                    f"Archive contains a symbolic link: {member.filename}"
-                )
+                raise ArchiveSafetyError(f"Archive contains a symbolic link: {member.filename}")
             total += member.file_size
             if total > MAX_ARCHIVE_UNCOMPRESSED_BYTES:
-                raise ArchiveSafetyError(
-                    f"Archive expands beyond the allowed limit: {path.name}"
-                )
+                raise ArchiveSafetyError(f"Archive expands beyond the allowed limit: {path.name}")
             if (
                 member.compress_size
-                and member.file_size / member.compress_size
-                > MAX_COMPRESSION_RATIO
+                and member.file_size / member.compress_size > MAX_COMPRESSION_RATIO
             ):
-                raise ArchiveSafetyError(
-                    f"Suspicious compression ratio: {member.filename}"
-                )
+                raise ArchiveSafetyError(f"Suspicious compression ratio: {member.filename}")
             if not member.is_dir():
                 suffix = PurePosixPath(member.filename).suffix.casefold()
                 suffixes[suffix or "<none>"] += 1
@@ -495,11 +484,7 @@ def source_file_record(
     try:
         digest = sha256_file(path)
         byte_count = path.stat().st_size
-        status = (
-            "skipped"
-            if classification in {"quarantined", "unsupported"}
-            else "available"
-        )
+        status = "skipped" if classification in {"quarantined", "unsupported"} else "available"
         return SourceFileRecord(
             source_name=source_name,
             relative_path=path.relative_to(root).as_posix(),
@@ -553,11 +538,7 @@ def _description_from_markdown(body: str) -> str | None:
         if value:
             return value
     preamble = sections.get("preamble", "")
-    candidates = [
-        value
-        for name, value in sections.items()
-        if name != "preamble" and value
-    ]
+    candidates = [value for name, value in sections.items() if name != "preamble" and value]
     if preamble:
         candidates.append(preamble)
     return max(candidates, key=len) if candidates else None
@@ -589,17 +570,13 @@ def parse_problem_directories(
     warnings: list[str] = []
     seen_directories: set[Path] = set()
 
-    for directory in sorted(
-        path for path in root.rglob("*") if path.is_dir()
-    ):
+    for directory in sorted(path for path in root.rglob("*") if path.is_dir()):
         identity = _problem_identity_from_directory(directory)
         if identity is None or directory in seen_directories:
             continue
         external_id, title = identity
         files = [path for path in directory.rglob("*") if path.is_file()]
-        code_files = [
-            path for path in files if path.suffix.casefold() in CODE_SUFFIXES
-        ]
+        code_files = [path for path in files if path.suffix.casefold() in CODE_SUFFIXES]
         markdown = _problem_markdown(directory)
         if not code_files and markdown is None:
             continue
@@ -619,11 +596,7 @@ def parse_problem_directories(
             source_url=source_url,
         )
         source_path = (markdown or directory).relative_to(root).as_posix()
-        source_hash = (
-            sha256_file(markdown)
-            if markdown is not None
-            else sha256_bytes(key.encode())
-        )
+        source_hash = sha256_file(markdown) if markdown is not None else sha256_bytes(key.encode())
         difficulty_match = re.search(
             r"difficulty\s*[:|\-]*\s*(easy|medium|hard)",
             body,
@@ -693,11 +666,7 @@ def _company_and_window(path: Path, root: Path) -> tuple[str, str | None]:
 
 
 def _row_value(row: dict[str, str], *names: str) -> str | None:
-    normalized = {
-        slugify(key): value
-        for key, value in row.items()
-        if key is not None
-    }
+    normalized = {slugify(key): value for key, value in row.items() if key is not None}
     for name in names:
         value = normalized.get(slugify(name))
         if value is not None and value.strip():
@@ -738,9 +707,7 @@ def parse_company_csvs(
                         "link",
                         "leetcode question link",
                     )
-                    difficulty = normalize_difficulty(
-                        _row_value(row, "difficulty")
-                    )
+                    difficulty = normalize_difficulty(_row_value(row, "difficulty"))
                     acceptance = parse_number(
                         _row_value(
                             row,
@@ -749,12 +716,8 @@ def parse_company_csvs(
                             "acceptance %",
                         )
                     )
-                    frequency = parse_number(
-                        _row_value(row, "frequency", "frequency %")
-                    )
-                    topic_text = (
-                        _row_value(row, "topics", "topic", "tags") or ""
-                    )
+                    frequency = parse_number(_row_value(row, "frequency", "frequency %"))
+                    topic_text = _row_value(row, "topics", "topic", "tags") or ""
                     topics = tuple(
                         sorted(
                             {
@@ -782,9 +745,7 @@ def parse_company_csvs(
                             frequency=frequency,
                             topics=topics,
                             source_name=source_name,
-                            source_path=(
-                                f"{path.relative_to(root).as_posix()}#{row_number}"
-                            ),
+                            source_path=(f"{path.relative_to(root).as_posix()}#{row_number}"),
                             source_hash=sha256_bytes(
                                 json.dumps(row, sort_keys=True).encode("utf-8")
                             ),
@@ -862,9 +823,7 @@ def parse_learning_resources(
             body = read_text(
                 path,
                 maximum=(
-                    MAX_CODE_BYTES
-                    if path.suffix.casefold() in CODE_SUFFIXES
-                    else MAX_TEXT_BYTES
+                    MAX_CODE_BYTES if path.suffix.casefold() in CODE_SUFFIXES else MAX_TEXT_BYTES
                 ),
             )
         except (OSError, ValueError) as exc:
@@ -872,9 +831,7 @@ def parse_learning_resources(
             continue
         relative = path.relative_to(root)
         language = LANGUAGE_BY_SUFFIX.get(path.suffix.casefold())
-        category = slugify(
-            relative.parts[0] if relative.parts else "general"
-        )
+        category = slugify(relative.parts[0] if relative.parts else "general")
         title = normalize_title(path.stem)
         observations.append(
             LearningResourceObservation(
@@ -927,10 +884,7 @@ def parse_repository(
     bundle.warnings.extend(warnings)
 
     normalized_source_name = source_name.casefold()
-    if (
-        "system-design" in normalized_source_name
-        or "system design" in normalized_source_name
-    ):
+    if "system-design" in normalized_source_name or "system design" in normalized_source_name:
         articles, warnings = parse_system_design_notes(
             root,
             source_name=source_name,
@@ -939,10 +893,7 @@ def parse_repository(
         bundle.system_design.extend(articles)
         bundle.warnings.extend(warnings)
 
-    if (
-        "competitive" in normalized_source_name
-        or "awesome" in normalized_source_name
-    ):
+    if "competitive" in normalized_source_name or "awesome" in normalized_source_name:
         resources, warnings = parse_learning_resources(
             root,
             source_name=source_name,

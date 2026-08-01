@@ -129,9 +129,10 @@ def _ensure_state(connection, candidate_id: UUID, problem_id: UUID) -> None:
 
 
 def _state(connection, candidate_id: UUID, problem_id: UUID) -> CandidateProblemState:
-    row = connection.execute(
-        text(
-            """
+    row = (
+        connection.execute(
+            text(
+                """
             SELECT state.problem_id, problem.slug, problem.title,
                    state.status, state.bookmarked, state.revision_status,
                    state.private_notes, state.view_count, state.attempt_count,
@@ -145,9 +146,12 @@ def _state(connection, candidate_id: UUID, problem_id: UUID) -> CandidateProblem
             JOIN knowledge_problems problem ON problem.id=state.problem_id
             WHERE state.candidate_id=:candidate_id AND state.problem_id=:problem_id
             """
-        ),
-        {"candidate_id": candidate_id, "problem_id": problem_id},
-    ).mappings().one_or_none()
+            ),
+            {"candidate_id": candidate_id, "problem_id": problem_id},
+        )
+        .mappings()
+        .one_or_none()
+    )
     if row is None:
         raise HTTPException(status_code=404, detail="Candidate problem state not found")
     return CandidateProblemState.model_validate(dict(row))
@@ -208,7 +212,9 @@ def _apply_event_projection(
         "problem_failed",
     }
     viewed_increment = 1 if event.event_type == "problem_viewed" else 0
-    attempted_increment = 1 if event.event_type in {"public_tests_run", "submission_completed"} else 0
+    attempted_increment = (
+        1 if event.event_type in {"public_tests_run", "submission_completed"} else 0
+    )
     solved_increment = 1 if event.event_type == "problem_solved" else 0
     failed_increment = 1 if event.event_type == "problem_failed" else 0
     connection.execute(
@@ -403,9 +409,10 @@ def candidate_progress_summary(
 ) -> ProgressSummary:
     with principal_transaction(engine, principal) as connection:
         candidate_id = _candidate_id(connection)
-        row = connection.execute(
-            text(
-                """
+        row = (
+            connection.execute(
+                text(
+                    """
                 SELECT
                   count(*) FILTER (WHERE status='viewed') AS viewed,
                   count(*) FILTER (WHERE status='attempted') AS attempted,
@@ -417,32 +424,43 @@ def candidate_progress_summary(
                 FROM knowledge_candidate_problem_state
                 WHERE candidate_id=:candidate_id
                 """
-            ),
-            {"candidate_id": candidate_id},
-        ).mappings().one()
-        day_rows = connection.execute(
-            text(
-                """
+                ),
+                {"candidate_id": candidate_id},
+            )
+            .mappings()
+            .one()
+        )
+        day_rows = (
+            connection.execute(
+                text(
+                    """
                 SELECT DISTINCT occurred_at::date AS activity_date
                 FROM knowledge_activity_events
                 WHERE candidate_id=:candidate_id
                 ORDER BY activity_date DESC
                 """
-            ),
-            {"candidate_id": candidate_id},
-        ).scalars().all()
-        language_rows = connection.execute(
-            text(
-                """
+                ),
+                {"candidate_id": candidate_id},
+            )
+            .scalars()
+            .all()
+        )
+        language_rows = (
+            connection.execute(
+                text(
+                    """
                 SELECT language, count(*) AS event_count
                 FROM knowledge_activity_events
                 WHERE candidate_id=:candidate_id AND language IS NOT NULL
                 GROUP BY language
                 ORDER BY event_count DESC, language
                 """
-            ),
-            {"candidate_id": candidate_id},
-        ).mappings().all()
+                ),
+                {"candidate_id": candidate_id},
+            )
+            .mappings()
+            .all()
+        )
     current_streak, longest_streak = _streaks([cast(date, value) for value in day_rows])
     return ProgressSummary(
         viewed=int(row["viewed"]),
@@ -465,9 +483,10 @@ def candidate_bookmarks(
 ) -> list[CandidateProblemState]:
     with principal_transaction(engine, principal) as connection:
         candidate_id = _candidate_id(connection)
-        rows = connection.execute(
-            text(
-                """
+        rows = (
+            connection.execute(
+                text(
+                    """
                 SELECT state.problem_id, problem.slug, problem.title,
                        state.status, state.bookmarked, state.revision_status,
                        state.private_notes, state.view_count, state.attempt_count,
@@ -482,9 +501,12 @@ def candidate_bookmarks(
                 WHERE state.candidate_id=:candidate_id AND state.bookmarked
                 ORDER BY state.last_activity_at DESC
                 """
-            ),
-            {"candidate_id": candidate_id},
-        ).mappings().all()
+                ),
+                {"candidate_id": candidate_id},
+            )
+            .mappings()
+            .all()
+        )
     return [CandidateProblemState.model_validate(dict(row)) for row in rows]
 
 

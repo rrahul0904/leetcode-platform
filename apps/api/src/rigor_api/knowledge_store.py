@@ -5,7 +5,7 @@ import json
 from collections import Counter
 from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
-from typing import Any, cast
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import Connection, Engine, text
@@ -157,7 +157,9 @@ class KnowledgeBankImporter:
                 {
                     "source_name": source_name,
                     "original_filename": (
-                        source_name if source_name.casefold().endswith(".zip") else f"{source_name}.zip"
+                        source_name
+                        if source_name.casefold().endswith(".zip")
+                        else f"{source_name}.zip"
                     ),
                     "disposition": disposition.value,
                 },
@@ -185,7 +187,9 @@ class KnowledgeBankImporter:
         if cached is not None:
             return cached
         source_id = self._ensure_source(source_name, disposition)
-        suffix_value = suffix if suffix is not None else PurePosixPath(relative_path).suffix.casefold()
+        suffix_value = (
+            suffix if suffix is not None else PurePosixPath(relative_path).suffix.casefold()
+        )
         file_id = _uuid(
             self.connection.execute(
                 text(
@@ -442,7 +446,10 @@ class KnowledgeBankImporter:
                 },
             ).scalar_one()
         )
-        executable = language in {"python", "javascript", "sql"} and disposition is SourceDisposition.HOSTABLE_LICENSED
+        executable = (
+            language in {"python", "javascript", "sql"}
+            and disposition is SourceDisposition.HOSTABLE_LICENSED
+        )
         self.connection.execute(
             text(
                 """
@@ -693,17 +700,21 @@ def import_knowledge_payload(
         try:
             importer = KnowledgeBankImporter(connection)
             source_id = importer._ensure_source(source_name, disposition)
-            previous = connection.execute(
-                text(
-                    """
+            previous = (
+                connection.execute(
+                    text(
+                        """
                     SELECT id, counters
                     FROM knowledge_import_runs
                     WHERE source_id=:source_id AND corpus_sha256=:corpus_sha256
                       AND status='completed'
                     """
-                ),
-                {"source_id": source_id, "corpus_sha256": corpus_sha256},
-            ).mappings().one_or_none()
+                    ),
+                    {"source_id": source_id, "corpus_sha256": corpus_sha256},
+                )
+                .mappings()
+                .one_or_none()
+            )
             if previous is not None and not dry_run:
                 transaction.rollback()
                 return {

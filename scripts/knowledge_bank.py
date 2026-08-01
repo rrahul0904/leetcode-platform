@@ -27,9 +27,7 @@ def disposition(value: str) -> SourceDisposition:
         return SourceDisposition(value)
     except ValueError as exc:
         choices = ", ".join(item.value for item in SourceDisposition)
-        raise argparse.ArgumentTypeError(
-            f"Disposition must be one of: {choices}"
-        ) from exc
+        raise argparse.ArgumentTypeError(f"Disposition must be one of: {choices}") from exc
 
 
 def _disposition_map(path: Path | None) -> dict[str, SourceDisposition]:
@@ -38,9 +36,7 @@ def _disposition_map(path: Path | None) -> dict[str, SourceDisposition]:
     try:
         value: object = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise ValueError(
-            f"Disposition map is unavailable or invalid: {path}"
-        ) from exc
+        raise ValueError(f"Disposition map is unavailable or invalid: {path}") from exc
     if not isinstance(value, dict):
         raise ValueError("Disposition map must be a JSON object")
     return {
@@ -129,11 +125,7 @@ def corpus_command(args: argparse.Namespace) -> int:
 
 def import_command(args: argparse.Namespace) -> int:
     settings = get_settings()
-    database_url = (
-        args.database_url
-        or settings.operational_database_url
-        or settings.database_url
-    )
+    database_url = args.database_url or settings.operational_database_url or settings.database_url
     engine = create_database_engine(settings, database_url)
     try:
         result = import_knowledge_file(
@@ -149,10 +141,7 @@ def import_command(args: argparse.Namespace) -> int:
 
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(
-        description=(
-            "Build and import Rigor knowledge-bank records from offline "
-            "source archives."
-        )
+        description=("Build and import Rigor knowledge-bank records from offline source archives.")
     )
     commands = root.add_subparsers(dest="command", required=True)
 
