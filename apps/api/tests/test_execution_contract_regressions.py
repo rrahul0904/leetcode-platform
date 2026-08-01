@@ -44,7 +44,8 @@ def test_ambiguous_legacy_starter_fails_closed() -> None:
 
 
 def test_invocation_mode_defaults_to_auto_and_rejects_unknown_values() -> None:
-    assert _invocation_mode(_question({"starter_code": "def solve(value): return value"})) == "auto"
+    question = _question({"starter_code": "def solve(value): return value"})
+    assert _invocation_mode(question) == "auto"
 
     with pytest.raises(HTTPException, match="invocation mode"):
         _invocation_mode(_question({"invocation_mode": "magic"}))
