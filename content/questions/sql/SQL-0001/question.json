@@ -1,114 +1,143 @@
 {
   "id": "SQL-0001",
-  "title": "Measure Weekly Cohort Retention",
-  "slug": "sql-0001-measure-weekly-cohort-retention",
+  "title": "Measure Week-One Product Retention",
+  "slug": "sql-0001-week-one-product-retention",
   "primary_track": "sql-analytics",
   "secondary_skills": [
-    "measure",
-    "reliability",
-    "trade-off-analysis"
+    "cohort-analysis",
+    "deduplication",
+    "conditional-aggregation",
+    "query-planning"
   ],
   "role_families": [
-    "software-engineer",
     "data-engineer",
-    "platform-engineer"
+    "analytics-engineer",
+    "product-analyst"
   ],
   "expected_seniority": "senior",
   "difficulty": "foundational",
   "difficulty_dimensions": {
-    "conceptual": 2,
+    "conceptual": 3,
     "implementation": 4,
-    "scale": 2,
-    "ambiguity": 2,
+    "scale": 3,
+    "ambiguity": 3,
     "prerequisite_depth": 2
   },
   "company_style_tags": [
     {
       "slug": "independent-production-interview",
-      "relevance_rationale": "Original production scenario emphasizing explicit constraints and evidence without claiming employer provenance.",
+      "relevance_rationale": "Original product-analytics scenario that tests cohort semantics, duplicate-event handling, deterministic aggregation, and production query reasoning without claiming employer provenance.",
       "public_theme_sources": [],
       "disclaimer": "independent-content"
     }
   ],
   "learning_objectives": [
-    "Translate a production scenario into explicit invariants.",
-    "Evaluate correctness under failure and scale.",
-    "Communicate a testable decision and its trade-offs."
+    "Define an exact week-one retention window before writing SQL.",
+    "Prevent at-least-once event delivery from inflating retained-user counts.",
+    "Preserve cohorts with zero retained users through a left-join aggregation.",
+    "Explain indexes, cardinality, and validation checks for a production-scale cohort query."
   ],
   "prerequisites": [
-    "data-structures",
-    "reliability-fundamentals"
+    "sql-joins",
+    "common-table-expressions",
+    "group-by",
+    "distinct-semantics"
   ],
-  "estimated_duration_minutes": 35,
-  "problem_statement": "A subscription team needs week-one retention by signup cohort. Write one PostgreSQL query that returns `cohort_week, users, retained_week_one` in the specified order. Handle duplicate source rows according to the scenario and explain the indexes and query plan you expect at production scale.",
+  "estimated_duration_minutes": 40,
+  "problem_statement": "A subscription product materializes `users` and `activity` into an analytics mart. `cohort_week` and `activity_week` are monotonically increasing ISO-week indexes. The event pipeline is at-least-once, so the same `source_event_id` can appear more than once. Write one PostgreSQL query that returns one row for every non-test signup cohort with columns `cohort_week`, `users`, and `retained_week_one`. `users` is the number of non-test users in the cohort. `retained_week_one` is the number of those users who produced at least one `session_started` event during exactly the following week (`activity_week = cohort_week + 1`). Duplicate deliveries of the same `source_event_id`, multiple legitimate sessions from one user, events from other weeks, and other event types must not inflate retention. Include cohorts with zero retained users and order the result by `cohort_week` ascending.",
   "candidate_instructions": [
-    "Clarify assumptions before committing to an approach.",
-    "Make the result deterministic and explain how it is validated.",
-    "Discuss complexity, failure behavior, and production follow-ups."
+    "Return exactly the three requested columns in the requested order.",
+    "Do not modify the source tables or rely on temporary tables.",
+    "Make duplicate handling explicit in the query rather than assuming clean event delivery.",
+    "After writing the query, explain the indexes and data-quality checks you would use at one billion events per day."
   ],
   "interviewer_instructions": [
-    "Ask for the candidate's invariants before implementation.",
-    "Probe one failure scenario and one scale change.",
-    "Do not reveal the reference solution or private rubric."
+    "Ask the candidate to define the retention window and duplicate key before implementation.",
+    "Probe whether COUNT(DISTINCT user_id) alone is sufficient when joins multiply rows.",
+    "Ask how late-arriving activity changes a previously published cohort.",
+    "Do not reveal the reference query or hidden fixtures."
   ],
   "constraints": [
-    "The answer must be deterministic for identical inputs.",
-    "Invalid inputs or impossible states must fail explicitly.",
-    "Production claims require observable evidence."
+    "`users.user_id` is unique and each user belongs to one cohort.",
+    "`activity` may contain exact duplicate deliveries sharing the same `source_event_id`.",
+    "A user counts at most once in `retained_week_one` for a cohort.",
+    "Only `session_started` qualifies as retained activity.",
+    "Rows for test users must be excluded from both cohort size and retention.",
+    "The output must retain cohorts whose retention count is zero.",
+    "The final order is deterministic by ascending `cohort_week`."
   ],
   "assumptions": [
-    "All examples are fictional and use synthetic data.",
-    "The candidate may state additional assumptions when they are testable."
+    "Week indexes have already been normalized to the product's UTC reporting calendar.",
+    "Late events are visible when the query runs; the query is a current-state calculation.",
+    "A repeated `source_event_id` represents the same source event, not a new session."
   ],
   "expected_clarifying_questions": [
-    "Which invariant has priority when requirements conflict?",
-    "What scale and latency targets should be assumed?",
-    "How should partial failure be surfaced?"
+    "Is week one the immediately following normalized week or days 7 through 13 after signup?",
+    "Which event names qualify as retained activity?",
+    "What identifies an event duplicate?",
+    "Should cohorts with no qualifying activity still appear?",
+    "Are internal or test accounts included?"
   ],
   "hints": [
     {
       "reveal_level": 1,
-      "text": "Write the invariant that must hold after every operation.",
-      "penalty_points": 4
+      "text": "Build the eligible cohort population before joining activity.",
+      "penalty_points": 3
     },
     {
       "reveal_level": 2,
-      "text": "Separate validation, core behavior, and failure handling.",
-      "penalty_points": 8
+      "text": "Deduplicate source events, then reduce qualifying activity to one row per retained user.",
+      "penalty_points": 7
+    },
+    {
+      "reveal_level": 3,
+      "text": "Use a left join from cohort users so zero-retention cohorts survive.",
+      "penalty_points": 12
     }
   ],
   "common_mistakes": [
-    "Assuming well-formed input without validation.",
-    "Using nondeterministic iteration as a tie-breaker.",
-    "Claiming production readiness without recovery or observability."
+    "Using an inner join and dropping cohorts with zero retained users.",
+    "Counting activity rows instead of retained users.",
+    "Treating any future activity as week-one retention.",
+    "Including page views or events from test accounts.",
+    "Applying DISTINCT only after a row-multiplying aggregation.",
+    "Omitting deterministic output ordering."
   ],
   "strong_answer_indicators": [
-    "States invariants and validates them with examples.",
-    "Explains a credible alternative and rejection reason.",
-    "Connects failure handling to measurable signals."
+    "Separates eligible users, qualifying activity, and cohort aggregation into auditable stages.",
+    "Explains why duplicate source deliveries and multiple sessions cannot inflate the result.",
+    "Preserves zero-retention cohorts.",
+    "Proposes useful indexes and incremental materialization for high event volume.",
+    "Describes late-arrival reconciliation and source-event uniqueness monitoring."
   ],
   "weak_answer_indicators": [
-    "Only handles the happy path.",
-    "Provides an unquantified technology list.",
-    "Leaks private evaluation material into the candidate answer."
+    "Counts raw event rows.",
+    "Uses an inner join without discussing missing activity.",
+    "Leaves the retention window ambiguous.",
+    "Claims the query scales without discussing partition pruning, indexes, or incremental computation."
   ],
   "follow_up_questions": [
-    "How would the design behave during a regional outage?",
-    "Which metrics would prove the implementation is correct?"
+    "How would you calculate week-one retention as a decimal rate without integer-division errors?",
+    "How would you support daily cohort snapshots while late events arrive for seven days?",
+    "What partitioning and indexes would you choose for one billion activity rows per day?",
+    "How would you detect a producer that suddenly replays old source_event_id values?"
   ],
   "harder_variants": [
-    "Add multi-tenant fairness and strict isolation.",
-    "Preserve correctness during a zero-downtime migration."
+    "Return weeks zero through eight as a retention matrix with one row per cohort and week offset.",
+    "Calculate retention by plan and acquisition channel while preserving cohorts with zero activity."
   ],
   "easier_variants": [
-    "Solve for one tenant and a single failure domain."
+    "Assume activity is already deduplicated.",
+    "Return only retained users for one specified cohort."
   ],
-  "related_question_ids": [],
+  "related_question_ids": [
+    "SQL-0002"
+  ],
   "mode_specification": {
     "dialect": "postgresql",
-    "business_problem": "A subscription team needs week-one retention by signup cohort.",
-    "ddl": "CREATE TABLE users(user_id INTEGER PRIMARY KEY, cohort_week INTEGER NOT NULL); CREATE TABLE activity(user_id INTEGER NOT NULL, activity_week INTEGER NOT NULL);",
-    "seed_data": "INSERT INTO users VALUES (1,10),(2,10),(3,11); INSERT INTO activity VALUES (1,11),(1,12),(3,12);",
+    "business_problem": "Measure exact week-one product retention from an at-least-once event stream without inflating counts.",
+    "ddl": "CREATE TABLE users(user_id INTEGER PRIMARY KEY, cohort_week INTEGER NOT NULL, is_test BOOLEAN NOT NULL); CREATE TABLE activity(source_event_id TEXT NOT NULL, user_id INTEGER NOT NULL, activity_week INTEGER NOT NULL, event_name TEXT NOT NULL);",
+    "seed_data": "INSERT INTO users VALUES (1,10,FALSE),(2,10,FALSE),(3,11,FALSE),(4,10,TRUE),(5,11,FALSE),(6,12,FALSE); INSERT INTO activity VALUES ('e1',1,11,'session_started'),('e1',1,11,'session_started'),('e2',1,11,'session_started'),('e3',2,12,'session_started'),('e4',3,12,'session_started'),('e5',5,12,'page_view'),('e6',4,11,'session_started');",
     "expected_result": [
       {
         "cohort_week": 10,
@@ -117,8 +146,13 @@
       },
       {
         "cohort_week": 11,
-        "users": 1,
+        "users": 2,
         "retained_week_one": 1
+      },
+      {
+        "cohort_week": 12,
+        "users": 1,
+        "retained_week_one": 0
       }
     ],
     "statement_timeout_ms": 3000
