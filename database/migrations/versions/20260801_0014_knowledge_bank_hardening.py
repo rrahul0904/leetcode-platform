@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-import sqlalchemy as sa
 from alembic import op
 
 revision: str = "20260801_0014"
@@ -19,23 +18,34 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "UPDATE knowledge_company_observations "
-        "SET observation_window='unspecified' WHERE observation_window IS NULL"
-    )
-    op.alter_column(
+    # PostgreSQL unique constraints normally treat NULL windows as distinct,
+    # allowing the same all-time observation to be inserted repeatedly. PG18's
+    # NULLS NOT DISTINCT index preserves idempotency without inventing a window.
+    op.drop_constraint(
+        "uq_knowledge_company_observation",
         "knowledge_company_observations",
-        "observation_window",
-        existing_type=sa.String(length=120),
-        nullable=False,
-        server_default=sa.text("'unspecified'"),
+        type_="unique",
+    )
+    op.execute(
+        """
+        CREATE UNIQUE INDEX uq_knowledge_company_observation
+        ON knowledge_company_observations (
+          problem_id, company_id, observation_window, source_hash
+        ) NULLS NOT DISTINCT
+        """
     )
 
     # Publication remains permission-gated by FastAPI. These narrow grants allow
     # that authorized endpoint to promote reviewed records without giving the
     # candidate role broad import or source-management privileges.
-    op.execute("GRANT UPDATE (publication_status, review_status, updated_at) ON knowledge_problems TO rigor_app")
-    op.execute("GRANT UPDATE (review_status, updated_at) ON knowledge_solutions TO rigor_app")
+    op.execute(
+        "GRANT UPDATE (publication_status, review_status, updated_at) "
+        "ON knowledge_problems TO rigor_app"
+    )
+    op.execute(
+        "GRANT UPDATE (review_status, updated_at) "
+        "ON knowledge_solutions TO rigor_app"
+    )
 
 
 def downgrade() -> None:
@@ -44,10 +54,12 @@ def downgrade() -> None:
         "REVOKE UPDATE (publication_status, review_status, updated_at) "
         "ON knowledge_problems FROM rigor_app"
     )
-    op.alter_column(
+    op.drop_index(
+        "uq_knowledge_company_observation",
+        table_name="knowledge_company_observations",
+    )
+    op.create_unique_constraint(
+        "uq_knowledge_company_observation",
         "knowledge_company_observations",
-        "observation_window",
-        existing_type=sa.String(length=120),
-        nullable=True,
-        server_default=None,
+        ["problem_id", "company_id", "observation_window", "source_hash"],
     )
