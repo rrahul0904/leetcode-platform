@@ -2,6 +2,7 @@
 
 import {
   BookOpen,
+  Building2,
   CircleGauge,
   FileCheck2,
   FileUp,
@@ -20,9 +21,11 @@ import { useAuth } from "@/lib/auth";
 
 const workspaceNav = [
   ["Home", "/", LayoutDashboard],
-  ["Question bank", "/question-bank", BookOpen],
-  ["Workspace", "/workspace", FileCheck2],
-  ["Learning paths", "/learning-paths", Route],
+  ["Problems", "/problems", BookOpen],
+  ["Companies", "/companies", Building2],
+  ["Study plans", "/learning-paths", Route],
+  ["Mock exams", "/mock-interviews", FileCheck2],
+  ["System design", "/system-design-library", Radar],
   ["Readiness", "/progress", CircleGauge],
 ] as const;
 
@@ -47,7 +50,7 @@ const reviewerNav = [
 ] as const;
 
 function isActive(pathname: string, href: string) {
-  if (href === "/workspace" && pathname.startsWith("/practice/")) return true;
+  if (href === "/problems" && pathname.startsWith("/practice/")) return true;
   return href === "/"
     ? pathname === "/"
     : pathname === href || pathname.startsWith(`${href}/`);
@@ -148,11 +151,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           {renderNav(navigation)}
         </nav>
         <div className="sidebar-note">
-          <span>LOCAL WORKSPACE</span>
+          <span>RIGOR KNOWLEDGE BANK</span>
           <strong>
-            {isAdministrator ? "Content administration" : "Interview practice"}
+            {isAdministrator ? "Content administration" : "Python · SQL · JavaScript · Design"}
           </strong>
-          <p>Only reviewed and published questions appear to candidates.</p>
+          <p>Imported sources remain connected to canonical problems and governed review.</p>
         </div>
       </aside>
 
@@ -222,8 +225,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         <footer className="site-footer">
           {isCandidateWorkspace ? (
             <>
-              <span>RIGOR PLATFORM · INTERACTIVE PRACTICE</span>
-              <span>API-BACKED CONTENT · ISOLATED EXECUTION</span>
+              <span>RIGOR · INTERACTIVE INTERVIEW PRACTICE</span>
+              <span>DATABASE-BACKED CONTENT · ISOLATED EXECUTION</span>
             </>
           ) : (
             <>
