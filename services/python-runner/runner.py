@@ -18,6 +18,7 @@ MAX_SOURCE_BYTES = 100_000
 MAX_TESTS = 200
 MAX_STREAM_BYTES = 64 * 1024
 CHILD_FILE_LIMIT_BYTES = 128 * 1024
+INVOCATION_MODES = {"auto", "keyword_arguments", "positional_arguments", "single_payload", "no_arguments"}
 
 SAFE_CHILD_ENV = {
     "HOME": "/workspace",
@@ -109,8 +110,19 @@ try:
     if not callable(candidate):
         raise TypeError("required entrypoint is not callable")
     test_input = payload.get("input")
-    if isinstance(test_input, list):
+    invocation_mode = payload.get("invocation_mode", "auto")
+    if invocation_mode == "keyword_arguments" or (
+        invocation_mode == "auto" and isinstance(test_input, dict)
+    ):
+        actual = candidate(**test_input)
+    elif invocation_mode == "positional_arguments" or (
+        invocation_mode == "auto" and isinstance(test_input, list)
+    ):
+        if not isinstance(test_input, list):
+            raise TypeError("positional_arguments input must be a list")
         actual = candidate(*test_input)
+    elif invocation_mode == "no_arguments":
+        actual = candidate()
     else:
         actual = candidate(test_input)
     try:
@@ -165,6 +177,10 @@ def parse_request(path: Path, expected_execution_id: UUID) -> dict[str, Any]:
     if not isinstance(entrypoint, str) or not entrypoint.isidentifier():
         raise RunnerInputError("Candidate entrypoint is invalid.")
 
+    invocation_mode = payload.get("invocation_mode", "auto")
+    if invocation_mode not in INVOCATION_MODES:
+        raise RunnerInputError("Candidate invocation mode is invalid.")
+
     tests = payload.get("tests")
     if not isinstance(tests, list) or not tests:
         raise RunnerInputError("At least one test input is required.")
@@ -199,6 +215,7 @@ def parse_request(path: Path, expected_execution_id: UUID) -> dict[str, Any]:
         "attempt": attempt,
         "source_code": source,
         "entrypoint": entrypoint,
+        "invocation_mode": invocation_mode,
         "tests": normalized_tests,
     }
 
@@ -263,6 +280,7 @@ def execute_test(
     *,
     source_code: str,
     entrypoint: str,
+    invocation_mode: str,
     test_input: object,
     timeout_seconds: int,
 ) -> tuple[dict[str, Any], str, str, int]:
@@ -287,6 +305,7 @@ def execute_test(
                 {
                     "source_code": source_code,
                     "entrypoint": entrypoint,
+                    "invocation_mode": invocation_mode,
                     "input": test_input,
                 },
                 separators=(",", ":"),
@@ -339,6 +358,7 @@ def run_request(
     started = time.monotonic()
     source_code = str(request["source_code"])
     entrypoint = str(request["entrypoint"])
+    invocation_mode = str(request["invocation_mode"])
     tests = list(request["tests"])
     deadline = started + timeout_seconds
 
@@ -357,6 +377,7 @@ def run_request(
         protocol, _raw_stdout, raw_stderr, exit_code = execute_test(
             source_code=source_code,
             entrypoint=entrypoint,
+            invocation_mode=invocation_mode,
             test_input=item.get("input"),
             timeout_seconds=per_test_timeout,
         )
