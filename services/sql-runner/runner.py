@@ -60,16 +60,62 @@ def _positive_int(value: object, *, label: str, maximum: int) -> int:
     return value
 
 
-def _test_setup_sql(value: object) -> str:
+def _test_fixture(value: object) -> dict[str, str | None]:
+    """Normalize legacy and canonical per-test SQL fixtures.
+
+    Existing question packages use `input.ddl` and `input.seed`; newer runner
+    payloads may use `schema_sql`, `seed_sql`, and `setup_sql`. A per-test DDL or
+    seed replaces the mode-level fixture for that test, while setup_sql remains
+    an optional additive step.
+    """
+
     if value is None:
-        return ""
+        return {"schema_sql": None, "seed_sql": None, "setup_sql": ""}
     if isinstance(value, str):
-        return _optional_string(value, label="Test setup SQL", max_bytes=MAX_SETUP_BYTES)
+        return {
+            "schema_sql": None,
+            "seed_sql": None,
+            "setup_sql": _optional_string(
+                value,
+                label="Test setup SQL",
+                max_bytes=MAX_SETUP_BYTES,
+            ),
+        }
     if isinstance(value, dict):
-        setup = value.get("setup_sql", value.get("seed_sql", ""))
-        return _optional_string(setup, label="Test setup SQL", max_bytes=MAX_SETUP_BYTES)
+        schema_value = value.get("schema_sql", value.get("ddl"))
+        seed_present = "seed_sql" in value or "seed" in value
+        seed_value = value.get("seed_sql", value.get("seed")) if seed_present else None
+        setup_value = value.get("setup_sql", "")
+        schema_sql = (
+            _optional_string(
+                schema_value,
+                label="Test schema SQL",
+                max_bytes=MAX_SETUP_BYTES,
+            )
+            if schema_value is not None
+            else None
+        )
+        seed_sql = (
+            _optional_string(
+                seed_value,
+                label="Test seed SQL",
+                max_bytes=MAX_SETUP_BYTES,
+            )
+            if seed_present
+            else None
+        )
+        setup_sql = _optional_string(
+            setup_value,
+            label="Test setup SQL",
+            max_bytes=MAX_SETUP_BYTES,
+        )
+        return {
+            "schema_sql": schema_sql,
+            "seed_sql": seed_sql,
+            "setup_sql": setup_sql,
+        }
     raise RunnerInputError(
-        "SQL test input must be null, SQL text, or an object containing setup_sql."
+        "SQL test input must be null, SQL text, or an object containing ddl/seed/setup_sql."
     )
 
 
@@ -133,11 +179,12 @@ def parse_request(path: Path, expected_execution_id: UUID) -> dict[str, Any]:
         if "expected_output" in raw_test or "expected" in raw_test:
             raise RunnerInputError("Expected outputs must never enter the SQL sandbox.")
         seen.add(test_id)
+        fixture = _test_fixture(raw_test.get("input"))
         tests.append(
             {
                 "id": test_id,
                 "visibility": visibility,
-                "setup_sql": _test_setup_sql(raw_test.get("input")),
+                **fixture,
             }
         )
 
@@ -345,10 +392,20 @@ def run_request(request: dict[str, Any]) -> dict[str, object]:
     with psycopg.connect(**_connection_kwargs(), autocommit=True) as owner:
         ensure_candidate_role(owner)
         for test in tests:
+            test_schema = test.get("schema_sql")
+            test_seed = test.get("seed_sql")
             reset_fixture(
                 owner,
-                schema_sql=str(request["schema_sql"]),
-                seed_sql=str(request["seed_sql"]),
+                schema_sql=(
+                    str(test_schema)
+                    if isinstance(test_schema, str) and test_schema.strip()
+                    else str(request["schema_sql"])
+                ),
+                seed_sql=(
+                    str(test_seed)
+                    if isinstance(test_seed, str)
+                    else str(request["seed_sql"])
+                ),
                 setup_sql=str(test.get("setup_sql") or ""),
             )
             outcome = execute_candidate_query(
