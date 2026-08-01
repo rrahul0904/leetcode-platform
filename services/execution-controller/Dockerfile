@@ -31,6 +31,14 @@ LABEL org.opencontainers.image.title="Rigor Execution Controller" \
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
+    && rm -rf \
+        /usr/local/bin/pip \
+        /usr/local/bin/pip3 \
+        /usr/local/bin/pip3.13 \
+        /usr/local/lib/python3.13/site-packages/pip \
+        /usr/local/lib/python3.13/site-packages/pip-*.dist-info \
+        /usr/local/lib/python3.13/site-packages/setuptools \
+        /usr/local/lib/python3.13/site-packages/setuptools-*.dist-info \
     && groupadd --gid 10001 rigor \
     && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin rigor
 
