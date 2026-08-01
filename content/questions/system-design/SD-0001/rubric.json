@@ -1,66 +1,120 @@
 {
   "dimensions": [
     {
-      "name": "Correctness",
-      "description": "Produces a correct and internally consistent system-design outcome.",
-      "weight": 35,
-      "evidence_required": [
-        "observable result and invariant evidence"
-      ],
-      "strong_indicators": [
-        "explicit invariants and edge cases"
-      ],
-      "weak_indicators": [
-        "untested happy-path reasoning"
-      ]
-    },
-    {
-      "name": "Trade-off reasoning",
-      "description": "Explains why the selected approach fits the stated constraints.",
-      "weight": 25,
-      "evidence_required": [
-        "comparison against at least one alternative"
-      ],
-      "strong_indicators": [
-        "quantified trade-offs"
-      ],
-      "weak_indicators": [
-        "technology names without rationale"
-      ]
-    },
-    {
-      "name": "Reliability and safety",
-      "description": "Handles failure, recovery, security, and operational risk.",
+      "name": "Requirements, APIs, and delivery semantics",
+      "description": "Defines notification classes, durable API acceptance, idempotency scope, status semantics, ordering, expiration, and the meaning of delivered for each channel.",
       "weight": 20,
       "evidence_required": [
-        "failure response and recovery evidence"
+        "submission and status API contracts",
+        "logical notification and recipient-channel identifiers",
+        "explicit delivery-state machine"
       ],
       "strong_indicators": [
-        "bounded failure modes and recovery objectives"
+        "separates accepted, dispatched, provider-accepted, delivered, failed, expired, and cancelled states",
+        "treats ambiguous provider timeouts as a reconciliation problem"
       ],
       "weak_indicators": [
-        "no ownership or recovery plan"
+        "equates queue publication with delivery",
+        "claims external exactly-once delivery"
       ]
     },
     {
-      "name": "Communication",
-      "description": "Presents assumptions, decisions, and validation clearly.",
+      "name": "Architecture and data model",
+      "description": "Presents coherent ingestion, orchestration, scheduling, channel-delivery, callback, status, and reconciliation paths with durable ownership of state.",
       "weight": 20,
       "evidence_required": [
-        "structured explanation and follow-up answers"
+        "component diagram",
+        "logical data model",
+        "atomic handoff from accepted request to asynchronous work"
       ],
       "strong_indicators": [
-        "clear decision log"
+        "outbox or equivalent durable publication pattern",
+        "separate logical notification, delivery, attempt, and provider observation records"
       ],
       "weak_indicators": [
-        "implicit assumptions"
+        "single queue-and-worker diagram",
+        "provider callbacks overwrite state without idempotency or ordering rules"
+      ]
+    },
+    {
+      "name": "Capacity, fairness, and cost",
+      "description": "Quantifies fan-out, outage backlog, storage, retry drain rate, provider limits, and tenant fairness under burst traffic.",
+      "weight": 15,
+      "evidence_required": [
+        "peak delivery-record calculation",
+        "two-hour provider-outage backlog model",
+        "per-tenant and traffic-class scheduling policy"
+      ],
+      "strong_indicators": [
+        "reserves capacity for transactional traffic",
+        "bounds noisy tenants and explains backlog-drain headroom"
+      ],
+      "weak_indicators": [
+        "unbounded shared FIFO",
+        "no numerical estimate for fan-out or outage storage"
+      ]
+    },
+    {
+      "name": "Reliability and recovery",
+      "description": "Handles database, queue, provider, webhook, and regional failures without silent loss or uncontrolled duplicate user-visible sends.",
+      "weight": 20,
+      "evidence_required": [
+        "retry and dead-letter policy",
+        "provider callback reconciliation",
+        "regional failover or evacuation procedure"
+      ],
+      "strong_indicators": [
+        "bounded retries with expiration and operator replay controls",
+        "periodic reconciliation against provider message IDs",
+        "source-of-truth and conflict rules remain clear during failover"
+      ],
+      "weak_indicators": [
+        "blind retry after ambiguous timeout",
+        "DLQ without inspection and idempotent replay",
+        "active-active claim without conflict semantics"
+      ]
+    },
+    {
+      "name": "Security, privacy, and residency",
+      "description": "Defines tenant isolation, credential boundaries, payload encryption/redaction, administrative audit, and enforceable EU data-residency controls.",
+      "weight": 10,
+      "evidence_required": [
+        "trust-boundary diagram",
+        "secret and provider-credential isolation",
+        "regional payload-placement rules"
+      ],
+      "strong_indicators": [
+        "payloads and recipient addresses are excluded from routine logs",
+        "EU payloads remain in approved regions while global metadata is minimized"
+      ],
+      "weak_indicators": [
+        "global payload replication despite residency requirement",
+        "shared provider credentials exposed to tenant-facing services"
+      ]
+    },
+    {
+      "name": "Observability, operations, and migration",
+      "description": "Defines measurable SLOs, bounded-cardinality telemetry, reconciliation and DLQ operations, and a reversible migration from the synchronous sender.",
+      "weight": 15,
+      "evidence_required": [
+        "acceptance, queue-age, delivery-latency, failure, and reconciliation metrics",
+        "alert and runbook ownership",
+        "staged migration and rollback"
+      ],
+      "strong_indicators": [
+        "shadow or dual-path comparison before cutover",
+        "separates provider degradation from worker, database, and tenant-pressure signals"
+      ],
+      "weak_indicators": [
+        "only infrastructure CPU dashboards",
+        "big-bang migration without correctness comparison or rollback"
       ]
     }
   ],
   "score_bands": {
-    "90-100": "Complete, correct, explicitly validated, and production-aware.",
-    "75-89": "Correct core answer with small scale or operational gaps.",
-    "60-74": "Partially correct but missing material constraints or evidence.",
-    "0-59": "Unsafe, incomplete, or unable to satisfy the core requirements."
+    "90-100": "Complete quantified design with explicit delivery semantics, durable recovery, tenant fairness, residency boundaries, and a reversible migration.",
+    "75-89": "Strong core architecture with one material gap in capacity, failover, provider reconciliation, or operations.",
+    "60-74": "Plausible baseline that remains underspecified for duplicate delivery, overload, regional failure, or tenant isolation.",
+    "0-59": "Technology list or happy-path queue design that cannot satisfy durability, scale, or isolation requirements."
   }
 }

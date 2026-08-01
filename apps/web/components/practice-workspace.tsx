@@ -10,20 +10,28 @@ import {
   LoaderCircle,
   Play,
   Send,
+  Square,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { ErrorState, LoadingState } from "@/components/page-ui";
 import {
+  cancelExecution,
+  getCompletedSubmission,
+  getExecution,
+  isTerminalExecution,
+  queueRunExecution,
+  queueSubmitExecution,
+  type AsyncExecutionView,
+  type ExecutionAccepted,
+} from "@/lib/async-execution";
+import {
   autosavePracticeSession,
   createPracticeSession,
   getPublishedQuestion,
   revealPracticeHint,
-  runPracticeCode,
-  submitPracticeCode,
   type CandidateSubmission,
-  type ExecutionResult,
   type PracticeSession,
 } from "@/lib/api";
 
@@ -36,7 +44,7 @@ function ResultPanel({
   execution,
   submission,
 }: {
-  execution: ExecutionResult | null;
+  execution: AsyncExecutionView | null;
   submission: CandidateSubmission | null;
 }) {
   if (!execution) {
@@ -44,23 +52,50 @@ function ResultPanel({
       <div className="workspace-empty">
         <Play size={18} />
         <strong>Run your code to see public test results.</strong>
-        <span>Hidden tests are evaluated only on submission.</span>
+        <span>Hidden answers never enter the candidate sandbox.</span>
       </div>
     );
   }
-  const passed = execution.state === "PASSED";
+
+  if (!isTerminalExecution(execution.status)) {
+    return (
+      <div className="workspace-empty">
+        <LoaderCircle className="spin" size={18} />
+        <strong>{execution.status === "QUEUED" ? "Execution queued" : "Running securely"}</strong>
+        <span>Your editor stays responsive while the isolated worker handles this request.</span>
+      </div>
+    );
+  }
+
+  const result = execution.result;
+  const publicPassed = result?.public_results.every((test) => test.passed) ?? false;
+  const hiddenPassed = result != null && result.hidden_total === result.hidden_passed;
+  const passed =
+    execution.status === "COMPLETED" && result != null && publicPassed && hiddenPassed;
+
   return (
     <div className="execution-report">
       <div className={`execution-summary ${passed ? "is-passed" : "is-failed"}`}>
         {passed ? <CheckCircle2 size={19} /> : <CircleAlert size={19} />}
         <div>
-          <strong>{passed ? "All evaluated tests passed" : "Review the failing cases"}</strong>
-          <span>{execution.candidate_message ?? "Execution finished."}</span>
+          <strong>
+            {passed
+              ? "All evaluated tests passed"
+              : execution.status === "COMPLETED"
+                ? "Review the failing cases"
+                : `Execution ${execution.status.toLowerCase()}`}
+          </strong>
+          <span>
+            {result?.candidate_message ??
+              (execution.error
+                ? `Execution could not complete (${execution.error}).`
+                : "Execution finished.")}
+          </span>
         </div>
         <small>{execution.runtime_ms ?? 0} ms</small>
       </div>
       <div className="test-results">
-        {execution.public_results.map((test) => (
+        {result?.public_results.map((test) => (
           <article key={test.test_id}>
             <span className={test.passed ? "test-pass" : "test-fail"}>
               {test.passed ? "PASS" : "FAIL"}
@@ -94,6 +129,13 @@ function ResultPanel({
   );
 }
 
+type ActiveExecutionKind = "run" | "submit";
+
+type StoredExecution = {
+  executionId: string;
+  kind: ActiveExecutionKind;
+};
+
 export function PracticeWorkspace({ slug }: { slug: string }) {
   const queryClient = useQueryClient();
   const question = useQuery({
@@ -103,11 +145,49 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
   const [session, setSession] = useState<PracticeSession | null>(null);
   const [source, setSource] = useState("");
   const [elapsed, setElapsed] = useState(0);
-  const [execution, setExecution] = useState<ExecutionResult | null>(null);
+  const [lastExecution, setLastExecution] = useState<AsyncExecutionView | null>(null);
   const [submission, setSubmission] = useState<CandidateSubmission | null>(null);
+  const [activeExecutionId, setActiveExecutionId] = useState<string | null>(null);
+  const [activeKind, setActiveKind] = useState<ActiveExecutionKind | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [notice, setNotice] = useState("Starting practice session…");
   const initialized = useRef(false);
+  const pollStartedAt = useRef<number | null>(null);
+  const runIdempotencyKey = useRef<string | null>(null);
+  const submitIdempotencyKey = useRef<string | null>(null);
+  const storageKey = `rigor.active-execution:${slug}`;
+
+  function rememberExecution(accepted: ExecutionAccepted, kind: ActiveExecutionKind) {
+    const stored: StoredExecution = {
+      executionId: accepted.execution_id,
+      kind,
+    };
+    window.localStorage.setItem(storageKey, JSON.stringify(stored));
+    pollStartedAt.current = Date.now();
+    setActiveExecutionId(accepted.execution_id);
+    setActiveKind(kind);
+    setLastExecution(null);
+    setSubmission(null);
+  }
+
+  function restoreExecution() {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return;
+    try {
+      const stored = JSON.parse(raw) as Partial<StoredExecution>;
+      if (
+        typeof stored.executionId === "string" &&
+        (stored.kind === "run" || stored.kind === "submit")
+      ) {
+        pollStartedAt.current = Date.now();
+        setActiveExecutionId(stored.executionId);
+        setActiveKind(stored.kind);
+        setNotice("Recovering active execution…");
+      }
+    } catch {
+      window.localStorage.removeItem(storageKey);
+    }
+  }
 
   const sessionMutation = useMutation({
     mutationFn: () => createPracticeSession(slug),
@@ -116,35 +196,72 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
       setSource(created.draft_code);
       setElapsed(created.elapsed_seconds);
       setNotice("Saved");
+      restoreExecution();
     },
     onError: () => setNotice("Could not start the session"),
   });
+
+  const executionQuery = useQuery({
+    queryKey: ["candidate-execution", activeExecutionId],
+    queryFn: ({ signal }) => getExecution(activeExecutionId!, signal),
+    enabled: Boolean(activeExecutionId),
+    refetchInterval: (query) => {
+      const current = query.state.data;
+      if (!activeExecutionId || (current && isTerminalExecution(current.status))) {
+        return false;
+      }
+      const started = pollStartedAt.current ?? Date.now();
+      const pollingFor = Date.now() - started;
+      if (pollingFor < 3_000) return 500;
+      if (pollingFor < 10_000) return 1_000;
+      return 2_000;
+    },
+    refetchIntervalInBackground: false,
+    retry: 3,
+  });
+
   const runMutation = useMutation({
-    mutationFn: () => runPracticeCode(slug, session!.id, source),
-    onSuccess: (result) => {
-      setExecution(result);
-      setSubmission(null);
-      setNotice("Run completed");
+    mutationFn: () => {
+      const key = runIdempotencyKey.current ?? `candidate-run-${crypto.randomUUID()}`;
+      runIdempotencyKey.current = key;
+      return queueRunExecution(slug, session!.id, source, key);
     },
-    onError: () => setNotice("Execution failed to start"),
+    onSuccess: (accepted) => {
+      runIdempotencyKey.current = null;
+      rememberExecution(accepted, "run");
+      setNotice(accepted.duplicate ? "Run already queued" : "Run queued");
+    },
+    onError: () => setNotice("Execution could not be queued; retry is safe"),
   });
+
   const submitMutation = useMutation({
-    mutationFn: () =>
-      submitPracticeCode(
-        slug,
-        session!.id,
-        source,
-        `candidate-submit-${crypto.randomUUID()}`,
-      ),
-    onSuccess: (result) => {
-      setExecution(result.execution);
-      setSubmission(result);
-      setNotice("Submission evaluated and saved");
-      void queryClient.invalidateQueries({ queryKey: ["candidate-readiness"] });
-      void queryClient.invalidateQueries({ queryKey: ["submissions"] });
+    mutationFn: () => {
+      const key =
+        submitIdempotencyKey.current ?? `candidate-submit-${crypto.randomUUID()}`;
+      submitIdempotencyKey.current = key;
+      return queueSubmitExecution(slug, session!.id, source, key);
     },
-    onError: () => setNotice("Submission could not be evaluated"),
+    onSuccess: (accepted) => {
+      submitIdempotencyKey.current = null;
+      rememberExecution(accepted, "submit");
+      setNotice(accepted.duplicate ? "Submission already queued" : "Submission queued");
+    },
+    onError: () => setNotice("Submission could not be queued; retry is safe"),
   });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => cancelExecution(activeExecutionId!),
+    onMutate: () => setNotice("Cancelling execution…"),
+    onSuccess: (cancelled) => {
+      setLastExecution(cancelled);
+      setNotice(cancelled.status === "CANCELLED" ? "Execution cancelled" : "Execution already finished");
+      window.localStorage.removeItem(storageKey);
+      setActiveExecutionId(null);
+      setActiveKind(null);
+    },
+    onError: () => setNotice("Cancellation could not be confirmed"),
+  });
+
   const hintMutation = useMutation({
     mutationFn: () => revealPracticeHint(session!.id),
     onSuccess: (result) => setHint(result.text),
@@ -158,13 +275,53 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
   }, [question.data, sessionMutation]);
 
   useEffect(() => {
-    if (!session || submission) return;
-    const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
-    return () => window.clearInterval(timer);
-  }, [session, submission]);
+    const current = executionQuery.data;
+    if (!current) return;
+
+    // React Query is the external execution-state source. Schedule the UI
+    // synchronization outside the effect body so React does not cascade renders.
+    queueMicrotask(() => {
+      setLastExecution(current);
+      if (!isTerminalExecution(current.status)) {
+        setNotice(
+          current.status === "QUEUED"
+            ? "Waiting for isolated runner…"
+            : "Running in isolated sandbox…",
+        );
+        return;
+      }
+
+      window.localStorage.removeItem(storageKey);
+      setActiveExecutionId(null);
+      const completedKind = activeKind;
+      setActiveKind(null);
+      if (current.status === "COMPLETED") {
+        setNotice(completedKind === "submit" ? "Submission evaluated" : "Run completed");
+      } else {
+        setNotice(`Execution ${current.status.toLowerCase()}`);
+      }
+
+      if (completedKind === "submit" && current.submission_id) {
+        void getCompletedSubmission(current.submission_id)
+          .then((saved) => {
+            setSubmission(saved);
+            void queryClient.invalidateQueries({ queryKey: ["candidate-readiness"] });
+            void queryClient.invalidateQueries({ queryKey: ["submissions"] });
+          })
+          .catch(() => setNotice("Execution finished; submission summary is still syncing"));
+      }
+    });
+  }, [activeKind, executionQuery.data, queryClient, storageKey]);
 
   useEffect(() => {
-    if (!session || !source || submission) return;
+    const submitInFlight = activeKind === "submit";
+    if (!session || submission || submitInFlight) return;
+    const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [activeKind, session, submission]);
+
+  useEffect(() => {
+    if (!session || !source || submission || activeKind === "submit") return;
     const autosave = window.setTimeout(() => {
       void autosavePracticeSession(session.id, {
         draft_code: source,
@@ -174,24 +331,28 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
         .catch(() => setNotice("Autosave unavailable"));
     }, 900);
     return () => window.clearTimeout(autosave);
-  }, [elapsed, session, source, submission]);
+  }, [activeKind, elapsed, session, source, submission]);
 
-  if (question.isLoading)
+  if (question.isLoading) {
     return (
       <div className="page-content">
         <LoadingState label="Preparing practice workspace" />
       </div>
     );
-  if (question.isError || !question.data)
+  }
+  if (question.isError || !question.data) {
     return (
       <div className="page-content">
         <ErrorState retry={() => void question.refetch()} />
       </div>
     );
+  }
 
   const item = question.data;
+  const execution = executionQuery.data ?? lastExecution;
   const busy =
-    !session || runMutation.isPending || submitMutation.isPending;
+    !session || runMutation.isPending || submitMutation.isPending || Boolean(activeExecutionId);
+
   return (
     <div className="practice-page">
       <header className="practice-header">
@@ -212,7 +373,9 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
         <section className="prompt-pane">
           <div className="pane-heading">
             <span>PROBLEM</span>
-            <small>{item.difficulty} · {item.estimated_duration_minutes} min</small>
+            <small>
+              {item.difficulty} · {item.estimated_duration_minutes} min
+            </small>
           </div>
           <h1>{item.title}</h1>
           <p className="lead-copy">{item.problem_statement}</p>
@@ -246,7 +409,7 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
         <section className="editor-pane">
           <div className="pane-heading">
             <span>PYTHON 3.13</span>
-            <small>Local functional runner</small>
+            <small>Isolated asynchronous runner</small>
           </div>
           <textarea
             aria-label="Python source code"
@@ -255,6 +418,8 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
             value={source}
             onChange={(event) => {
               setSource(event.target.value);
+              runIdempotencyKey.current = null;
+              submitIdempotencyKey.current = null;
               setNotice("Unsaved changes");
             }}
           />
@@ -283,14 +448,22 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
               )}
               Submit for evaluation
             </button>
+            {activeExecutionId && (
+              <button
+                className="button button--secondary"
+                disabled={cancelMutation.isPending}
+                onClick={() => cancelMutation.mutate()}
+              >
+                {cancelMutation.isPending ? (
+                  <LoaderCircle className="spin" size={16} />
+                ) : (
+                  <Square size={14} />
+                )}
+                Cancel execution
+              </button>
+            )}
           </div>
-          <div className="result-pane">
-            <div className="pane-heading">
-              <span>RESULTS</span>
-              <small>Hidden inputs never leave the server</small>
-            </div>
-            <ResultPanel execution={execution} submission={submission} />
-          </div>
+          <ResultPanel execution={execution} submission={submission} />
         </section>
       </div>
     </div>

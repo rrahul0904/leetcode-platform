@@ -15,7 +15,7 @@ export function LearningPaths() {
   const active = learningPaths.find((path) => path.id === selectedPath);
   return (
     <div className="page-content">
-      <PageHeader eyebrow="LEARNING PATHS" title="Choose the sequence before chasing volume." description="Each path connects role outcomes to canonical tracks without duplicating the question bank. Selection is local until authenticated profiles are available." />
+      <PageHeader eyebrow="LEARNING PATHS" title="Build a deliberate preparation sequence." description="Role-aligned weekly plans blend coding, SQL, architecture, and simulation evidence without duplicating the canonical question bank." />
       {active && <EvidenceNote tone="success"><strong>{active.title} is your active local path.</strong><span>Its staged plan appears below; persistent scheduling will move to the profile service.</span></EvidenceNote>}
       <section className="path-grid section-block">
         {learningPaths.map((path) => {

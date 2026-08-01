@@ -1,0 +1,289 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "feature/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python lint, types, tests, images, and supply chain
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install locked Python workspace
+        run: uv sync --frozen --all-packages
+
+      - name: Start PostgreSQL 18 + pgvector for integration tests
+        run: docker compose up -d --wait postgres
+
+      - name: Upgrade integration-test database
+        env:
+          RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
+        run: uv run alembic upgrade head
+
+      - name: Seed deterministic taxonomy for integration tests
+        env:
+          RIGOR_SEED_DATABASE_URL: postgresql://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
+          PGOPTIONS: -c rigor.maintenance_bypass=on
+        run: uv run python scripts/seed_database.py
+
+      - name: Ruff
+        run: >-
+          uv run ruff check
+          apps/api/src
+          packages/question-schema/src
+          services/python-runner
+          services/sql-runner
+          scripts
+          apps/api/tests
+          packages/question-schema/tests
+          tests
+
+      - name: Pyright
+        if: always()
+        run: uv run pyright apps/api/src packages/question-schema/src scripts
+
+      - name: Pytest
+        if: always()
+        run: uv run pytest -q
+
+      - name: Build execution images
+        if: always()
+        run: |
+          docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt -t rigor-python-runner:test -f services/python-runner/Dockerfile .
+          docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt -t rigor-sql-runner:test -f services/sql-runner/Dockerfile .
+          docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt -t rigor-execution-controller:test -f services/execution-controller/Dockerfile .
+
+      - name: Scan Python runner image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: rigor-python-runner:test
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+
+      - name: Scan SQL runner image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: rigor-sql-runner:test
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+
+      - name: Scan execution controller image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: rigor-execution-controller:test
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+
+      - name: Generate Python runner SBOM
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: rigor-python-runner:test
+          format: cyclonedx
+          output: sbom-python-runner.cdx.json
+          exit-code: "0"
+
+      - name: Generate SQL runner SBOM
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: rigor-sql-runner:test
+          format: cyclonedx
+          output: sbom-sql-runner.cdx.json
+          exit-code: "0"
+
+      - name: Generate execution controller SBOM
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: rigor-execution-controller:test
+          format: cyclonedx
+          output: sbom-execution-controller.cdx.json
+          exit-code: "0"
+
+      - name: Upload execution SBOMs
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: execution-image-sboms
+          path: |
+            sbom-python-runner.cdx.json
+            sbom-sql-runner.cdx.json
+            sbom-execution-controller.cdx.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Show PostgreSQL logs on failure
+        if: failure()
+        run: docker compose logs postgres
+
+      - name: Stop integration-test services
+        if: always()
+        run: docker compose down -v
+
+  web:
+    name: Web lint, types, tests, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pinned pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.10.0
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.18.0"
+          cache: pnpm
+
+      - name: Install locked JavaScript workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter @rigor/web lint
+
+      - name: Typecheck
+        if: always()
+        run: pnpm --filter @rigor/web typecheck
+
+      - name: Test
+        if: always()
+        run: pnpm --filter @rigor/web test
+
+      - name: Build
+        if: always()
+        run: pnpm --filter @rigor/web build
+
+  migration:
+    name: PostgreSQL migration cycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install locked Python workspace
+        run: uv sync --frozen --all-packages
+
+      - name: Start PostgreSQL 18 + pgvector
+        run: docker compose up -d --wait postgres
+
+      - name: Upgrade from empty database
+        env:
+          RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
+        run: uv run alembic upgrade head
+
+      - name: Verify execution schema and worker roles
+        run: |
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260729_0011"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_outbox') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_payloads') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_public_results') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT NOT rolbypassrls FROM pg_roles WHERE rolname='rigor_execution_worker'")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT NOT rolbypassrls FROM pg_roles WHERE rolname='rigor_execution_reconciler'")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT NOT rolbypassrls FROM pg_roles WHERE rolname='rigor_executor'")" = "t"
+
+      - name: Downgrade and re-upgrade worker security migration
+        env:
+          RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
+        run: |
+          uv run alembic downgrade 20260729_0010
+          uv run alembic upgrade head
+
+      - name: Show PostgreSQL logs on failure
+        if: failure()
+        run: docker compose logs postgres
+
+      - name: Stop services
+        if: always()
+        run: docker compose down -v
+
+  terraform:
+    name: Terraform format and validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.14.4"
+
+      - name: Terraform format
+        run: terraform fmt -check -diff -recursive infra/terraform
+
+      - name: Initialize staging without remote backend
+        if: always()
+        run: terraform -chdir=infra/terraform/environments/staging init -backend=false -input=false
+
+      - name: Validate staging source
+        if: always()
+        run: terraform -chdir=infra/terraform/environments/staging validate
+
+  packer:
+    name: gVisor execution-node AMI source
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Packer
+        uses: hashicorp/setup-packer@v3.2.0
+        with:
+          version: "1.16.0"
+
+      - name: Initialize Packer plugins
+        run: packer init infra/packer
+
+      - name: Validate Packer syntax
+        run: packer validate -syntax-only infra/packer
+
+      - name: Validate gVisor installer shell
+        run: bash -n infra/packer/scripts/install-gvisor.sh

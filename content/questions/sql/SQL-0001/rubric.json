@@ -1,66 +1,83 @@
 {
   "dimensions": [
     {
-      "name": "Correctness",
-      "description": "Produces a correct and internally consistent sql-analytics outcome.",
-      "weight": 35,
+      "name": "Cohort and retention correctness",
+      "description": "Returns every eligible cohort with the correct user and exact week-one retained-user counts.",
+      "weight": 40,
       "evidence_required": [
-        "observable result and invariant evidence"
+        "correct public and hidden result sets",
+        "zero-retention cohorts preserved",
+        "week-one boundary stated explicitly"
       ],
       "strong_indicators": [
-        "explicit invariants and edge cases"
+        "eligible cohort population is defined before activity joins",
+        "one retained row per user and cohort",
+        "deterministic cohort ordering"
       ],
       "weak_indicators": [
-        "untested happy-path reasoning"
+        "inner join drops empty cohorts",
+        "counts raw events rather than users",
+        "retention window remains ambiguous"
       ]
     },
     {
-      "name": "Trade-off reasoning",
-      "description": "Explains why the selected approach fits the stated constraints.",
+      "name": "Duplicate and eligibility handling",
+      "description": "Prevents at-least-once source delivery, repeated sessions, test accounts, and non-qualifying events from changing retention incorrectly.",
       "weight": 25,
       "evidence_required": [
-        "comparison against at least one alternative"
+        "duplicate source fixture",
+        "test-account fixture",
+        "event-type and wrong-week fixtures"
       ],
       "strong_indicators": [
-        "quantified trade-offs"
+        "source events are deduplicated explicitly",
+        "retained users are reduced to one row before aggregation"
       ],
       "weak_indicators": [
-        "technology names without rationale"
+        "DISTINCT is applied only after an inflated aggregate",
+        "test users contribute to either denominator or numerator"
       ]
     },
     {
-      "name": "Reliability and safety",
-      "description": "Handles failure, recovery, security, and operational risk.",
-      "weight": 20,
+      "name": "Query structure and maintainability",
+      "description": "Uses auditable stages, exact aliases, and deterministic output without unnecessary procedural work.",
+      "weight": 15,
       "evidence_required": [
-        "failure response and recovery evidence"
+        "readable query plan",
+        "requested output contract"
       ],
       "strong_indicators": [
-        "bounded failure modes and recovery objectives"
+        "CTEs or equivalent stages separate eligibility, activity, and aggregation",
+        "column names and order match the contract"
       ],
       "weak_indicators": [
-        "no ownership or recovery plan"
+        "opaque nested aggregation",
+        "temporary-table or mutation dependency"
       ]
     },
     {
-      "name": "Communication",
-      "description": "Presents assumptions, decisions, and validation clearly.",
+      "name": "Production-scale reasoning",
+      "description": "Explains how the query behaves with late events and billion-row daily activity volume.",
       "weight": 20,
       "evidence_required": [
-        "structured explanation and follow-up answers"
+        "index or partition proposal",
+        "late-arrival reconciliation",
+        "data-quality monitoring"
       ],
       "strong_indicators": [
-        "clear decision log"
+        "partition pruning and incremental cohort recomputation are quantified",
+        "source-event replay is monitored as a correctness signal"
       ],
       "weak_indicators": [
-        "implicit assumptions"
+        "claims scale from syntax alone",
+        "ignores late-arriving events and backfills"
       ]
     }
   ],
   "score_bands": {
-    "90-100": "Complete, correct, explicitly validated, and production-aware.",
-    "75-89": "Correct core answer with small scale or operational gaps.",
-    "60-74": "Partially correct but missing material constraints or evidence.",
-    "0-59": "Unsafe, incomplete, or unable to satisfy the core requirements."
+    "90-100": "Exact results on all fixtures with clear duplicate semantics and credible production-scale reasoning.",
+    "75-89": "Correct cohort query with one minor edge-case or operational gap.",
+    "60-74": "Core aggregation is partially correct but mishandles duplicates, empty cohorts, or boundaries.",
+    "0-59": "Incorrect retention definition or materially inflated/dropped results."
   }
 }

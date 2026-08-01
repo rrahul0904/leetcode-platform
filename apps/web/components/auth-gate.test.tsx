@@ -59,4 +59,16 @@ describe("AuthGate", () => {
     expect(screen.getByText("Practice workspace")).toBeInTheDocument();
     expect(router.replace).not.toHaveBeenCalledWith("/");
   });
+
+  it("allows the candidate workspace entry route", () => {
+    pathname = "/workspace";
+    router.replace.mockClear();
+    render(
+      <AuthGate>
+        <div>Workspace entry</div>
+      </AuthGate>,
+    );
+    expect(screen.getByText("Workspace entry")).toBeInTheDocument();
+    expect(router.replace).not.toHaveBeenCalledWith("/");
+  });
 });

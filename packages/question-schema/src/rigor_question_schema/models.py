@@ -103,6 +103,7 @@ class TestCase(StrictModel):
     input: object
     expected_output: object | None = None
     property_name: str | None = None
+    comparison: str | dict[str, object] | None = None
 
 
 class PythonSpecification(StrictModel):

@@ -1,17 +1,40 @@
 [
   {
     "id": "SQL-0001-H01",
-    "name": "duplicate and boundary rows",
+    "name": "duplicate source delivery does not inflate retention",
     "visibility": "hidden",
     "input": {
-      "fixture": "boundary-variant"
+      "ddl": "CREATE TABLE users(user_id INTEGER PRIMARY KEY, cohort_week INTEGER NOT NULL, is_test BOOLEAN NOT NULL); CREATE TABLE activity(source_event_id TEXT NOT NULL, user_id INTEGER NOT NULL, activity_week INTEGER NOT NULL, event_name TEXT NOT NULL);",
+      "seed": "INSERT INTO users VALUES (1,30,FALSE); INSERT INTO activity VALUES ('dup',1,31,'session_started'),('dup',1,31,'session_started'),('dup',1,31,'session_started');"
     },
-    "expected_output": {
-      "invariants": [
-        "stable ordering",
-        "no unintended duplication",
-        "null-safe aggregation"
-      ]
-    }
+    "expected_output": [
+      {"cohort_week": 30, "users": 1, "retained_week_one": 1}
+    ]
+  },
+  {
+    "id": "SQL-0001-H02",
+    "name": "test accounts and non-qualifying events are excluded",
+    "visibility": "hidden",
+    "input": {
+      "ddl": "CREATE TABLE users(user_id INTEGER PRIMARY KEY, cohort_week INTEGER NOT NULL, is_test BOOLEAN NOT NULL); CREATE TABLE activity(source_event_id TEXT NOT NULL, user_id INTEGER NOT NULL, activity_week INTEGER NOT NULL, event_name TEXT NOT NULL);",
+      "seed": "INSERT INTO users VALUES (1,40,FALSE),(2,40,TRUE),(3,40,FALSE); INSERT INTO activity VALUES ('a',1,41,'page_view'),('b',2,41,'session_started'),('c',3,42,'session_started');"
+    },
+    "expected_output": [
+      {"cohort_week": 40, "users": 2, "retained_week_one": 0}
+    ]
+  },
+  {
+    "id": "SQL-0001-H03",
+    "name": "multiple cohorts remain ordered and include empty activity",
+    "visibility": "hidden",
+    "input": {
+      "ddl": "CREATE TABLE users(user_id INTEGER PRIMARY KEY, cohort_week INTEGER NOT NULL, is_test BOOLEAN NOT NULL); CREATE TABLE activity(source_event_id TEXT NOT NULL, user_id INTEGER NOT NULL, activity_week INTEGER NOT NULL, event_name TEXT NOT NULL);",
+      "seed": "INSERT INTO users VALUES (1,52,FALSE),(2,50,FALSE),(3,51,FALSE); INSERT INTO activity VALUES ('a',3,52,'session_started');"
+    },
+    "expected_output": [
+      {"cohort_week": 50, "users": 1, "retained_week_one": 0},
+      {"cohort_week": 51, "users": 1, "retained_week_one": 1},
+      {"cohort_week": 52, "users": 1, "retained_week_one": 0}
+    ]
   }
 ]

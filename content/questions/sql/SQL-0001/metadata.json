@@ -1,21 +1,21 @@
 {
   "provenance": {
-    "originality_statement": "Independently authored first-party question based on a competency coverage objective; no external problem statement, examples, tests, or solution were copied.",
-    "authoring_method": "Human-directed deterministic content generation from an original scenario specification, followed by executable and schema validation.",
+    "originality_statement": "Independently authored first-party product-retention question; no external problem statement, examples, tests, or solution were copied.",
+    "authoring_method": "Human-directed scenario design using an original at-least-once analytics pipeline, followed by deterministic SQL fixtures and reference-query validation.",
     "source_classes": [
       "internal competency taxonomy",
-      "general engineering knowledge",
-      "synthetic scenario data"
+      "general SQL and analytics engineering knowledge",
+      "synthetic subscription-product data"
     ],
     "source_notes": [
-      "External question metadata was used only to identify aggregate coverage gaps.",
-      "All names, datasets, examples, and failure cases are fictional."
+      "The scenario, table names, event data, tests, and scoring rubric are original to Rigor.",
+      "External question text and expected answers were not used."
     ],
-    "content_hash": "sha256:b9af78d692897daebf13f43aebe232bd817ff6eade259e2c3c29e4db4c8547cf",
-    "authored_at": "2026-07-21T16:00:00Z",
-    "author_id": "rigor-content-release-agent"
+    "content_hash": "sha256:69e46b072abde4fbb93c88baec36b84c6462ff02d40bd8f1fafb19d242befffd",
+    "authored_at": "2026-08-01T02:55:00Z",
+    "author_id": "rigor-founding-editor"
   },
-  "version": "1.0.0",
+  "version": "1.1.0",
   "review_status": "awaiting_technical_review",
   "validation": {
     "schema_valid": true,
@@ -23,6 +23,6 @@
     "executable_tests_passed": true,
     "duplicate_check_passed": true,
     "rubric_check_passed": true,
-    "last_run_id": "launch-foundation-20260721"
+    "last_run_id": "real-catalog-sql-20260801"
   }
 }

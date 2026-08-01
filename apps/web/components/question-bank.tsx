@@ -71,8 +71,8 @@ export function QuestionBank() {
     <div className="page-content">
       <PageHeader
         eyebrow="QUESTION BANK"
-        title="Choose from hosted and external practice."
-        description="Search real PostgreSQL records. Hosted questions run inside Rigor; external references always continue to their canonical source."
+        title="Choose work that changes your readiness."
+        description="Hosted execution exercises, source-backed interview references, and architecture prompts—organized around evidence, not volume."
       />
       <div className="catalog-tabs" role="tablist" aria-label="Practice type">
         {(

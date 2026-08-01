@@ -1,141 +1,218 @@
 {
   "id": "SD-0001",
-  "title": "Design a Reliable Notification Delivery Platform",
-  "slug": "sd-0001-design-a-reliable-notification-delivery-platform",
+  "title": "Design a Multi-Region Notification Delivery Platform",
+  "slug": "sd-0001-multi-region-notification-delivery",
   "primary_track": "system-design",
   "secondary_skills": [
-    "design",
-    "reliability",
-    "trade-off-analysis"
+    "distributed-systems",
+    "multi-tenant-isolation",
+    "delivery-semantics",
+    "capacity-planning",
+    "observability",
+    "data-residency"
   ],
   "role_families": [
-    "software-engineer",
-    "data-engineer",
-    "platform-engineer"
+    "backend-engineer",
+    "platform-engineer",
+    "staff-engineer"
   ],
   "expected_seniority": "senior",
-  "difficulty": "foundational",
+  "difficulty": "advanced",
   "difficulty_dimensions": {
-    "conceptual": 2,
+    "conceptual": 4,
     "implementation": 3,
     "scale": 5,
-    "ambiguity": 2,
-    "prerequisite_depth": 2
+    "ambiguity": 4,
+    "prerequisite_depth": 4
   },
   "company_style_tags": [
     {
       "slug": "independent-production-interview",
-      "relevance_rationale": "Original production scenario emphasizing explicit constraints and evidence without claiming employer provenance.",
+      "relevance_rationale": "Original large-scale messaging scenario that evaluates requirements framing, delivery semantics, multi-region reliability, tenant isolation, and operational trade-offs without claiming employer provenance.",
       "public_theme_sources": [],
       "disclaimer": "independent-content"
     }
   ],
   "learning_objectives": [
-    "Translate a production scenario into explicit invariants.",
-    "Evaluate correctness under failure and scale.",
-    "Communicate a testable decision and its trade-offs."
+    "Turn ambiguous notification requirements into explicit channel, latency, durability, and tenant-isolation contracts.",
+    "Design idempotent request and delivery workflows around at-least-once queues and unreliable providers.",
+    "Quantify throughput, storage, retry, and provider-capacity requirements.",
+    "Separate regional control, data, and delivery planes to satisfy residency and outage requirements.",
+    "Define measurable SLOs, overload behavior, reconciliation, and migration stages."
   ],
   "prerequisites": [
-    "data-structures",
-    "reliability-fundamentals"
+    "queues-and-streams",
+    "idempotency",
+    "database-partitioning",
+    "rate-limiting",
+    "multi-region-failover",
+    "observability"
   ],
   "estimated_duration_minutes": 75,
-  "problem_statement": "Design notification delivery for a fictional multi-tenant enterprise platform. Begin with 25 million active users, 30,000 peak requests per second, and a 99.95% availability objective. Produce APIs, data models, capacity estimates, a component diagram, failure recovery, security boundaries, observability, cost controls, and a staged migration. During the interview, respond when provider outages and duplicate callbacks; then revise the design when stakeholders require you to add quiet hours and regional data residency.",
+  "problem_statement": "Design the notification platform for a fictional multi-tenant enterprise product. Product services submit email, SMS, mobile-push, and in-app notifications through one API. The system serves 25 million monthly active users and 80,000 tenants. Normal ingress is 8,000 notification requests per second, with campaign and incident peaks of 30,000 requests per second. One request may fan out to multiple recipients and channels. The platform must accept a request within 200 ms p99, begin transactional delivery within 5 seconds p99, and provide 99.95% monthly API availability. External providers are rate-limited, can return ambiguous timeouts, may deliver duplicate callbacks, and may be unavailable for hours. The platform must support idempotent submission, per-tenant quotas and fairness, user preferences, quiet hours, templates and localization, retries, dead-letter handling, delivery status, webhook callbacks, auditable administration, and cost controls. EU tenant data must remain in EU regions. A regional outage must not cause duplicate user-visible notifications or silently lose accepted work. Present the APIs, data model, capacity model, component and trust-boundary diagrams, delivery state machine, failure recovery, security controls, observability, and a staged migration from an existing single-region synchronous sender.",
   "candidate_instructions": [
-    "Clarify assumptions before committing to an approach.",
-    "Make the result deterministic and explain how it is validated.",
-    "Discuss complexity, failure behavior, and production follow-ups."
+    "Begin by clarifying notification classes, channel guarantees, latency expectations, ordering, and the meaning of delivered.",
+    "State which operations require strong consistency and which may be eventually consistent.",
+    "Quantify peak message fan-out, queue depth during a two-hour provider outage, storage retention, and retry capacity.",
+    "Draw separate request-ingestion, orchestration, channel-delivery, provider-callback, and status-query paths.",
+    "Explain how idempotency keys, delivery attempt IDs, and provider message IDs prevent duplicate business effects.",
+    "Describe graceful overload, tenant fairness, dead-letter operations, reconciliation, and regional evacuation.",
+    "End with SLOs, dashboards, alerts, cost levers, and a migration/rollback sequence."
   ],
   "interviewer_instructions": [
-    "Ask for the candidate's invariants before implementation.",
-    "Probe one failure scenario and one scale change.",
-    "Do not reveal the reference solution or private rubric."
+    "Do not allow a technology list before the candidate defines guarantees and scale.",
+    "Ask whether API acceptance means durable acceptance and how that is proven.",
+    "Inject an SMS-provider outage after the baseline design.",
+    "Inject duplicate provider callbacks and an ambiguous request timeout.",
+    "Require an EU residency change and a ten-times campaign spike from one tenant.",
+    "Probe how quiet hours interact with retries, expiration, and user preference changes.",
+    "Ask for the exact source of truth for delivery state and reconciliation."
   ],
   "constraints": [
-    "The answer must be deterministic for identical inputs.",
-    "Invalid inputs or impossible states must fail explicitly.",
-    "Production claims require observable evidence."
+    "Accepted requests must be durably recoverable before the API returns success.",
+    "The public API must support an idempotency key scoped to tenant and operation.",
+    "A recipient-channel delivery may be attempted more than once internally but must not create duplicate business state.",
+    "Provider acknowledgements are not equivalent to end-user delivery unless the channel supports a delivery receipt.",
+    "Transactional notifications cannot be delayed behind bulk campaign traffic.",
+    "A single tenant cannot consume unbounded shared queue or provider capacity.",
+    "Quiet hours and opt-outs must be evaluated against an explicit policy version.",
+    "EU tenant payloads and recipient identifiers cannot leave approved EU regions.",
+    "Notification content may contain sensitive information and must not appear in ordinary logs.",
+    "The design must tolerate one regional outage and one channel-provider outage without losing accepted work."
   ],
   "assumptions": [
-    "All examples are fictional and use synthetic data.",
-    "The candidate may state additional assumptions when they are testable."
+    "Push, SMS, and email providers expose different rate limits and callback semantics.",
+    "Templates are authored separately and referenced by immutable version.",
+    "The product permits eventual status convergence after provider recovery.",
+    "Cross-region failover may use metadata replication while payload residency remains regional.",
+    "The platform may offer different retention periods for payloads, delivery state, and audit history."
   ],
   "expected_clarifying_questions": [
-    "Which invariant has priority when requirements conflict?",
-    "What scale and latency targets should be assumed?",
-    "How should partial failure be surfaced?"
+    "Which notifications are transactional versus bulk, and may either expire?",
+    "Is ordering required per recipient, per campaign, or not at all?",
+    "What does the API promise when it returns success?",
+    "Can one request target multiple channels and recipients?",
+    "How are opt-outs, quiet hours, and emergency overrides prioritized?",
+    "Which delivery statuses are authoritative for each provider?",
+    "What regional data-residency and disaster-recovery rules apply?",
+    "What webhook delivery guarantee is required for tenant callbacks?"
   ],
   "hints": [
     {
       "reveal_level": 1,
-      "text": "Write the invariant that must hold after every operation.",
-      "penalty_points": 4
+      "text": "Separate durable request acceptance from channel-specific delivery attempts.",
+      "penalty_points": 3
     },
     {
       "reveal_level": 2,
-      "text": "Separate validation, core behavior, and failure handling.",
-      "penalty_points": 8
+      "text": "Model one logical notification and many recipient-channel deliveries with explicit idempotency and attempt identifiers.",
+      "penalty_points": 7
+    },
+    {
+      "reveal_level": 3,
+      "text": "Use priority/fairness controls before provider dispatch, then reconcile provider callbacks against durable delivery state.",
+      "penalty_points": 12
     }
   ],
   "common_mistakes": [
-    "Assuming well-formed input without validation.",
-    "Using nondeterministic iteration as a tie-breaker.",
-    "Claiming production readiness without recovery or observability."
+    "Equating queue publication with end-user delivery.",
+    "Claiming exactly-once delivery across external providers.",
+    "Using one FIFO queue for transactional and bulk work.",
+    "Retrying ambiguous provider timeouts without an idempotency or reconciliation strategy.",
+    "Ignoring recipient preferences at delayed delivery time.",
+    "Failing to bound a noisy tenant's queue and provider consumption.",
+    "Replicating EU payloads globally while claiming residency compliance.",
+    "Logging full payloads, recipient addresses, or provider credentials.",
+    "Providing multi-region diagrams without a source-of-truth or failover state machine."
   ],
   "strong_answer_indicators": [
-    "States invariants and validates them with examples.",
-    "Explains a credible alternative and rejection reason.",
-    "Connects failure handling to measurable signals."
+    "Defines durable API acceptance, logical-notification identity, recipient-channel identity, and delivery-attempt identity separately.",
+    "Uses an outbox or equivalent atomic handoff from request state to asynchronous orchestration.",
+    "Separates transactional and bulk scheduling with per-tenant quotas and weighted fairness.",
+    "Quantifies outage backlog, worker/provider capacity, and storage headroom.",
+    "Treats provider callbacks as idempotent observations and includes periodic reconciliation.",
+    "Explains payload encryption, redaction, secret isolation, audit trails, and data-residency boundaries.",
+    "Defines operational SLOs for acceptance latency, queue age, delivery latency, failure rate, and reconciliation lag.",
+    "Presents a staged migration with shadow traffic, dual writes or adapters, rollback, and correctness comparison."
   ],
   "weak_answer_indicators": [
-    "Only handles the happy path.",
-    "Provides an unquantified technology list.",
-    "Leaks private evaluation material into the candidate answer."
+    "Provides only a queue and worker diagram.",
+    "Uses provider response codes as the sole source of delivery truth.",
+    "Has no tenant fairness or overload policy.",
+    "Offers active-active regions without conflict, idempotency, or residency reasoning.",
+    "Cannot explain how accepted work survives database, queue, provider, or regional failures.",
+    "Uses unbounded retries or a dead-letter queue without an operator workflow."
   ],
   "follow_up_questions": [
-    "How would the design behave during a regional outage?",
-    "Which metrics would prove the implementation is correct?"
+    "How does the platform behave when the provider accepted a request but the network timed out before the response arrived?",
+    "How would you guarantee transactional messages are not starved during a 500-million-recipient campaign?",
+    "What changes when a tenant requires all payloads and delivery state to remain in Germany?",
+    "How would you migrate provider routing rules while millions of delayed messages are queued?",
+    "Which metrics distinguish provider degradation, worker saturation, tenant abuse, and database contention?",
+    "How would you safely replay dead-lettered deliveries without sending duplicates?"
   ],
   "harder_variants": [
-    "Add multi-tenant fairness and strict isolation.",
-    "Preserve correctness during a zero-downtime migration."
+    "Add end-user journey orchestration with conditional multi-step notifications and cancellation.",
+    "Support per-recipient causal ordering across channels during active-active regional operation.",
+    "Introduce customer-managed encryption keys and tenant-specific retention policies."
   ],
   "easier_variants": [
-    "Solve for one tenant and a single failure domain."
+    "Design one-region email-only transactional delivery for five thousand requests per second.",
+    "Assume one provider with idempotent send APIs and no data-residency requirement."
   ],
-  "related_question_ids": [],
+  "related_question_ids": [
+    "SD-0002",
+    "SD-0004"
+  ],
   "mode_specification": {
     "functional_requirements": [
-      "Provide the core notification delivery workflow.",
-      "Isolate tenant data and quotas.",
-      "Expose auditable administrative controls."
+      "Idempotent tenant-scoped notification submission and status lookup.",
+      "Template versioning, localization, recipient preferences, opt-outs, and quiet hours.",
+      "Fan-out into recipient-channel deliveries with priority and expiration.",
+      "Channel-specific scheduling, provider routing, throttling, retry, and failover.",
+      "Provider callback ingestion, idempotent state transitions, and periodic reconciliation.",
+      "Per-tenant quotas, weighted fairness, webhook callbacks, administration, and audit."
     ],
     "non_functional_requirements": [
-      "99.95% monthly availability.",
-      "Bounded p99 latency with graceful overload behavior.",
-      "Encryption, least privilege, and complete audit history."
+      "99.95% monthly submission API availability.",
+      "Submission p99 below 200 ms after durable acceptance.",
+      "Transactional delivery starts within 5 seconds p99 during normal operation.",
+      "No silent loss of accepted work and no unbounded retries.",
+      "One-region and one-provider-outage tolerance.",
+      "EU payload and recipient-data residency.",
+      "Encryption, least privilege, payload redaction, and complete administrative audit history."
     ],
     "scale_assumptions": [
-      "25 million monthly active users.",
-      "30,000 peak requests per second.",
-      "Three regions with two failure domains each."
+      "25 million monthly active users and 80,000 tenants.",
+      "8,000 normal and 30,000 peak notification requests per second.",
+      "Average fan-out of 3 recipients and 1.4 channels per recipient.",
+      "Two-hour provider outage must be absorbed without dropping transactional work.",
+      "Delivery-state retention is 90 days; audit metadata is retained for seven years.",
+      "Three geographic operating regions, with EU payloads confined to EU."
     ],
-    "capacity_estimation_example": "At 30,000 requests/second and 1.5 KiB per request, ingress is about 45 MiB/second before replication; the candidate must extend this calculation to daily storage and headroom.",
+    "capacity_estimation_example": "At 30,000 requests/second, average fan-out 3, and 1.4 channels, peak delivery creation is about 126,000 recipient-channel records/second. A two-hour full-provider outage can accumulate roughly 907 million delivery records before retries, so the design must quantify compression, partitioning, backlog drain rate, and storage headroom.",
     "expected_artifacts": [
-      "API contract",
-      "logical data model",
-      "component and trust-boundary diagram",
-      "capacity model",
-      "migration and rollback plan"
+      "Submission and status API contracts with idempotency semantics.",
+      "Logical data model and delivery state machine.",
+      "Request, orchestration, channel-delivery, callback, and reconciliation diagrams.",
+      "Regional and tenant trust-boundary diagram.",
+      "Capacity, partitioning, provider-rate, and backlog-drain model.",
+      "SLOs, dashboards, alerts, dead-letter runbook, and migration/rollback plan."
     ],
     "failure_scenarios": [
-      "provider outages and duplicate callbacks",
-      "a primary datastore becomes unavailable",
-      "one tenant creates a sudden ten-times traffic spike"
+      "Provider accepted a send but the request timed out before acknowledgement.",
+      "Provider is unavailable for two hours and later emits duplicate callbacks.",
+      "Primary regional datastore or queue becomes unavailable.",
+      "One tenant launches a ten-times burst that exceeds its contracted quota.",
+      "A delayed notification reaches its quiet-hours boundary or expires.",
+      "Webhook consumers return errors for twelve hours.",
+      "A reconciliation job discovers provider and internal state disagree."
     ],
     "requirement_changes": [
-      "add quiet hours and regional data residency",
-      "reduce operating cost by twenty percent without weakening the SLO"
+      "Add EU-country-specific residency while maintaining one global tenant control plane.",
+      "Guarantee transactional traffic receives capacity during a 500-million-recipient campaign.",
+      "Reduce provider and storage cost by twenty percent without weakening acceptance or delivery SLOs.",
+      "Add emergency notifications that may override quiet hours but must be fully audited."
     ]
   }
 }

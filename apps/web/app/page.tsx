@@ -1,6 +1,5 @@
-import { Dashboard } from "@/components/dashboard";
+import { CinematicDashboard } from "@/components/cinematic-dashboard";
 
 export default function Home() {
-  return <Dashboard />;
+  return <CinematicDashboard />;
 }
-
