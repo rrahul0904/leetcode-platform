@@ -3,7 +3,6 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   Bookmark,
-  Check,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -47,7 +46,7 @@ export function KnowledgeProblemWorkspace({ slug }: { slug: string }) {
   const [activeTab, setActiveTab] = useState<"description" | "editorial" | "solutions" | "notes">(
     "description",
   );
-  const [language, setLanguage] = useState("");
+  const [selectedLanguage, setSelectedLanguage] = useState("");
   const [draft, setDraft] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -60,18 +59,17 @@ export function KnowledgeProblemWorkspace({ slug }: { slug: string }) {
     queryFn: ({ signal }) =>
       getKnowledgeProblems({ pageSize: 40, sort: "relevance" }, signal),
   });
+  const availableLanguages = useMemo(
+    () => problem.data?.languages ?? [],
+    [problem.data?.languages],
+  );
+  const effectiveLanguage = selectedLanguage || availableLanguages[0] || "";
   const solutions = useQuery({
-    queryKey: ["knowledge-solutions", slug, language],
-    queryFn: ({ signal }) => getKnowledgeSolutions(slug, language || undefined, signal),
+    queryKey: ["knowledge-solutions", slug, effectiveLanguage],
+    queryFn: ({ signal }) =>
+      getKnowledgeSolutions(slug, effectiveLanguage || undefined, signal),
     enabled: problem.data?.publication_status === "published",
   });
-
-  const availableLanguages = problem.data?.languages ?? [];
-  useEffect(() => {
-    if (!language && availableLanguages.length) {
-      setLanguage(availableLanguages[0]);
-    }
-  }, [availableLanguages, language]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
@@ -79,17 +77,17 @@ export function KnowledgeProblemWorkspace({ slug }: { slug: string }) {
   }, []);
 
   useEffect(() => {
-    const key = `rigor.knowledge-draft:${slug}:${language || "general"}`;
-    const restored = window.localStorage.getItem(key);
-    if (restored !== null) setDraft(restored);
-  }, [language, slug]);
+    const key = `rigor.knowledge-draft:${slug}:${effectiveLanguage || "general"}`;
+    const restored = window.localStorage.getItem(key) ?? "";
+    queueMicrotask(() => setDraft(restored));
+  }, [effectiveLanguage, slug]);
 
   useEffect(() => {
     if (!draft) return;
-    const key = `rigor.knowledge-draft:${slug}:${language || "general"}`;
+    const key = `rigor.knowledge-draft:${slug}:${effectiveLanguage || "general"}`;
     const timeout = window.setTimeout(() => window.localStorage.setItem(key, draft), 500);
     return () => window.clearTimeout(timeout);
-  }, [draft, language, slug]);
+  }, [draft, effectiveLanguage, slug]);
 
   const index = navigator.data?.items.findIndex((item) => item.slug === slug) ?? -1;
   const previous = index > 0 ? navigator.data?.items[index - 1] : null;
@@ -286,7 +284,10 @@ export function KnowledgeProblemWorkspace({ slug }: { slug: string }) {
           <div className="kb-editor-toolbar">
             <label>
               <span>LANGUAGE</span>
-              <select value={language} onChange={(event) => setLanguage(event.target.value)}>
+              <select
+                value={effectiveLanguage}
+                onChange={(event) => setSelectedLanguage(event.target.value)}
+              >
                 {availableLanguages.length ? (
                   availableLanguages.map((value) => (
                     <option key={value} value={value}>{value.toUpperCase()}</option>
@@ -319,8 +320,8 @@ export function KnowledgeProblemWorkspace({ slug }: { slug: string }) {
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             placeholder={
-              language
-                ? `Write your ${language} solution here…`
+              effectiveLanguage
+                ? `Write your ${effectiveLanguage} solution here…`
                 : "Choose a reviewed language solution to begin."
             }
           />
