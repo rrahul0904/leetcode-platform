@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
 from typing import cast
@@ -26,7 +27,9 @@ def disposition(value: str) -> SourceDisposition:
         return SourceDisposition(value)
     except ValueError as exc:
         choices = ", ".join(item.value for item in SourceDisposition)
-        raise argparse.ArgumentTypeError(f"Disposition must be one of: {choices}") from exc
+        raise argparse.ArgumentTypeError(
+            f"Disposition must be one of: {choices}"
+        ) from exc
 
 
 def _disposition_map(path: Path | None) -> dict[str, SourceDisposition]:
@@ -35,7 +38,9 @@ def _disposition_map(path: Path | None) -> dict[str, SourceDisposition]:
     try:
         value: object = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise ValueError(f"Disposition map is unavailable or invalid: {path}") from exc
+        raise ValueError(
+            f"Disposition map is unavailable or invalid: {path}"
+        ) from exc
     if not isinstance(value, dict):
         raise ValueError("Disposition map must be a JSON object")
     return {
@@ -66,7 +71,7 @@ def scan_command(args: argparse.Namespace) -> int:
     bundle = parse_repository(
         args.repository,
         source_name=args.source_name or args.repository.name,
-        disposition=args.disposition,
+        disposition=cast(SourceDisposition, args.disposition),
     )
     write_json(args.output, bundle.to_dict())
     print(json.dumps(bundle.to_dict()["counts"], indent=2, sort_keys=True))
@@ -74,7 +79,7 @@ def scan_command(args: argparse.Namespace) -> int:
 
 
 def corpus_command(args: argparse.Namespace) -> int:
-    workspace = args.workspace
+    workspace = cast(Path, args.workspace)
     if args.clean and workspace.exists():
         shutil.rmtree(workspace)
     workspace.mkdir(parents=True, exist_ok=True)
@@ -85,7 +90,10 @@ def corpus_command(args: argparse.Namespace) -> int:
 
     dispositions = _disposition_map(args.disposition_map)
     inventories = inventory_archives(args.archives)
-    write_json(reports / "archive-inventory.json", [asdict(item) for item in inventories])
+    write_json(
+        reports / "archive-inventory.json",
+        [asdict(item) for item in inventories],
+    )
 
     bundles = []
     processed_hashes: set[str] = set()
@@ -98,14 +106,20 @@ def corpus_command(args: argparse.Namespace) -> int:
         extract_archive(archive_path, target)
         roots = [item for item in target.iterdir() if item.is_dir()]
         repository_root = roots[0] if len(roots) == 1 else target
-        source_disposition = dispositions.get(archive.archive_name, args.disposition)
+        source_disposition = dispositions.get(
+            archive.archive_name,
+            cast(SourceDisposition, args.disposition),
+        )
         bundle = parse_repository(
             repository_root,
             source_name=archive.archive_name.removesuffix(".zip"),
             disposition=source_disposition,
         )
         bundles.append(bundle)
-        write_json(reports / f"{archive.archive_sha256}.json", bundle.to_dict())
+        write_json(
+            reports / f"{archive.archive_sha256}.json",
+            bundle.to_dict(),
+        )
 
     merged = merge_bundles(bundles)
     write_json(args.output, merged.to_dict())
@@ -115,10 +129,18 @@ def corpus_command(args: argparse.Namespace) -> int:
 
 def import_command(args: argparse.Namespace) -> int:
     settings = get_settings()
-    database_url = args.database_url or settings.operational_database_url or settings.database_url
+    database_url = (
+        args.database_url
+        or settings.operational_database_url
+        or settings.database_url
+    )
     engine = create_database_engine(settings, database_url)
     try:
-        result = import_knowledge_file(engine, args.corpus, dry_run=args.dry_run)
+        result = import_knowledge_file(
+            engine,
+            args.corpus,
+            dry_run=args.dry_run,
+        )
     finally:
         engine.dispose()
     print(json.dumps(result, indent=2, sort_keys=True))
@@ -127,11 +149,17 @@ def import_command(args: argparse.Namespace) -> int:
 
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(
-        description="Build and import Rigor knowledge-bank records from offline source archives."
+        description=(
+            "Build and import Rigor knowledge-bank records from offline "
+            "source archives."
+        )
     )
     commands = root.add_subparsers(dest="command", required=True)
 
-    inventory = commands.add_parser("inventory", help="Inventory ZIP archives and exact duplicates")
+    inventory = commands.add_parser(
+        "inventory",
+        help="Inventory ZIP archives and exact duplicates",
+    )
     inventory.add_argument("directory", type=Path)
     inventory.add_argument("--output", type=Path)
     inventory.set_defaults(handler=inventory_command)
@@ -185,7 +213,8 @@ def parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = parser().parse_args()
-    return int(args.handler(args))
+    handler = cast(Callable[[argparse.Namespace], int], args.handler)
+    return handler(args)
 
 
 if __name__ == "__main__":
