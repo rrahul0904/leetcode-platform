@@ -5,4 +5,5 @@ application. Each module attaches its versioned routes to the existing practice
 router, preserving one API surface without introducing a second application.
 """
 
+from . import knowledge_progress_routes as knowledge_progress_routes
 from . import knowledge_routes as knowledge_routes
