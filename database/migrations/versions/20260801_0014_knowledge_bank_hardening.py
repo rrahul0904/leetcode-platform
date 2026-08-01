@@ -35,6 +35,22 @@ def upgrade() -> None:
         """
     )
 
+    # Activity retries are idempotent only when a key is present. A partial
+    # index permits unlimited normal events with NULL keys and exactly one event
+    # per candidate/key pair when clients retry a network request.
+    op.drop_constraint(
+        "uq_knowledge_activity_idempotency",
+        "knowledge_activity_events",
+        type_="unique",
+    )
+    op.execute(
+        """
+        CREATE UNIQUE INDEX uq_knowledge_activity_idempotency
+        ON knowledge_activity_events (candidate_id, idempotency_key)
+        WHERE idempotency_key IS NOT NULL
+        """
+    )
+
     # Publication remains permission-gated by FastAPI. These narrow grants allow
     # that authorized endpoint to promote reviewed records without giving the
     # candidate role broad import or source-management privileges.
@@ -54,6 +70,17 @@ def downgrade() -> None:
         "REVOKE UPDATE (publication_status, review_status, updated_at) "
         "ON knowledge_problems FROM rigor_app"
     )
+
+    op.drop_index(
+        "uq_knowledge_activity_idempotency",
+        table_name="knowledge_activity_events",
+    )
+    op.create_unique_constraint(
+        "uq_knowledge_activity_idempotency",
+        "knowledge_activity_events",
+        ["candidate_id", "idempotency_key"],
+    )
+
     op.drop_index(
         "uq_knowledge_company_observation",
         table_name="knowledge_company_observations",
