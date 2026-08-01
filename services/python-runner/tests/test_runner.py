@@ -82,6 +82,7 @@ def test_run_request_executes_public_and_hidden_inputs_without_leaking_hidden_st
         "attempt": 2,
         "source_code": "def solve(a, b):\n    print(f'input={a},{b}')\n    return a + b\n",
         "entrypoint": "solve",
+        "invocation_mode": "positional_arguments",
         "tests": [
             {"id": "public-1", "visibility": "public", "input": [2, 3]},
             {"id": "hidden-1", "visibility": "hidden", "input": [40, 2]},
@@ -112,18 +113,52 @@ def test_run_request_executes_public_and_hidden_inputs_without_leaking_hidden_st
     assert "input=40,2" not in result["stdout"]
 
 
+def test_object_input_is_invoked_as_keyword_arguments() -> None:
+    runner = load_runner()
+    request = {
+        "attempt": 1,
+        "source_code": (
+            "def allocate_resource_windows(requests, capacity):\n"
+            "    return [item['id'] for item in requests if item['units'] <= capacity]\n"
+        ),
+        "entrypoint": "allocate_resource_windows",
+        "invocation_mode": "keyword_arguments",
+        "tests": [
+            {
+                "id": "public-1",
+                "visibility": "public",
+                "input": {
+                    "requests": [
+                        {"id": "a", "units": 2},
+                        {"id": "b", "units": 9},
+                    ],
+                    "capacity": 4,
+                },
+            }
+        ],
+    }
+
+    result = runner.run_request(request, timeout_seconds=5)
+
+    assert result["status"] == "COMPLETED"
+    assert result["tests"][0]["ok"] is True
+    assert result["tests"][0]["actual"] == ["a"]
+
+
 def test_candidate_file_access_and_unsafe_imports_are_not_exposed() -> None:
     runner = load_runner()
     file_request = {
         "attempt": 1,
         "source_code": "def solve(value):\n    return open('/etc/passwd').read()\n",
         "entrypoint": "solve",
+        "invocation_mode": "positional_arguments",
         "tests": [{"id": "public-1", "visibility": "public", "input": [1]}],
     }
     import_request = {
         "attempt": 1,
         "source_code": "import os\ndef solve(value):\n    return dict(os.environ)\n",
         "entrypoint": "solve",
+        "invocation_mode": "positional_arguments",
         "tests": [{"id": "public-1", "visibility": "public", "input": [1]}],
     }
 
