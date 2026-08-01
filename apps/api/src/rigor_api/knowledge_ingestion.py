@@ -8,10 +8,11 @@ import shutil
 import stat
 import zipfile
 from collections import Counter
-from dataclasses import asdict, dataclass, field
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass, field, is_dataclass
 from enum import StrEnum
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable
+from typing import cast
 
 MAX_ARCHIVE_ENTRIES = 25_000
 MAX_ARCHIVE_UNCOMPRESSED_BYTES = 2 * 1024 * 1024 * 1024
@@ -19,7 +20,15 @@ MAX_TEXT_BYTES = 4 * 1024 * 1024
 MAX_CODE_BYTES = 2 * 1024 * 1024
 MAX_COMPRESSION_RATIO = 200
 
-TEXT_SUFFIXES = {".md", ".txt", ".csv", ".json", ".jsonl", ".yaml", ".yml"}
+TEXT_SUFFIXES = {
+    ".md",
+    ".txt",
+    ".csv",
+    ".json",
+    ".jsonl",
+    ".yaml",
+    ".yml",
+}
 CODE_SUFFIXES = {
     ".py",
     ".js",
@@ -67,11 +76,15 @@ LANGUAGE_BY_SUFFIX = {
 }
 
 PROBLEM_DIRECTORY = re.compile(r"^\s*(?P<id>\d+)\.\s*(?P<title>.+?)\s*$")
-LEETCODE_SLUG = re.compile(r"leetcode\.com/problems/(?P<slug>[a-z0-9-]+)", re.IGNORECASE)
+LEETCODE_SLUG = re.compile(
+    r"(?:https?://)?leetcode\.com/problems/(?P<slug>[a-z0-9-]+)",
+    re.IGNORECASE,
+)
 HEADING = re.compile(r"^#{1,6}\s+(?P<title>.+?)\s*$")
 HTML_TAG = re.compile(r"<[^>]+>")
 SPACE = re.compile(r"\s+")
 NON_SLUG = re.compile(r"[^a-z0-9]+")
+TOPIC_SEPARATOR = re.compile(r"[,|;\n]+")
 
 
 class SourceDisposition(StrEnum):
@@ -206,18 +219,22 @@ class IngestionBundle:
                 "learning_resources": len(self.resources),
                 "warnings": len(self.warnings),
             },
-            "files": [asdict(item) for item in self.files],
+            "files": [serialize_dataclass(item) for item in self.files],
             "problems": [serialize_dataclass(item) for item in self.problems],
             "solutions": [serialize_dataclass(item) for item in self.solutions],
             "companies": [serialize_dataclass(item) for item in self.companies],
-            "system_design": [serialize_dataclass(item) for item in self.system_design],
+            "system_design": [
+                serialize_dataclass(item) for item in self.system_design
+            ],
             "resources": [serialize_dataclass(item) for item in self.resources],
             "warnings": self.warnings,
         }
 
 
 def serialize_dataclass(value: object) -> dict[str, object]:
-    payload = asdict(value)
+    if not is_dataclass(value) or isinstance(value, type):
+        raise TypeError("Knowledge ingestion records must be dataclass instances")
+    payload = cast(dict[str, object], asdict(value))
     disposition = payload.get("disposition")
     if isinstance(disposition, SourceDisposition):
         payload["disposition"] = disposition.value
@@ -275,7 +292,10 @@ def normalize_topic(value: str) -> str:
         "linked list": "linked-list",
         "hash table": "hashing",
     }
-    normalized = SPACE.sub(" ", value.replace("_", " ").replace("-", " ")).strip().casefold()
+    normalized = SPACE.sub(
+        " ",
+        value.replace("_", " ").replace("-", " "),
+    ).strip().casefold()
     return aliases.get(normalized, slugify(normalized))
 
 
@@ -363,7 +383,11 @@ def _zip_member_is_symlink(member: zipfile.ZipInfo) -> bool:
     return stat.S_ISLNK(mode)
 
 
-def inspect_archive(path: Path, *, duplicate_of: str | None = None) -> ArchiveInventory:
+def inspect_archive(
+    path: Path,
+    *,
+    duplicate_of: str | None = None,
+) -> ArchiveInventory:
     if not path.is_file():
         raise ArchiveSafetyError(f"Archive does not exist: {path}")
     try:
@@ -373,22 +397,39 @@ def inspect_archive(path: Path, *, duplicate_of: str | None = None) -> ArchiveIn
     with archive:
         entries = archive.infolist()
         if len(entries) > MAX_ARCHIVE_ENTRIES:
-            raise ArchiveSafetyError(f"Archive contains too many entries: {path.name}")
+            raise ArchiveSafetyError(
+                f"Archive contains too many entries: {path.name}"
+            )
         total = 0
         suffixes: Counter[str] = Counter()
         for member in entries:
             relative = PurePosixPath(member.filename)
-            if relative.is_absolute() or ".." in relative.parts or "\\" in member.filename:
+            if (
+                relative.is_absolute()
+                or ".." in relative.parts
+                or "\\" in member.filename
+            ):
                 raise ArchiveSafetyError(f"Unsafe archive path: {member.filename}")
             if _zip_member_is_symlink(member):
-                raise ArchiveSafetyError(f"Archive contains a symbolic link: {member.filename}")
+                raise ArchiveSafetyError(
+                    f"Archive contains a symbolic link: {member.filename}"
+                )
             total += member.file_size
             if total > MAX_ARCHIVE_UNCOMPRESSED_BYTES:
-                raise ArchiveSafetyError(f"Archive expands beyond the allowed limit: {path.name}")
-            if member.compress_size and member.file_size / member.compress_size > MAX_COMPRESSION_RATIO:
-                raise ArchiveSafetyError(f"Suspicious compression ratio: {member.filename}")
+                raise ArchiveSafetyError(
+                    f"Archive expands beyond the allowed limit: {path.name}"
+                )
+            if (
+                member.compress_size
+                and member.file_size / member.compress_size
+                > MAX_COMPRESSION_RATIO
+            ):
+                raise ArchiveSafetyError(
+                    f"Suspicious compression ratio: {member.filename}"
+                )
             if not member.is_dir():
-                suffixes[PurePosixPath(member.filename).suffix.casefold() or "<none>"] += 1
+                suffix = PurePosixPath(member.filename).suffix.casefold()
+                suffixes[suffix or "<none>"] += 1
         return ArchiveInventory(
             archive_name=path.name,
             archive_sha256=sha256_file(path),
@@ -401,7 +442,10 @@ def inspect_archive(path: Path, *, duplicate_of: str | None = None) -> ArchiveIn
 
 
 def inventory_archives(directory: Path) -> list[ArchiveInventory]:
-    archives = sorted(directory.glob("*.zip"), key=lambda item: item.name.casefold())
+    archives = sorted(
+        directory.glob("*.zip"),
+        key=lambda item: item.name.casefold(),
+    )
     seen: dict[str, str] = {}
     result: list[ArchiveInventory] = []
     for archive in archives:
@@ -442,12 +486,20 @@ def classify_file(path: Path) -> str:
     return "unsupported"
 
 
-def source_file_record(path: Path, root: Path, source_name: str) -> SourceFileRecord:
+def source_file_record(
+    path: Path,
+    root: Path,
+    source_name: str,
+) -> SourceFileRecord:
     classification = classify_file(path)
     try:
         digest = sha256_file(path)
         byte_count = path.stat().st_size
-        status = "skipped" if classification in {"quarantined", "unsupported"} else "available"
+        status = (
+            "skipped"
+            if classification in {"quarantined", "unsupported"}
+            else "available"
+        )
         return SourceFileRecord(
             source_name=source_name,
             relative_path=path.relative_to(root).as_posix(),
@@ -470,7 +522,9 @@ def source_file_record(path: Path, root: Path, source_name: str) -> SourceFileRe
         )
 
 
-def _problem_identity_from_directory(path: Path) -> tuple[str | None, str] | None:
+def _problem_identity_from_directory(
+    path: Path,
+) -> tuple[str | None, str] | None:
     match = PROBLEM_DIRECTORY.match(path.name)
     if not match:
         return None
@@ -499,7 +553,14 @@ def _description_from_markdown(body: str) -> str | None:
         if value:
             return value
     preamble = sections.get("preamble", "")
-    return preamble or None
+    candidates = [
+        value
+        for name, value in sections.items()
+        if name != "preamble" and value
+    ]
+    if preamble:
+        candidates.append(preamble)
+    return max(candidates, key=len) if candidates else None
 
 
 def _topics_from_markdown(body: str) -> tuple[str, ...]:
@@ -509,8 +570,11 @@ def _topics_from_markdown(body: str) -> tuple[str, ...]:
         value = sections.get(name, "")
         if not value:
             continue
-        candidates.extend(re.findall(r"[A-Za-z][A-Za-z +#-]{1,40}", value))
-    normalized = sorted({normalize_topic(value) for value in candidates if len(value.split()) <= 5})
+        for raw_topic in TOPIC_SEPARATOR.split(value):
+            topic = re.sub(r"^[-*]\s*", "", raw_topic).strip()
+            if topic and len(topic.split()) <= 5:
+                candidates.append(topic)
+    normalized = sorted({normalize_topic(value) for value in candidates})
     return tuple(normalized[:30])
 
 
@@ -525,13 +589,17 @@ def parse_problem_directories(
     warnings: list[str] = []
     seen_directories: set[Path] = set()
 
-    for directory in sorted((path for path in root.rglob("*") if path.is_dir())):
+    for directory in sorted(
+        path for path in root.rglob("*") if path.is_dir()
+    ):
         identity = _problem_identity_from_directory(directory)
         if identity is None or directory in seen_directories:
             continue
         external_id, title = identity
         files = [path for path in directory.rglob("*") if path.is_file()]
-        code_files = [path for path in files if path.suffix.casefold() in CODE_SUFFIXES]
+        code_files = [
+            path for path in files if path.suffix.casefold() in CODE_SUFFIXES
+        ]
         markdown = _problem_markdown(directory)
         if not code_files and markdown is None:
             continue
@@ -551,7 +619,11 @@ def parse_problem_directories(
             source_url=source_url,
         )
         source_path = (markdown or directory).relative_to(root).as_posix()
-        source_hash = sha256_file(markdown) if markdown is not None else sha256_bytes(key.encode())
+        source_hash = (
+            sha256_file(markdown)
+            if markdown is not None
+            else sha256_bytes(key.encode())
+        )
         difficulty_match = re.search(
             r"difficulty\s*[:|\-]*\s*(easy|medium|hard)",
             body,
@@ -578,8 +650,7 @@ def parse_problem_directories(
         time_complexity, space_complexity = complexity_from_markdown(body)
         explanation = body or None
         for code_file in code_files:
-            suffix = code_file.suffix.casefold()
-            language = LANGUAGE_BY_SUFFIX.get(suffix)
+            language = LANGUAGE_BY_SUFFIX.get(code_file.suffix.casefold())
             if language is None:
                 continue
             try:
@@ -608,17 +679,25 @@ def _company_and_window(path: Path, root: Path) -> tuple[str, str | None]:
     relative = path.relative_to(root)
     if len(relative.parts) > 1:
         company = normalize_company(relative.parts[-2])
-        window = slugify(path.stem.removeprefix("1. ").removeprefix("2. ").removeprefix("3. ").removeprefix("4. ").removeprefix("5. "))
-        return company, window
-    stem = path.stem
-    match = re.match(r"(?P<company>.+?)_(?P<window>6months|1year|2year|alltime)$", stem)
+        stem = path.stem
+        for prefix in ("1. ", "2. ", "3. ", "4. ", "5. "):
+            stem = stem.removeprefix(prefix)
+        return company, slugify(stem)
+    match = re.match(
+        r"(?P<company>.+?)_(?P<window>6months|1year|2year|alltime)$",
+        path.stem,
+    )
     if match:
         return normalize_company(match.group("company")), match.group("window")
-    return normalize_company(stem), None
+    return normalize_company(path.stem), None
 
 
 def _row_value(row: dict[str, str], *names: str) -> str | None:
-    normalized = {slugify(key): value for key, value in row.items() if key is not None}
+    normalized = {
+        slugify(key): value
+        for key, value in row.items()
+        if key is not None
+    }
     for name in names:
         value = normalized.get(slugify(name))
         if value is not None and value.strip():
@@ -626,26 +705,56 @@ def _row_value(row: dict[str, str], *names: str) -> str | None:
     return None
 
 
-def parse_company_csvs(root: Path, *, source_name: str) -> tuple[list[CompanyObservation], list[str]]:
+def parse_company_csvs(
+    root: Path,
+    *,
+    source_name: str,
+) -> tuple[list[CompanyObservation], list[str]]:
     observations: list[CompanyObservation] = []
     warnings: list[str] = []
     for path in sorted(root.rglob("*.csv")):
         company, window = _company_and_window(path, root)
         try:
-            with path.open("r", encoding="utf-8-sig", errors="replace", newline="") as stream:
+            with path.open(
+                "r",
+                encoding="utf-8-sig",
+                errors="replace",
+                newline="",
+            ) as stream:
                 reader = csv.DictReader(stream)
                 for row_number, row in enumerate(reader, 2):
                     title = _row_value(row, "title", "problem")
                     if not title:
                         continue
-                    external_id = _row_value(row, "id", "problem id", "question id")
-                    url = _row_value(row, "url", "link", "leetcode question link")
-                    difficulty = normalize_difficulty(_row_value(row, "difficulty"))
-                    acceptance = parse_number(
-                        _row_value(row, "acceptance", "acceptance rate", "acceptance %")
+                    external_id = _row_value(
+                        row,
+                        "id",
+                        "problem id",
+                        "question id",
                     )
-                    frequency = parse_number(_row_value(row, "frequency", "frequency %"))
-                    topic_text = _row_value(row, "topics", "topic", "tags") or ""
+                    url = _row_value(
+                        row,
+                        "url",
+                        "link",
+                        "leetcode question link",
+                    )
+                    difficulty = normalize_difficulty(
+                        _row_value(row, "difficulty")
+                    )
+                    acceptance = parse_number(
+                        _row_value(
+                            row,
+                            "acceptance",
+                            "acceptance rate",
+                            "acceptance %",
+                        )
+                    )
+                    frequency = parse_number(
+                        _row_value(row, "frequency", "frequency %")
+                    )
+                    topic_text = (
+                        _row_value(row, "topics", "topic", "tags") or ""
+                    )
                     topics = tuple(
                         sorted(
                             {
@@ -673,7 +782,9 @@ def parse_company_csvs(root: Path, *, source_name: str) -> tuple[list[CompanyObs
                             frequency=frequency,
                             topics=topics,
                             source_name=source_name,
-                            source_path=f"{path.relative_to(root).as_posix()}#{row_number}",
+                            source_path=(
+                                f"{path.relative_to(root).as_posix()}#{row_number}"
+                            ),
                             source_hash=sha256_bytes(
                                 json.dumps(row, sort_keys=True).encode("utf-8")
                             ),
@@ -741,22 +852,29 @@ def parse_learning_resources(
 ) -> tuple[list[LearningResourceObservation], list[str]]:
     observations: list[LearningResourceObservation] = []
     warnings: list[str] = []
+    supported = CODE_SUFFIXES | {".md", ".txt"}
     for path in sorted(root.rglob("*")):
-        if not path.is_file() or path.suffix.casefold() not in CODE_SUFFIXES | {".md", ".txt"}:
+        if not path.is_file() or path.suffix.casefold() not in supported:
             continue
         if _problem_identity_from_directory(path.parent) is not None:
             continue
         try:
             body = read_text(
                 path,
-                maximum=MAX_CODE_BYTES if path.suffix.casefold() in CODE_SUFFIXES else MAX_TEXT_BYTES,
+                maximum=(
+                    MAX_CODE_BYTES
+                    if path.suffix.casefold() in CODE_SUFFIXES
+                    else MAX_TEXT_BYTES
+                ),
             )
         except (OSError, ValueError) as exc:
             warnings.append(f"{path.relative_to(root)}: {exc}")
             continue
         relative = path.relative_to(root)
         language = LANGUAGE_BY_SUFFIX.get(path.suffix.casefold())
-        category = slugify(relative.parts[0] if relative.parts else "general")
+        category = slugify(
+            relative.parts[0] if relative.parts else "general"
+        )
         title = normalize_title(path.stem)
         observations.append(
             LearningResourceObservation(
@@ -782,7 +900,10 @@ def parse_repository(
 ) -> IngestionBundle:
     if not root.is_dir():
         raise ValueError(f"Repository root does not exist: {root}")
-    bundle = IngestionBundle(source_name=source_name, disposition=disposition)
+    bundle = IngestionBundle(
+        source_name=source_name,
+        disposition=disposition,
+    )
     bundle.files.extend(
         source_file_record(path, root, source_name)
         for path in sorted(root.rglob("*"))
@@ -798,11 +919,18 @@ def parse_repository(
     bundle.solutions.extend(solutions)
     bundle.warnings.extend(warnings)
 
-    companies, warnings = parse_company_csvs(root, source_name=source_name)
+    companies, warnings = parse_company_csvs(
+        root,
+        source_name=source_name,
+    )
     bundle.companies.extend(companies)
     bundle.warnings.extend(warnings)
 
-    if "system-design" in source_name.casefold() or "system design" in source_name.casefold():
+    normalized_source_name = source_name.casefold()
+    if (
+        "system-design" in normalized_source_name
+        or "system design" in normalized_source_name
+    ):
         articles, warnings = parse_system_design_notes(
             root,
             source_name=source_name,
@@ -811,7 +939,10 @@ def parse_repository(
         bundle.system_design.extend(articles)
         bundle.warnings.extend(warnings)
 
-    if "competitive" in source_name.casefold() or "awesome" in source_name.casefold():
+    if (
+        "competitive" in normalized_source_name
+        or "awesome" in normalized_source_name
+    ):
         resources, warnings = parse_learning_resources(
             root,
             source_name=source_name,
@@ -847,7 +978,11 @@ def merge_bundles(bundles: Iterable[IngestionBundle]) -> IngestionBundle:
             if len(candidate_description) > len(current_description):
                 problem_map[problem.canonical_key] = problem
         for solution in bundle.solutions:
-            key = (solution.canonical_key, solution.language, solution.source_hash)
+            key = (
+                solution.canonical_key,
+                solution.language,
+                solution.source_hash,
+            )
             if key not in solution_keys:
                 solution_keys.add(key)
                 merged.solutions.append(solution)
@@ -872,13 +1007,22 @@ def merge_bundles(bundles: Iterable[IngestionBundle]) -> IngestionBundle:
                 resource_keys.add(key)
                 merged.resources.append(resource)
 
-    merged.problems = sorted(problem_map.values(), key=lambda item: item.canonical_key)
+    merged.problems = sorted(
+        problem_map.values(),
+        key=lambda item: item.canonical_key,
+    )
     return merged
 
 
 def write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+        json.dumps(
+            payload,
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=False,
+        )
+        + "\n",
         encoding="utf-8",
     )
