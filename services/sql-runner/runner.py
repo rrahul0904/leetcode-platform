@@ -8,7 +8,7 @@ from datetime import date, datetime
 from datetime import time as dt_time
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 import psycopg
@@ -385,7 +385,7 @@ def execute_candidate_query(source_code: str, *, statement_timeout_ms: int) -> d
 def run_request(request: dict[str, Any]) -> dict[str, object]:
     started = time.monotonic()
     wait_for_database()
-    tests: list[dict[str, object]] = list(request["tests"])
+    tests = cast(list[dict[str, object]], request["tests"])
     results: list[dict[str, object]] = []
     terminal_status = "COMPLETED"
 
