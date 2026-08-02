@@ -15,7 +15,10 @@ def main() -> int:
             healthy = connection.execute(
                 text(
                     """
-                    SELECT heartbeat_at > CURRENT_TIMESTAMP - INTERVAL '30 seconds'
+                    SELECT
+                      heartbeat_at > CURRENT_TIMESTAMP - INTERVAL '30 seconds'
+                      AND python_runner_ready
+                      AND sql_runner_ready
                     FROM local_execution_controller_status
                     WHERE controller_key='local'
                     """
