@@ -50,6 +50,12 @@ done
 schema_revision=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
   "SELECT version_num FROM alembic_version;")
 application_revision=$(git rev-parse --verify HEAD)
+question_count=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SELECT count(*) FROM questions;")
+published_count=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SELECT count(*) FROM question_versions WHERE state='published'::content_state;")
+execution_count=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SELECT count(*) FROM execution_requests;")
 
 docker compose exec -T postgres pg_dump \
   -U rigor \
@@ -70,6 +76,9 @@ SCHEMA_REVISION=$schema_revision
 APPLICATION_REVISION=$application_revision
 DUMP_FILE=rigor.dump
 DUMP_SHA256=$dump_checksum
+QUESTION_COUNT=$question_count
+PUBLISHED_COUNT=$published_count
+EXECUTION_COUNT=$execution_count
 EOF
 
 printf '%s\n' "$backup_dir"
