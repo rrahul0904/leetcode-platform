@@ -54,9 +54,13 @@ export function LearningPaths() {
     queryKey: ["content-stats"],
     queryFn: ({ signal }) => getContentStats(signal),
   });
-  const [selectedPath, setSelectedPath] = useState(learningPaths[0]?.id ?? "");
+  const [selectedPath, setSelectedPath] = useState<string>(
+    learningPaths[0]?.id ?? "",
+  );
   const active = learningPaths.find((path) => path.id === selectedPath) ?? learningPaths[0];
-  const [selectedTrack, setSelectedTrack] = useState(active?.tracks[0] ?? "");
+  const [selectedTrack, setSelectedTrack] = useState<string>(
+    active?.tracks[0] ?? "",
+  );
 
   const totalBriefs = useMemo(
     () =>
@@ -69,7 +73,11 @@ export function LearningPaths() {
 
   if (!active) return null;
 
-  const track = active.tracks.includes(selectedTrack) ? selectedTrack : active.tracks[0];
+  const track = active.tracks.includes(
+    selectedTrack as (typeof active.tracks)[number],
+  )
+    ? (selectedTrack as (typeof active.tracks)[number])
+    : active.tracks[0];
   const selectedTrackIndex = Math.max(0, active.tracks.indexOf(track));
   const progress = Math.round(((selectedTrackIndex + 1) / active.tracks.length) * 100);
 
