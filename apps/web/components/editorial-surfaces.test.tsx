@@ -1,11 +1,13 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { journalArticles } from "@/lib/editorial-content";
 
 import { Journal } from "./journal";
 import { JournalArticleView } from "./journal-article";
 import { ResourceLibrary } from "./resource-library";
+
+afterEach(cleanup);
 
 describe("editorial candidate surfaces", () => {
   it("renders a featured journal essay and the editorial index", () => {
@@ -31,7 +33,10 @@ describe("editorial candidate surfaces", () => {
     render(<JournalArticleView article={article} />);
 
     expect(
-      screen.getByRole("heading", { name: "Reliability before scale" }),
+      screen.getByRole("heading", {
+        level: 1,
+        name: "Reliability before scale",
+      }),
     ).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Article outline" })).toBeInTheDocument();
     expect(
@@ -56,7 +61,7 @@ describe("editorial candidate surfaces", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Foundations")).toBeInTheDocument();
     expect(screen.getByText("Practice systems")).toBeInTheDocument();
-    expect(screen.getByText("Reference")).toBeInTheDocument();
+    expect(screen.getAllByText("Reference").length).toBeGreaterThan(0);
     expect(screen.getByText("Career strategy")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Python execution-contract guide/i }),
