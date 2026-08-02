@@ -44,6 +44,17 @@ def upgrade() -> None:
         WHERE receipt_handle IS NOT NULL
         """
     )
+    op.execute(
+        """
+        CREATE TABLE local_execution_controller_status (
+          controller_key text PRIMARY KEY,
+          worker_id text NOT NULL,
+          heartbeat_at timestamptz NOT NULL,
+          queue_depth integer NOT NULL DEFAULT 0 CHECK (queue_depth >= 0),
+          CHECK (controller_key = 'local')
+        )
+        """
+    )
 
     op.execute(
         "GRANT SELECT, INSERT, UPDATE, DELETE ON local_execution_queue "
@@ -53,6 +64,16 @@ def upgrade() -> None:
         "GRANT SELECT, INSERT, UPDATE, DELETE ON local_execution_queue "
         "TO rigor_execution_reconciler"
     )
+    op.execute(
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON local_execution_controller_status "
+        "TO rigor_execution_worker"
+    )
+    op.execute(
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON local_execution_controller_status "
+        "TO rigor_execution_reconciler"
+    )
+    op.execute("GRANT SELECT ON local_execution_controller_status TO rigor_app")
+    op.execute("GRANT SELECT ON local_execution_controller_status TO rigor_readonly")
 
     op.execute("ALTER TABLE local_execution_queue ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE local_execution_queue FORCE ROW LEVEL SECURITY")
@@ -85,4 +106,5 @@ def downgrade() -> None:
         "DROP POLICY IF EXISTS local_execution_queue_worker_access "
         "ON local_execution_queue"
     )
+    op.execute("DROP TABLE IF EXISTS local_execution_controller_status")
     op.execute("DROP TABLE IF EXISTS local_execution_queue")
