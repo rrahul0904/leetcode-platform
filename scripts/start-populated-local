@@ -20,9 +20,11 @@ attempt=0
 until curl --fail --silent http://localhost:8002/readyz >/dev/null 2>&1 \
   && curl --fail --silent http://localhost:3001 >/dev/null 2>&1; do
   attempt=$((attempt + 1))
-  if [ "$attempt" -ge 120 ]; then
+  if [ "$attempt" -ge 180 ]; then
     docker compose ps --all
-    docker compose logs --tail=120 catalog-init content-sync local-release api web
+    docker compose logs --tail=160 \
+      catalog-init content-sync local-release execution-postgres \
+      python-runner sql-runner execution-controller api web
     echo "Populated Docker stack did not become ready." >&2
     exit 1
   fi
@@ -37,6 +39,8 @@ published_count=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
   "SELECT count(*) FROM question_versions WHERE state='published'::content_state;")
 sync_count=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
   "SELECT count(*) FROM source_sync_runs WHERE status='completed';")
+controller_ready=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SELECT count(*) FROM local_execution_controller_status WHERE controller_key='local' AND heartbeat_at > CURRENT_TIMESTAMP - INTERVAL '30 seconds' AND python_runner_ready AND sql_runner_ready;")
 
 if [ "$external_count" -lt 2000 ]; then
   echo "Expected at least 2,000 external references; found $external_count." >&2
@@ -52,6 +56,10 @@ if [ "$published_count" -lt 30 ]; then
 fi
 if [ "$sync_count" -lt 1 ]; then
   echo "No completed source synchronization runs were recorded." >&2
+  exit 1
+fi
+if [ "$controller_ready" -ne 1 ]; then
+  echo "Local execution controller or runner health is unavailable." >&2
   exit 1
 fi
 
@@ -71,5 +79,7 @@ if [ "$python_published" -lt 15 ] || [ "$sql_published" -lt 8 ] \
 fi
 
 echo "Rigor is populated and ready: http://localhost:3001"
+echo "API: http://localhost:8002"
 echo "External references: $external_count | Hosted: $hosted_count | Published: $published_count"
+echo "Execution: controller=ready | Python runner=ready | SQL runner=ready"
 echo "Release allocation: Python=$python_published | SQL=$sql_published | System design=$system_design_published | Other architecture/data=$other_published"
