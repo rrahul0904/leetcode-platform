@@ -156,9 +156,10 @@ class LocalExecutionQueueClient:
 
     def depth(self) -> int:
         with self.engine.connect() as connection:
-            return int(
-                connection.execute(text("SELECT count(*) FROM local_execution_queue")).scalar_one()
-            )
+            value = connection.execute(
+                text("SELECT count(*) FROM local_execution_queue")
+            ).scalar_one()
+        return int(value)
 
 
 @dataclass(frozen=True)
@@ -167,12 +168,12 @@ class LocalSandboxConfig:
 
 
 class LocalHttpSandboxExecutor:
-    """Dispatch runner requests to dedicated local Docker services.
+    """Dispatch requests to dedicated local runner containers.
 
-    Python execution still creates a restricted subprocess per test inside the
-    dedicated runner container. SQL execution uses a separate PostgreSQL service
-    that contains no application data or application credentials. This is a
-    development boundary and is intentionally not described as gVisor-equivalent.
+    Python execution creates a restricted subprocess per test. SQL execution
+    uses a separate PostgreSQL service containing no application data or
+    application credentials. This remains a development boundary and is not
+    represented as equivalent to production gVisor isolation.
     """
 
     def __init__(
@@ -203,9 +204,11 @@ class LocalHttpSandboxExecutor:
         payload: dict[str, object],
         timeout_seconds: int,
     ) -> dict[str, object]:
-        encoded = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode(
-            "utf-8"
-        )
+        encoded = json.dumps(
+            payload,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
         if len(encoded) > MAX_QUEUE_BODY_BYTES:
             raise LocalExecutionTransportError("Runner request exceeds the local limit.")
         runner_request = request.Request(
@@ -240,6 +243,21 @@ class LocalHttpSandboxExecutor:
             raise LocalExecutionTransportError("Runner response is not a JSON object.")
         return cast(dict[str, object], decoded)
 
+    @staticmethod
+    def _runner_ready(url: str) -> bool:
+        health_request = request.Request(f"{url}/healthz", method="GET")
+        try:
+            with request.urlopen(health_request, timeout=1.5) as response:
+                return response.status == 200
+        except OSError:
+            return False
+
+    def health(self) -> tuple[bool, bool]:
+        return (
+            self._runner_ready(self.python_url),
+            self._runner_ready(self.sql_url),
+        )
+
     def _create(
         self,
         *,
@@ -248,11 +266,10 @@ class LocalHttpSandboxExecutor:
         url: str,
         profile_name: str,
     ) -> SandboxHandle:
-        limits = {
+        timeout_seconds = {
             "python-small": 10,
             "sql-small": 15,
-        }
-        timeout_seconds = limits.get(profile_name, 10)
+        }.get(profile_name, 10)
         future = self._executor.submit(
             self._invoke,
             url,
@@ -263,7 +280,9 @@ class LocalHttpSandboxExecutor:
             self._futures[execution_id] = future
             attempt = request_payload.get("attempt")
             self._attempts[execution_id] = (
-                attempt if isinstance(attempt, int) and not isinstance(attempt, bool) else 0
+                attempt
+                if isinstance(attempt, int) and not isinstance(attempt, bool)
+                else 0
             )
         job_name = f"local-{execution_id}"
         return SandboxHandle(
@@ -338,7 +357,11 @@ class LocalHttpSandboxExecutor:
         return SandboxObservation(
             state="SUCCEEDED" if status == "COMPLETED" else "FAILED",
             logs=RESULT_PREFIX
-            + json.dumps(result, separators=(",", ":"), ensure_ascii=False),
+            + json.dumps(
+                result,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ),
             reason=str(result.get("error_category") or "") or None,
         )
 
@@ -349,29 +372,64 @@ class LocalHttpSandboxExecutor:
         if future is not None and not future.done():
             future.cancel()
 
+    def close(self) -> None:
+        self._executor.shutdown(wait=False, cancel_futures=True)
+
 
 class LocalExecutionController(ExecutionController):
-    queue: LocalExecutionQueueClient
+    def __init__(
+        self,
+        *,
+        settings: ExecutionControllerSettings,
+        engine: Engine,
+        queue: LocalExecutionQueueClient,
+        sandbox: LocalHttpSandboxExecutor,
+    ) -> None:
+        super().__init__(
+            settings=settings,
+            engine=engine,
+            queue=cast(SqsJsonClient, queue),
+            sandbox=cast(KubernetesSandboxExecutor, sandbox),
+        )
+        self.local_queue = queue
+        self.local_sandbox = sandbox
 
     def heartbeat_once(self) -> None:
-        queue_depth = self.queue.depth()
+        queue_depth = self.local_queue.depth()
+        python_ready, sql_ready = self.local_sandbox.health()
         with self.engine.begin() as connection:
             connection.execute(
                 text(
                     """
                     INSERT INTO local_execution_controller_status (
-                      controller_key, worker_id, heartbeat_at, queue_depth
+                      controller_key,
+                      worker_id,
+                      heartbeat_at,
+                      queue_depth,
+                      python_runner_ready,
+                      sql_runner_ready
                     )
-                    VALUES ('local', :worker_id, CURRENT_TIMESTAMP, :queue_depth)
+                    VALUES (
+                      'local',
+                      :worker_id,
+                      CURRENT_TIMESTAMP,
+                      :queue_depth,
+                      :python_ready,
+                      :sql_ready
+                    )
                     ON CONFLICT (controller_key) DO UPDATE
                     SET worker_id=EXCLUDED.worker_id,
                         heartbeat_at=EXCLUDED.heartbeat_at,
-                        queue_depth=EXCLUDED.queue_depth
+                        queue_depth=EXCLUDED.queue_depth,
+                        python_runner_ready=EXCLUDED.python_runner_ready,
+                        sql_runner_ready=EXCLUDED.sql_runner_ready
                     """
                 ),
                 {
                     "worker_id": self.settings.worker_id,
                     "queue_depth": queue_depth,
+                    "python_ready": python_ready,
+                    "sql_ready": sql_ready,
                 },
             )
 
@@ -393,7 +451,7 @@ class LocalExecutionController(ExecutionController):
                 if now - last_reconciliation >= 10:
                     self.reconcile_once()
                     last_reconciliation = now
-                messages = self.queue.receive_messages(
+                messages = self.local_queue.receive_messages(
                     maximum=10,
                     wait_seconds=1,
                     visibility_timeout=self.settings.receive_visibility_seconds,
@@ -440,12 +498,16 @@ def discover() -> LocalExecutionController:
         reconciliation_limit=int(
             os.getenv("RIGOR_EXECUTION_RECONCILIATION_LIMIT", "50")
         ),
-        outbox_batch_size=int(os.getenv("RIGOR_EXECUTION_OUTBOX_BATCH_SIZE", "25")),
+        outbox_batch_size=int(
+            os.getenv("RIGOR_EXECUTION_OUTBOX_BATCH_SIZE", "25")
+        ),
         receive_wait_seconds=1,
         receive_visibility_seconds=int(
             os.getenv("RIGOR_EXECUTION_VISIBILITY_SECONDS", "90")
         ),
-        sandbox_poll_seconds=float(os.getenv("RIGOR_EXECUTION_POLL_SECONDS", "0.1")),
+        sandbox_poll_seconds=float(
+            os.getenv("RIGOR_EXECUTION_POLL_SECONDS", "0.1")
+        ),
         max_attempts=int(os.getenv("RIGOR_EXECUTION_MAX_ATTEMPTS", "3")),
         stale_queued_seconds=int(
             os.getenv("RIGOR_EXECUTION_STALE_QUEUED_SECONDS", "30")
@@ -467,16 +529,16 @@ def discover() -> LocalExecutionController:
             "RIGOR_LOCAL_SQL_RUNNER_URL",
             "http://sql-runner:8082",
         ),
-        maximum_parallel=int(os.getenv("RIGOR_LOCAL_EXECUTION_PARALLELISM", "4")),
+        maximum_parallel=int(
+            os.getenv("RIGOR_LOCAL_EXECUTION_PARALLELISM", "4")
+        ),
     )
-    controller = LocalExecutionController(
+    return LocalExecutionController(
         settings=settings,
         engine=engine,
-        queue=cast(SqsJsonClient, queue),
-        sandbox=cast(KubernetesSandboxExecutor, sandbox),
+        queue=queue,
+        sandbox=sandbox,
     )
-    controller.queue = queue
-    return controller
 
 
 def main() -> int:
@@ -485,6 +547,7 @@ def main() -> int:
     try:
         controller.run_forever()
     finally:
+        controller.local_sandbox.close()
         controller.engine.dispose()
     return 0
 
