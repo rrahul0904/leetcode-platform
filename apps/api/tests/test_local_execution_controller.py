@@ -5,7 +5,6 @@ import time
 from uuid import uuid4
 
 import pytest
-
 from rigor_api import local_execution_controller as local_controller
 from rigor_api.execution_results import RESULT_PREFIX
 
