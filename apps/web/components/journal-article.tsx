@@ -27,7 +27,7 @@ export function JournalArticleView({ article }: { article: JournalArticle }) {
       </header>
 
       <div className="article-layout">
-        <aside className="article-outline" aria-label="Article outline">
+        <nav className="article-outline" aria-label="Article outline">
           <span>IN THIS ESSAY</span>
           {article.sections.map((section, index) => (
             <a href={`#section-${index + 1}`} key={section.heading}>
@@ -35,7 +35,7 @@ export function JournalArticleView({ article }: { article: JournalArticle }) {
               {section.heading}
             </a>
           ))}
-        </aside>
+        </nav>
 
         <main className="article-reading-column">
           <p className="article-lead">{article.lead}</p>
