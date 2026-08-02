@@ -1,0 +1,124 @@
+#!/usr/bin/env sh
+set -eu
+
+backup_path=${1:-}
+if [ -z "$backup_path" ]; then
+  echo "Usage: sh scripts/restore-local <backup-directory-or-manifest>" >&2
+  exit 2
+fi
+
+for dependency in docker; do
+  if ! command -v "$dependency" >/dev/null 2>&1; then
+    echo "Required dependency is unavailable: $dependency" >&2
+    exit 1
+  fi
+done
+
+if ! docker compose version >/dev/null 2>&1; then
+  echo "Docker Compose v2 is required." >&2
+  exit 1
+fi
+
+checksum_file() {
+  target=$1
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$target" | awk '{print $1}'
+    return
+  fi
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$target" | awk '{print $1}'
+    return
+  fi
+  echo "A SHA-256 utility (sha256sum or shasum) is required." >&2
+  exit 1
+}
+
+manifest_value() {
+  key=$1
+  file=$2
+  awk -F= -v wanted="$key" '$1 == wanted {sub(/^[^=]*=/, ""); print; exit}' "$file"
+}
+
+if [ -d "$backup_path" ]; then
+  backup_dir=${backup_path%/}
+  manifest_file="$backup_dir/manifest.env"
+elif [ -f "$backup_path" ] && [ "$(basename "$backup_path")" = "manifest.env" ]; then
+  manifest_file=$backup_path
+  backup_dir=$(dirname "$manifest_file")
+else
+  echo "Backup must be a directory containing manifest.env or the manifest itself." >&2
+  exit 2
+fi
+
+if [ ! -f "$manifest_file" ]; then
+  echo "Backup manifest is missing: $manifest_file" >&2
+  exit 1
+fi
+
+format_version=$(manifest_value FORMAT_VERSION "$manifest_file")
+dump_name=$(manifest_value DUMP_FILE "$manifest_file")
+expected_checksum=$(manifest_value DUMP_SHA256 "$manifest_file")
+expected_schema=$(manifest_value SCHEMA_REVISION "$manifest_file")
+
+if [ "$format_version" != "1" ]; then
+  echo "Unsupported backup manifest format: $format_version" >&2
+  exit 1
+fi
+case "$dump_name" in
+  ""|*/*|*..*)
+    echo "Backup manifest contains an unsafe dump file name." >&2
+    exit 1
+    ;;
+esac
+if [ -z "$expected_checksum" ] || [ -z "$expected_schema" ]; then
+  echo "Backup manifest is incomplete." >&2
+  exit 1
+fi
+
+dump_file="$backup_dir/$dump_name"
+if [ ! -s "$dump_file" ]; then
+  echo "Backup dump is missing or empty: $dump_file" >&2
+  exit 1
+fi
+actual_checksum=$(checksum_file "$dump_file")
+if [ "$actual_checksum" != "$expected_checksum" ]; then
+  echo "Backup checksum mismatch." >&2
+  exit 1
+fi
+
+docker compose stop web api execution-controller python-runner sql-runner >/dev/null 2>&1 || true
+docker compose up -d postgres >/dev/null
+
+attempt=0
+until docker compose exec -T postgres pg_isready -U rigor -d rigor >/dev/null 2>&1; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge 30 ]; then
+    echo "Application PostgreSQL did not become ready for restore." >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+docker compose exec -T postgres psql -U rigor -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE datname='rigor' AND pid <> pg_backend_pid();
+SQL
+
+docker compose exec -T postgres pg_restore \
+  -U rigor \
+  -d rigor \
+  --clean \
+  --if-exists \
+  --no-owner \
+  --exit-on-error < "$dump_file"
+
+restored_schema=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SELECT version_num FROM alembic_version;")
+if [ "$restored_schema" != "$expected_schema" ]; then
+  echo "Restored schema mismatch: expected $expected_schema, found $restored_schema." >&2
+  exit 1
+fi
+
+./scripts/start-populated-local
+printf 'Restored local backup: %s\n' "$backup_dir"
