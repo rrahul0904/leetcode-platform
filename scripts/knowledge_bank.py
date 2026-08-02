@@ -12,6 +12,7 @@ from typing import cast
 from rigor_api.config import get_settings
 from rigor_api.database import create_database_engine
 from rigor_api.knowledge_ingestion import (
+    IngestionBundle,
     SourceDisposition,
     extract_archive,
     inventory_archives,
@@ -91,7 +92,7 @@ def corpus_command(args: argparse.Namespace) -> int:
         [asdict(item) for item in inventories],
     )
 
-    bundles = []
+    bundles: list[IngestionBundle] = []
     processed_hashes: set[str] = set()
     for archive in inventories:
         if archive.archive_sha256 in processed_hashes:
@@ -125,7 +126,11 @@ def corpus_command(args: argparse.Namespace) -> int:
 
 def import_command(args: argparse.Namespace) -> int:
     settings = get_settings()
-    database_url = args.database_url or settings.operational_database_url or settings.database_url
+    database_url = (
+        args.database_url
+        or settings.operational_database_url
+        or settings.database_url
+    )
     engine = create_database_engine(settings, database_url)
     try:
         result = import_knowledge_file(
