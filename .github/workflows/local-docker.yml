@@ -50,7 +50,6 @@ jobs:
                       "id": "public-1",
                       "visibility": "public",
                       "input": 21,
-                      "expected": 42,
                   }
               ],
           }
@@ -65,6 +64,7 @@ jobs:
           assert result["execution_id"] == execution_id, result
           assert result["status"] == "COMPLETED", result
           assert result["tests"][0]["ok"] is True, result
+          assert result["tests"][0]["actual"] == 42, result
           PY
 
           docker compose exec -T execution-controller python - <<'PY'
@@ -77,15 +77,15 @@ jobs:
               "schema_version": 1,
               "execution_id": execution_id,
               "attempt": 1,
+              "source_code": "SELECT value FROM numbers ORDER BY value",
+              "schema_sql": "CREATE TABLE numbers(value integer);",
+              "seed_sql": "INSERT INTO numbers VALUES (2), (1);",
               "statement_timeout_ms": 3000,
-              "candidate_sql": "SELECT value FROM numbers ORDER BY value",
               "tests": [
                   {
                       "id": "public-1",
                       "visibility": "public",
-                      "fixture_sql": "CREATE TABLE numbers(value integer); INSERT INTO numbers VALUES (2), (1);",
-                      "expected_rows": [[1], [2]],
-                      "ordered": True,
+                      "input": None,
                   }
               ],
           }
@@ -100,6 +100,7 @@ jobs:
           assert result["execution_id"] == execution_id, result
           assert result["status"] == "COMPLETED", result
           assert result["tests"][0]["ok"] is True, result
+          assert result["tests"][0]["actual"] == [[1], [2]], result
           PY
 
       - name: Backup and restore application PostgreSQL
