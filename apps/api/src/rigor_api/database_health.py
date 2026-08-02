@@ -35,7 +35,7 @@ REQUIRED_TABLES = (
     "knowledge_source_files",
     "knowledge_import_runs",
     "knowledge_problems",
-    "knowledge_solution_variants",
+    "knowledge_solutions",
     "knowledge_companies",
     "knowledge_topics",
     "knowledge_system_design_articles",
