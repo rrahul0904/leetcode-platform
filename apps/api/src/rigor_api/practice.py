@@ -141,9 +141,11 @@ class PracticeSessionRepository:
     ) -> PracticeSessionView:
         question = published_question_payload(self._connection, request.question_slug)
         required_runtime = question_runtime(question)
-        # The published question is the runtime authority. Older Web clients
-        # sent the default Python enum even for SQL questions; treating that
-        # client hint as authoritative made every SQL workspace fail to open.
+        if request.runtime is not required_runtime:
+            raise PracticeStateTransitionError(
+                "Requested runtime does not match the published question runtime "
+                f"({required_runtime.value})."
+            )
         draft_source = starter_source(question, required_runtime)
         existing = self._connection.execute(
             text(
