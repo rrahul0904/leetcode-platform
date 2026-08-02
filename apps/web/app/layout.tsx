@@ -14,6 +14,7 @@ import "./knowledge-bank.css";
 import "./knowledge-collections.css";
 import "./certification-experience.css";
 import "./curriculum-experience.css";
+import "./editorial-experience.css";
 
 export const metadata: Metadata = {
   title: "Rigor — Interview Systems Lab",
