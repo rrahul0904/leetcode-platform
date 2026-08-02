@@ -6,21 +6,17 @@ from uuid import uuid4
 
 import pytest
 
+from rigor_api import local_execution_controller as local_controller
 from rigor_api.execution_results import RESULT_PREFIX
-from rigor_api.local_execution_controller import (
-    LocalExecutionQueueClient,
-    LocalExecutionTransportError,
-    LocalHttpSandboxExecutor,
-)
 
 
 def test_local_queue_rejects_invalid_or_oversized_messages() -> None:
-    with pytest.raises(LocalExecutionTransportError, match="invalid"):
-        LocalExecutionQueueClient._validate_body("")
-    with pytest.raises(LocalExecutionTransportError, match="valid JSON"):
-        LocalExecutionQueueClient._validate_body("not-json")
-    with pytest.raises(LocalExecutionTransportError, match="JSON object"):
-        LocalExecutionQueueClient._validate_body("[]")
+    with pytest.raises(local_controller.LocalExecutionTransportError, match="invalid"):
+        local_controller.LocalExecutionQueueClient._validate_body("")
+    with pytest.raises(local_controller.LocalExecutionTransportError, match="valid JSON"):
+        local_controller.LocalExecutionQueueClient._validate_body("not-json")
+    with pytest.raises(local_controller.LocalExecutionTransportError, match="JSON object"):
+        local_controller.LocalExecutionQueueClient._validate_body("[]")
 
 
 def test_local_http_executor_projects_runner_result(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -53,8 +49,12 @@ def test_local_http_executor_projects_runner_result(monkeypatch: pytest.MonkeyPa
             "error_category": None,
         }
 
-    monkeypatch.setattr(LocalHttpSandboxExecutor, "_invoke", staticmethod(fake_invoke))
-    executor = LocalHttpSandboxExecutor(
+    monkeypatch.setattr(
+        local_controller.LocalHttpSandboxExecutor,
+        "_invoke",
+        staticmethod(fake_invoke),
+    )
+    executor = local_controller.LocalHttpSandboxExecutor(
         python_url="http://python-runner:8081",
         sql_url="http://sql-runner:8082",
         maximum_parallel=1,
@@ -95,8 +95,12 @@ def test_local_http_executor_reports_runner_health(monkeypatch: pytest.MonkeyPat
     def fake_ready(url: str) -> bool:
         return url.endswith("8081")
 
-    monkeypatch.setattr(LocalHttpSandboxExecutor, "_runner_ready", staticmethod(fake_ready))
-    executor = LocalHttpSandboxExecutor(
+    monkeypatch.setattr(
+        local_controller.LocalHttpSandboxExecutor,
+        "_runner_ready",
+        staticmethod(fake_ready),
+    )
+    executor = local_controller.LocalHttpSandboxExecutor(
         python_url="http://python-runner:8081",
         sql_url="http://sql-runner:8082",
     )
