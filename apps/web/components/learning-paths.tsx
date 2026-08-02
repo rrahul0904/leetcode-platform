@@ -73,12 +73,12 @@ export function LearningPaths() {
 
   if (!active) return null;
 
-  const track = active.tracks.includes(
-    selectedTrack as (typeof active.tracks)[number],
-  )
-    ? (selectedTrack as (typeof active.tracks)[number])
-    : active.tracks[0];
-  const selectedTrackIndex = Math.max(0, active.tracks.indexOf(track));
+  const track =
+    active.tracks.find((candidate) => candidate === selectedTrack) ?? active.tracks[0];
+  const selectedTrackIndex = Math.max(
+    0,
+    active.tracks.findIndex((candidate) => candidate === track),
+  );
   const progress = Math.round(((selectedTrackIndex + 1) / active.tracks.length) * 100);
 
   function choosePath(pathId: string) {
