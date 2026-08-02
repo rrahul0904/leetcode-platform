@@ -48,21 +48,15 @@ jobs:
               "attempt": 1,
               "source_code": "def solve(value):\n    return value * 2\n",
               "entrypoint": "solve",
-              "tests": [
-                  {
-                      "id": "public-1",
-                      "visibility": "public",
-                      "input": 21,
-                  }
-              ],
+              "tests": [{"id": "public-1", "visibility": "public", "input": 21}],
           }
-          request = urllib.request.Request(
+          req = urllib.request.Request(
               "http://python-runner:8081/run",
-              data=json.dumps(payload).encode("utf-8"),
+              data=json.dumps(payload).encode(),
               headers={"Content-Type": "application/json"},
               method="POST",
           )
-          with urllib.request.urlopen(request, timeout=20) as response:
+          with urllib.request.urlopen(req, timeout=20) as response:
               result = json.load(response)
           assert result["execution_id"] == execution_id, result
           assert result["status"] == "COMPLETED", result
@@ -84,21 +78,15 @@ jobs:
               "schema_sql": "CREATE TABLE numbers(value integer);",
               "seed_sql": "INSERT INTO numbers VALUES (2), (1);",
               "statement_timeout_ms": 3000,
-              "tests": [
-                  {
-                      "id": "public-1",
-                      "visibility": "public",
-                      "input": None,
-                  }
-              ],
+              "tests": [{"id": "public-1", "visibility": "public", "input": None}],
           }
-          request = urllib.request.Request(
+          req = urllib.request.Request(
               "http://sql-runner:8082/run",
-              data=json.dumps(payload).encode("utf-8"),
+              data=json.dumps(payload).encode(),
               headers={"Content-Type": "application/json"},
               method="POST",
           )
-          with urllib.request.urlopen(request, timeout=30) as response:
+          with urllib.request.urlopen(req, timeout=30) as response:
               result = json.load(response)
           assert result["execution_id"] == execution_id, result
           assert result["status"] == "COMPLETED", result
@@ -116,14 +104,31 @@ jobs:
       - name: Verify restored application
         run: make verify-local
 
-      - name: Show diagnostics on failure
-        if: failure()
+      - name: Capture compact diagnostics
+        if: always()
         run: |
-          docker compose ps --all
-          docker compose logs --tail=200 \
-            migrate seed catalog-init content-sync local-release \
-            execution-postgres python-runner sql-runner execution-controller \
-            api web postgres valkey
+          {
+            echo '=== compose ps ==='
+            docker compose ps --all || true
+            echo '=== container states ==='
+            for service in migrate seed catalog-init content-sync local-release execution-postgres python-runner sql-runner execution-controller api web postgres valkey; do
+              cid=$(docker compose ps -a -q "$service" 2>/dev/null || true)
+              echo "--- $service [$cid] ---"
+              if [ -n "$cid" ]; then
+                docker inspect --format 'status={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$cid" || true
+                docker logs --tail=40 "$cid" 2>&1 || true
+              fi
+            done
+          } > local-docker-diagnostics.txt 2>&1
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: local-docker-diagnostics
+          path: local-docker-diagnostics.txt
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Stop local stack
         if: always()
