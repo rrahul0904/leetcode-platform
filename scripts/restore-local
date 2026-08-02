@@ -59,6 +59,9 @@ format_version=$(manifest_value FORMAT_VERSION "$manifest_file")
 dump_name=$(manifest_value DUMP_FILE "$manifest_file")
 expected_checksum=$(manifest_value DUMP_SHA256 "$manifest_file")
 expected_schema=$(manifest_value SCHEMA_REVISION "$manifest_file")
+expected_questions=$(manifest_value QUESTION_COUNT "$manifest_file")
+expected_published=$(manifest_value PUBLISHED_COUNT "$manifest_file")
+expected_executions=$(manifest_value EXECUTION_COUNT "$manifest_file")
 
 if [ "$format_version" != "1" ]; then
   echo "Unsupported backup manifest format: $format_version" >&2
@@ -70,7 +73,9 @@ case "$dump_name" in
     exit 1
     ;;
 esac
-if [ -z "$expected_checksum" ] || [ -z "$expected_schema" ]; then
+if [ -z "$expected_checksum" ] || [ -z "$expected_schema" ] \
+  || [ -z "$expected_questions" ] || [ -z "$expected_published" ] \
+  || [ -z "$expected_executions" ]; then
   echo "Backup manifest is incomplete." >&2
   exit 1
 fi
@@ -115,8 +120,24 @@ docker compose exec -T postgres pg_restore \
 
 restored_schema=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
   "SELECT version_num FROM alembic_version;")
+restored_questions=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SELECT count(*) FROM questions;")
+restored_published=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SELECT count(*) FROM question_versions WHERE state='published'::content_state;")
+restored_executions=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SELECT count(*) FROM execution_requests;")
+
 if [ "$restored_schema" != "$expected_schema" ]; then
   echo "Restored schema mismatch: expected $expected_schema, found $restored_schema." >&2
+  exit 1
+fi
+if [ "$restored_questions" != "$expected_questions" ] \
+  || [ "$restored_published" != "$expected_published" ] \
+  || [ "$restored_executions" != "$expected_executions" ]; then
+  echo "Restored record counts do not match the backup manifest." >&2
+  echo "Questions: expected=$expected_questions restored=$restored_questions" >&2
+  echo "Published: expected=$expected_published restored=$restored_published" >&2
+  echo "Executions: expected=$expected_executions restored=$restored_executions" >&2
   exit 1
 fi
 
