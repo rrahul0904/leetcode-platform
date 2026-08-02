@@ -51,6 +51,8 @@ def upgrade() -> None:
           worker_id text NOT NULL,
           heartbeat_at timestamptz NOT NULL,
           queue_depth integer NOT NULL DEFAULT 0 CHECK (queue_depth >= 0),
+          python_runner_ready boolean NOT NULL DEFAULT false,
+          sql_runner_ready boolean NOT NULL DEFAULT false,
           CHECK (controller_key = 'local')
         )
         """
