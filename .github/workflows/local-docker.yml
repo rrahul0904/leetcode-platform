@@ -1,0 +1,126 @@
+name: Local Docker release
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: local-docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  local-docker:
+    name: Clean bootstrap, execution health, backup, and restore
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Compose
+        run: docker compose config --quiet
+
+      - name: Clean populated bootstrap
+        run: make bootstrap
+
+      - name: Verify complete dependency health
+        run: make verify-local
+
+      - name: Verify internal runner boundaries
+        run: |
+          docker compose exec -T execution-controller python - <<'PY'
+          import json
+          import urllib.request
+          from uuid import uuid4
+
+          execution_id = str(uuid4())
+          payload = {
+              "schema_version": 1,
+              "execution_id": execution_id,
+              "attempt": 1,
+              "source_code": "def solve(value):\n    return value * 2\n",
+              "entrypoint": "solve",
+              "tests": [
+                  {
+                      "id": "public-1",
+                      "visibility": "public",
+                      "input": 21,
+                      "expected": 42,
+                  }
+              ],
+          }
+          request = urllib.request.Request(
+              "http://python-runner:8081/run",
+              data=json.dumps(payload).encode("utf-8"),
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+          with urllib.request.urlopen(request, timeout=20) as response:
+              result = json.load(response)
+          assert result["execution_id"] == execution_id, result
+          assert result["status"] == "COMPLETED", result
+          assert result["tests"][0]["ok"] is True, result
+          PY
+
+          docker compose exec -T execution-controller python - <<'PY'
+          import json
+          import urllib.request
+          from uuid import uuid4
+
+          execution_id = str(uuid4())
+          payload = {
+              "schema_version": 1,
+              "execution_id": execution_id,
+              "attempt": 1,
+              "statement_timeout_ms": 3000,
+              "candidate_sql": "SELECT value FROM numbers ORDER BY value",
+              "tests": [
+                  {
+                      "id": "public-1",
+                      "visibility": "public",
+                      "fixture_sql": "CREATE TABLE numbers(value integer); INSERT INTO numbers VALUES (2), (1);",
+                      "expected_rows": [[1], [2]],
+                      "ordered": True,
+                  }
+              ],
+          }
+          request = urllib.request.Request(
+              "http://sql-runner:8082/run",
+              data=json.dumps(payload).encode("utf-8"),
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              result = json.load(response)
+          assert result["execution_id"] == execution_id, result
+          assert result["status"] == "COMPLETED", result
+          assert result["tests"][0]["ok"] is True, result
+          PY
+
+      - name: Backup and restore application PostgreSQL
+        run: |
+          backup_dir=$(sh scripts/backup-local)
+          test -f "$backup_dir/manifest.env"
+          test -s "$backup_dir/rigor.dump"
+          sh scripts/restore-local "$backup_dir"
+
+      - name: Verify restored application
+        run: make verify-local
+
+      - name: Show diagnostics on failure
+        if: failure()
+        run: |
+          docker compose ps --all
+          docker compose logs --tail=200 \
+            migrate seed catalog-init content-sync local-release \
+            execution-postgres python-runner sql-runner execution-controller \
+            api web postgres valkey
+
+      - name: Stop local stack
+        if: always()
+        run: docker compose down --volumes --remove-orphans
