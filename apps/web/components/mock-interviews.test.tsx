@@ -18,7 +18,7 @@ describe("recording-grade mock exam", () => {
 
     fireEvent.click(
       screen.getByLabelText(
-        "Inspect retained task references, queue ownership, and cleanup paths before scaling.",
+        /Inspect retained task references, queue ownership, and cleanup paths before scaling/,
       ),
     );
     expect(screen.getByLabelText("Question 1, answered")).toBeInTheDocument();
