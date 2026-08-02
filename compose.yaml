@@ -364,7 +364,7 @@ services:
       timeout: 3s
       retries: 30
     tmpfs:
-      - /var/lib/postgresql/data:size=384m,mode=0700
+      - /var/lib/postgresql:size=384m,mode=0700
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
