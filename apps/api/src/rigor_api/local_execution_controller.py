@@ -329,6 +329,7 @@ class LocalHttpSandboxExecutor:
             return SandboxObservation(state="MISSING")
         if not future.done():
             return SandboxObservation(state="RUNNING")
+        result: dict[str, object]
         try:
             result = future.result()
         except Exception as exc:
