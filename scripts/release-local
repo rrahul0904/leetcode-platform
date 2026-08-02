@@ -1,0 +1,56 @@
+#!/usr/bin/env sh
+set -eu
+
+for dependency in docker curl pnpm uv; do
+  if ! command -v "$dependency" >/dev/null 2>&1; then
+    echo "Required dependency is unavailable: $dependency" >&2
+    exit 1
+  fi
+done
+
+if ! docker compose version >/dev/null 2>&1; then
+  echo "Docker Compose v2 is required." >&2
+  exit 1
+fi
+
+echo "[1/8] Validate Docker Compose"
+docker compose config --quiet
+
+echo "[2/8] Install locked workspaces"
+pnpm install --frozen-lockfile
+uv sync --frozen --all-packages
+
+echo "[3/8] Validate Web application"
+pnpm --filter @rigor/web lint
+pnpm --filter @rigor/web typecheck
+pnpm --filter @rigor/web test
+pnpm --filter @rigor/web build
+
+echo "[4/8] Validate Python application and execution services"
+uv run ruff check \
+  apps/api/src \
+  packages/question-schema/src \
+  services/python-runner \
+  services/sql-runner \
+  scripts \
+  apps/api/tests \
+  packages/question-schema/tests \
+  tests
+uv run pyright apps/api/src packages/question-schema/src scripts
+uv run pytest -q
+
+echo "[5/8] Build the complete local stack from a clean volume"
+docker compose down --volumes --remove-orphans
+./scripts/start-populated-local
+
+echo "[6/8] Verify health and primary published data"
+make verify-local
+
+echo "[7/8] Exercise checksum-backed backup and restore"
+backup_dir=$(sh scripts/backup-local)
+sh scripts/restore-local "$backup_dir"
+
+echo "[8/8] Final health verification"
+make verify-local
+
+echo "Local release gate passed. Backup evidence: $backup_dir"
