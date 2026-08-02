@@ -12,6 +12,7 @@ import "./cinematic-support.css";
 import "./cinematic-workflows.css";
 import "./knowledge-bank.css";
 import "./knowledge-collections.css";
+import "./certification-experience.css";
 
 export const metadata: Metadata = {
   title: "Rigor — Interview Systems Lab",
