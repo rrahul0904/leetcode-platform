@@ -23,13 +23,15 @@ vi.mock("@/lib/api", async (importOriginal) => ({
 }));
 
 describe("product surfaces", () => {
-  it("starts and resets a deterministic mock session", () => {
+  it("starts and retakes a deterministic mock exam", () => {
     render(<MockInterviews />);
     fireEvent.click(
-      screen.getByRole("button", { name: /start local session/i }),
+      screen.getByRole("button", { name: /start mock exam/i }),
     );
+    expect(screen.getByText("QUESTION 1 OF 12")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /submit exam/i }));
     expect(
-      screen.getByRole("button", { name: /reset session/i }),
+      screen.getByRole("button", { name: /retake exam/i }),
     ).toBeInTheDocument();
   });
 
