@@ -6,11 +6,14 @@ import {
   CircleGauge,
   FileCheck2,
   FileUp,
-  Link2,
+  Files,
   LayoutDashboard,
+  Link2,
   Menu,
+  Newspaper,
   Radar,
   Route,
+  Search,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -19,13 +22,14 @@ import { type ReactNode, useState } from "react";
 
 import { useAuth } from "@/lib/auth";
 
-const workspaceNav = [
-  ["Home", "/", LayoutDashboard],
+const candidateNav = [
+  ["Learn", "/learning-paths", Route],
   ["Problems", "/problems", BookOpen],
   ["Companies", "/companies", Building2],
-  ["Study plans", "/learning-paths", Route],
   ["Mock exams", "/mock-interviews", FileCheck2],
   ["System design", "/system-design-library", Radar],
+  ["Journal", "/journal", Newspaper],
+  ["Resources", "/resources", Files],
   ["Readiness", "/progress", CircleGauge],
 ] as const;
 
@@ -49,6 +53,8 @@ const reviewerNav = [
   ["Question bank", "/question-bank", BookOpen],
 ] as const;
 
+type NavigationItem = readonly [string, string, typeof BookOpen];
+
 function isActive(pathname: string, href: string) {
   if (href === "/problems" && pathname.startsWith("/practice/")) return true;
   return href === "/"
@@ -56,10 +62,7 @@ function isActive(pathname: string, href: string) {
     : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function labelFor(
-  pathname: string,
-  items: ReadonlyArray<readonly [string, string, typeof BookOpen]>,
-) {
+function labelFor(pathname: string, items: ReadonlyArray<NavigationItem>) {
   return items.find(([, href]) => isActive(pathname, href))?.[0] ?? "Workspace";
 }
 
@@ -73,15 +76,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   const isReviewer = principal?.roles.some((role) =>
     ["technical-reviewer", "editorial-reviewer"].includes(role),
   );
-  const navigation = isAdministrator
+  const isCandidateWorkspace = !isAdministrator && !isAuthor && !isReviewer;
+  const managementNavigation: ReadonlyArray<NavigationItem> = isAdministrator
     ? administratorNav
     : isAuthor
       ? authorNav
-      : isReviewer
-        ? reviewerNav
-        : workspaceNav;
-  const isCandidateWorkspace = !isAdministrator && !isAuthor && !isReviewer;
-  const currentLabel = labelFor(pathname, navigation);
+      : reviewerNav;
+  const currentLabel = labelFor(pathname, managementNavigation);
   const initials =
     principal?.display_name
       .split(/\s+/)
@@ -90,9 +91,130 @@ export function AppShell({ children }: { children: ReactNode }) {
       .slice(0, 2)
       .toUpperCase() ?? "?";
 
-  const renderNav = (
-    items: ReadonlyArray<readonly [string, string, typeof BookOpen]>,
-  ) =>
+  function profileMenu() {
+    return (
+      <div className="profile-control">
+        <button
+          className="avatar"
+          aria-label="Open profile menu"
+          aria-expanded={profileOpen}
+          onClick={() => setProfileOpen((open) => !open)}
+          type="button"
+        >
+          {initials}
+        </button>
+        {profileOpen && (
+          <div className="profile-menu">
+            <span>{principal?.authentication_provider ?? "AUTHENTICATED"}</span>
+            <strong>{principal?.display_name}</strong>
+            <p>
+              {principal?.email}
+              <br />
+              {principal?.roles.join(" · ")}
+            </p>
+            <Link href="/progress" onClick={() => setProfileOpen(false)}>
+              View readiness
+            </Link>
+            {principal?.roles.includes("candidate") && (
+              <Link href="/onboarding" onClick={() => setProfileOpen(false)}>
+                Edit profile
+              </Link>
+            )}
+            <button
+              className="profile-sign-out"
+              onClick={() => {
+                signOut();
+                window.location.assign("/sign-in");
+              }}
+              type="button"
+            >
+              Sign out
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (isCandidateWorkspace) {
+    return (
+      <div className="candidate-shell">
+        <a className="skip-link" href="#main-content">
+          Skip to content
+        </a>
+        {mobileNavOpen && (
+          <button
+            className="candidate-nav-scrim"
+            aria-label="Close navigation"
+            onClick={() => setMobileNavOpen(false)}
+            type="button"
+          />
+        )}
+        <header className="candidate-global-header">
+          <Link className="candidate-brand" href="/">
+            <span>R</span>
+            <strong>RIGOR</strong>
+          </Link>
+          <nav
+            aria-label="Primary navigation"
+            className={mobileNavOpen ? "candidate-global-nav is-open" : "candidate-global-nav"}
+          >
+            <div className="candidate-global-nav__mobile-heading">
+              <span>EXPLORE RIGOR</span>
+              <button
+                aria-label="Close navigation"
+                onClick={() => setMobileNavOpen(false)}
+                type="button"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {candidateNav.map(([label, href, Icon]) => {
+              const active = isActive(pathname, href);
+              return (
+                <Link
+                  aria-current={active ? "page" : undefined}
+                  className={active ? "is-active" : ""}
+                  href={href}
+                  key={href}
+                  onClick={() => setMobileNavOpen(false)}
+                >
+                  <Icon size={14} />
+                  {label}
+                </Link>
+              );
+            })}
+          </nav>
+          <div className="candidate-global-controls">
+            <Link aria-label="Search problems" href="/problems" title="Search problems">
+              <Search size={16} />
+            </Link>
+            <span className="candidate-connection" title="API connected">
+              <i /> Live
+            </span>
+            {profileMenu()}
+            <button
+              aria-label="Open navigation"
+              className="candidate-menu-button"
+              onClick={() => setMobileNavOpen(true)}
+              type="button"
+            >
+              <Menu size={19} />
+            </button>
+          </div>
+        </header>
+        <main id="main-content" className="candidate-content">
+          {children}
+          <footer className="candidate-footer">
+            <span>RIGOR · INTERVIEW SYSTEMS LAB</span>
+            <span>DATABASE-BACKED CONTENT · ISOLATED EXECUTION</span>
+          </footer>
+        </main>
+      </div>
+    );
+  }
+
+  const renderManagementNav = (items: ReadonlyArray<NavigationItem>) =>
     items.map(([label, href, Icon]) => {
       const active = isActive(pathname, href);
       return (
@@ -111,9 +233,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     });
 
   return (
-    <div
-      className={`app-shell ${isCandidateWorkspace ? "app-shell--candidate" : "app-shell--management"}`}
-    >
+    <div className="app-shell app-shell--management">
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
@@ -122,14 +242,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           className="nav-scrim"
           aria-label="Close navigation"
           onClick={() => setMobileNavOpen(false)}
+          type="button"
         />
       )}
       <aside className={`sidebar ${mobileNavOpen ? "sidebar--open" : ""}`}>
-        <Link
-          className="brand"
-          href="/"
-          onClick={() => setMobileNavOpen(false)}
-        >
+        <Link className="brand" href="/" onClick={() => setMobileNavOpen(false)}>
           <span className="brand__mark">R</span>
           <span>
             <strong>RIGOR</strong>
@@ -145,16 +262,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           <X size={20} />
         </button>
         <nav aria-label="Primary navigation">
-          <p className="nav-label">
-            {isAdministrator || isAuthor || isReviewer ? "MANAGE" : "PRACTICE"}
-          </p>
-          {renderNav(navigation)}
+          <p className="nav-label">MANAGE</p>
+          {renderManagementNav(managementNavigation)}
         </nav>
         <div className="sidebar-note">
           <span>RIGOR KNOWLEDGE BANK</span>
-          <strong>
-            {isAdministrator ? "Content administration" : "Python · SQL · JavaScript · Design"}
-          </strong>
+          <strong>{isAdministrator ? "Content administration" : "Governed review"}</strong>
           <p>Imported sources remain connected to canonical problems and governed review.</p>
         </div>
       </aside>
@@ -176,66 +289,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="api-status">
               <i /> Connected
             </span>
-            <div className="profile-control">
-              <button
-                className="avatar"
-                aria-label="Open profile menu"
-                aria-expanded={profileOpen}
-                onClick={() => setProfileOpen((open) => !open)}
-              >
-                {initials}
-              </button>
-              {profileOpen && (
-                <div className="profile-menu">
-                  <span>
-                    {principal?.authentication_provider ?? "AUTHENTICATED"}
-                  </span>
-                  <strong>{principal?.display_name}</strong>
-                  <p>
-                    {principal?.email}
-                    <br />
-                    {principal?.roles.join(" · ")}
-                  </p>
-                  <Link href="/progress" onClick={() => setProfileOpen(false)}>
-                    View readiness
-                  </Link>
-                  {principal?.roles.includes("candidate") && (
-                    <Link
-                      href="/onboarding"
-                      onClick={() => setProfileOpen(false)}
-                    >
-                      Edit profile
-                    </Link>
-                  )}
-                  <button
-                    className="profile-sign-out"
-                    onClick={() => {
-                      signOut();
-                      window.location.assign("/sign-in");
-                    }}
-                  >
-                    Sign out
-                  </button>
-                </div>
-              )}
-            </div>
+            {profileMenu()}
           </div>
         </header>
         {children}
         <footer className="site-footer">
-          {isCandidateWorkspace ? (
-            <>
-              <span>RIGOR · INTERACTIVE INTERVIEW PRACTICE</span>
-              <span>DATABASE-BACKED CONTENT · ISOLATED EXECUTION</span>
-            </>
-          ) : (
-            <>
-              <span>
-                Independent preparation platform. No employer affiliation.
-              </span>
-              <span>Content states and readiness claims are evidence-gated.</span>
-            </>
-          )}
+          <span>Independent preparation platform. No employer affiliation.</span>
+          <span>Content states and readiness claims are evidence-gated.</span>
         </footer>
       </main>
     </div>
