@@ -13,7 +13,7 @@ from .execution_routes import (
 )
 from .schemas import ReadinessCheck, ReadinessResponse
 
-EXPECTED_MIGRATION_VERSION = "20260729_0011"
+EXPECTED_MIGRATION_VERSION = "20260801_0014"
 REQUIRED_TABLES = (
     "practice_sessions",
     "submissions",
@@ -31,6 +31,16 @@ REQUIRED_TABLES = (
     "readiness_snapshots",
     "recommendation_events",
     "role_readiness_profiles",
+    "knowledge_sources",
+    "knowledge_source_files",
+    "knowledge_import_runs",
+    "knowledge_problems",
+    "knowledge_solution_variants",
+    "knowledge_companies",
+    "knowledge_topics",
+    "knowledge_system_design_articles",
+    "candidate_knowledge_problem_state",
+    "candidate_knowledge_activity_events",
 )
 EXECUTION_ADAPTERS = {"LOCAL_FUNCTIONAL", "KUBERNETES_JOB"}
 AI_ADAPTERS = {"DETERMINISTIC", "OPENAI", "ANTHROPIC"}
