@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 from datetime import date, timedelta
+from itertools import pairwise
 from typing import Annotated, Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import text
+from sqlalchemy import Connection, text
 
 from .auth import require_permissions
 from .database import DatabaseEngine, principal_transaction
@@ -86,7 +87,7 @@ CandidateWritePrincipal = Annotated[
 ]
 
 
-def _candidate_id(connection) -> UUID:
+def _candidate_id(connection: Connection) -> UUID:
     value = connection.execute(
         text("SELECT NULLIF(current_setting('rigor.user_id', true), '')::uuid")
     ).scalar_one()
@@ -95,7 +96,7 @@ def _candidate_id(connection) -> UUID:
     return UUID(str(value))
 
 
-def _problem_id(connection, slug: str) -> UUID:
+def _problem_id(connection: Connection, slug: str) -> UUID:
     value = connection.execute(
         text(
             """
@@ -112,7 +113,11 @@ def _problem_id(connection, slug: str) -> UUID:
     return UUID(str(value))
 
 
-def _ensure_state(connection, candidate_id: UUID, problem_id: UUID) -> None:
+def _ensure_state(
+    connection: Connection,
+    candidate_id: UUID,
+    problem_id: UUID,
+) -> None:
     connection.execute(
         text(
             """
@@ -128,7 +133,11 @@ def _ensure_state(connection, candidate_id: UUID, problem_id: UUID) -> None:
     )
 
 
-def _state(connection, candidate_id: UUID, problem_id: UUID) -> CandidateProblemState:
+def _state(
+    connection: Connection,
+    candidate_id: UUID,
+    problem_id: UUID,
+) -> CandidateProblemState:
     row = (
         connection.execute(
             text(
@@ -158,7 +167,7 @@ def _state(connection, candidate_id: UUID, problem_id: UUID) -> CandidateProblem
 
 
 def _append_event(
-    connection,
+    connection: Connection,
     *,
     candidate_id: UUID,
     problem_id: UUID,
@@ -198,7 +207,7 @@ def _append_event(
 
 
 def _apply_event_projection(
-    connection,
+    connection: Connection,
     *,
     candidate_id: UUID,
     problem_id: UUID,
@@ -267,7 +276,7 @@ def _streaks(days: list[date]) -> tuple[int, int]:
     ordered = sorted(set(days), reverse=True)
     longest = 1
     running = 1
-    for previous, current in zip(ordered, ordered[1:], strict=False):
+    for previous, current in pairwise(ordered):
         if previous - current == timedelta(days=1):
             running += 1
             longest = max(longest, running)
@@ -277,7 +286,7 @@ def _streaks(days: list[date]) -> tuple[int, int]:
     if ordered[0] not in {today, today - timedelta(days=1)}:
         return 0, longest
     current_streak = 1
-    for previous, current in zip(ordered, ordered[1:], strict=False):
+    for previous, current in pairwise(ordered):
         if previous - current != timedelta(days=1):
             break
         current_streak += 1
@@ -313,12 +322,18 @@ def patch_candidate_problem_state(
             text(
                 """
                 UPDATE knowledge_candidate_problem_state
-                SET bookmarked=CASE WHEN :set_bookmarked THEN :bookmarked ELSE bookmarked END,
+                SET bookmarked=CASE
+                      WHEN :set_bookmarked THEN :bookmarked
+                      ELSE bookmarked
+                    END,
                     revision_status=CASE
                       WHEN :set_revision THEN :revision_status
                       ELSE revision_status
                     END,
-                    private_notes=CASE WHEN :set_notes THEN :private_notes ELSE private_notes END,
+                    private_notes=CASE
+                      WHEN :set_notes THEN :private_notes
+                      ELSE private_notes
+                    END,
                     last_activity_at=CURRENT_TIMESTAMP,
                     updated_at=CURRENT_TIMESTAMP
                 WHERE candidate_id=:candidate_id AND problem_id=:problem_id
@@ -419,7 +434,9 @@ def candidate_progress_summary(
                   count(*) FILTER (WHERE status='solved') AS solved,
                   count(*) FILTER (WHERE status='failed') AS failed,
                   count(*) FILTER (WHERE bookmarked) AS bookmarked,
-                  count(*) FILTER (WHERE revision_status IN ('marked', 'due')) AS revision_due,
+                  count(*) FILTER (
+                    WHERE revision_status IN ('marked', 'due')
+                  ) AS revision_due,
                   COALESCE(sum(total_seconds), 0) AS total_seconds
                 FROM knowledge_candidate_problem_state
                 WHERE candidate_id=:candidate_id
