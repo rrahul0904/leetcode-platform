@@ -49,7 +49,7 @@ export type CandidateActivityInput = {
     | "problem_solved"
     | "problem_failed"
     | "session_time_recorded";
-  language?: string;
+  language?: string | undefined;
   duration_seconds?: number;
   idempotency_key?: string;
   payload?: Record<string, unknown>;
