@@ -39,8 +39,8 @@ REQUIRED_TABLES = (
     "knowledge_companies",
     "knowledge_topics",
     "knowledge_system_design_articles",
-    "candidate_knowledge_problem_state",
-    "candidate_knowledge_activity_events",
+    "knowledge_candidate_problem_state",
+    "knowledge_activity_events",
 )
 EXECUTION_ADAPTERS = {"LOCAL_FUNCTIONAL", "KUBERNETES_JOB"}
 AI_ADAPTERS = {"DETERMINISTIC", "OPENAI", "ANTHROPIC"}
