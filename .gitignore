@@ -13,6 +13,7 @@ __pycache__/
 .pyright/
 dist/
 build/
+backups/
 coverage/
 playwright-report/
 test-results/
