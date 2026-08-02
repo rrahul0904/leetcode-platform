@@ -11,13 +11,20 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 MAX_SOURCE_BYTES = 100_000
 MAX_TESTS = 200
 MAX_STREAM_BYTES = 64 * 1024
 CHILD_FILE_LIMIT_BYTES = 128 * 1024
+INVOCATION_MODES = {
+    "auto",
+    "keyword_arguments",
+    "positional_arguments",
+    "single_payload",
+    "no_arguments",
+}
 
 SAFE_CHILD_ENV = {
     "HOME": "/workspace",
@@ -29,7 +36,7 @@ SAFE_CHILD_ENV = {
     "TMPDIR": "/workspace/tmp",
 }
 
-CHILD_PROGRAM = r'''
+CHILD_PROGRAM = r"""
 import builtins
 import io
 import json
@@ -109,8 +116,19 @@ try:
     if not callable(candidate):
         raise TypeError("required entrypoint is not callable")
     test_input = payload.get("input")
-    if isinstance(test_input, list):
+    invocation_mode = payload.get("invocation_mode", "auto")
+    if invocation_mode == "keyword_arguments" or (
+        invocation_mode == "auto" and isinstance(test_input, dict)
+    ):
+        actual = candidate(**test_input)
+    elif invocation_mode == "positional_arguments" or (
+        invocation_mode == "auto" and isinstance(test_input, list)
+    ):
+        if not isinstance(test_input, list):
+            raise TypeError("positional_arguments input must be a list")
         actual = candidate(*test_input)
+    elif invocation_mode == "no_arguments":
+        actual = candidate()
     else:
         actual = candidate(test_input)
     try:
@@ -131,7 +149,7 @@ finally:
     protocol["stderr_truncated"] = captured_stderr.truncated
 
 print("RIGOR_RESULT:" + json.dumps(protocol, separators=(",", ":"), ensure_ascii=False))
-'''
+"""
 
 
 class RunnerInputError(ValueError):
@@ -164,6 +182,10 @@ def parse_request(path: Path, expected_execution_id: UUID) -> dict[str, Any]:
     entrypoint = payload.get("entrypoint", "solve")
     if not isinstance(entrypoint, str) or not entrypoint.isidentifier():
         raise RunnerInputError("Candidate entrypoint is invalid.")
+
+    invocation_mode = payload.get("invocation_mode", "auto")
+    if invocation_mode not in INVOCATION_MODES:
+        raise RunnerInputError("Candidate invocation mode is invalid.")
 
     tests = payload.get("tests")
     if not isinstance(tests, list) or not tests:
@@ -199,6 +221,7 @@ def parse_request(path: Path, expected_execution_id: UUID) -> dict[str, Any]:
         "attempt": attempt,
         "source_code": source,
         "entrypoint": entrypoint,
+        "invocation_mode": invocation_mode,
         "tests": normalized_tests,
     }
 
@@ -263,6 +286,7 @@ def execute_test(
     *,
     source_code: str,
     entrypoint: str,
+    invocation_mode: str,
     test_input: object,
     timeout_seconds: int,
 ) -> tuple[dict[str, Any], str, str, int]:
@@ -279,7 +303,11 @@ def execute_test(
                 stderr=stderr_file,
                 text=True,
                 cwd=workspace,
-                env=SAFE_CHILD_ENV,
+                env={
+                    **SAFE_CHILD_ENV,
+                    "HOME": str(workspace),
+                    "TMPDIR": str(temp_root),
+                },
                 preexec_fn=lambda: _apply_child_limits(timeout_seconds),
                 start_new_session=True,
             )
@@ -287,6 +315,7 @@ def execute_test(
                 {
                     "source_code": source_code,
                     "entrypoint": entrypoint,
+                    "invocation_mode": invocation_mode,
                     "input": test_input,
                 },
                 separators=(",", ":"),
@@ -339,7 +368,8 @@ def run_request(
     started = time.monotonic()
     source_code = str(request["source_code"])
     entrypoint = str(request["entrypoint"])
-    tests = list(request["tests"])
+    invocation_mode = str(request.get("invocation_mode", "auto"))
+    tests = cast(list[dict[str, object]], request["tests"])
     deadline = started + timeout_seconds
 
     results: list[dict[str, object]] = []
@@ -357,6 +387,7 @@ def run_request(
         protocol, _raw_stdout, raw_stderr, exit_code = execute_test(
             source_code=source_code,
             entrypoint=entrypoint,
+            invocation_mode=invocation_mode,
             test_input=item.get("input"),
             timeout_seconds=per_test_timeout,
         )
@@ -435,8 +466,7 @@ def main() -> int:
 
     result["execution_id"] = str(args.execution_id)
     print(
-        "RIGOR_EXECUTION_RESULT:"
-        + json.dumps(result, separators=(",", ":"), ensure_ascii=False),
+        "RIGOR_EXECUTION_RESULT:" + json.dumps(result, separators=(",", ":"), ensure_ascii=False),
         flush=True,
     )
     return 0 if result.get("status") == "COMPLETED" else 1

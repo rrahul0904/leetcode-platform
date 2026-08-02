@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Any, cast
@@ -114,6 +115,13 @@ QuestionSlugHeader = Annotated[
 MAX_ACTIVE_RUNS_PER_CANDIDATE = 5
 MAX_ACTIVE_SUBMITS_PER_CANDIDATE = 2
 ACTIVE_STATES = ("QUEUED", "DISPATCHING", "RUNNING")
+INVOCATION_MODES = {
+    "auto",
+    "keyword_arguments",
+    "positional_arguments",
+    "single_payload",
+    "no_arguments",
+}
 
 
 def _session_question(
@@ -277,12 +285,57 @@ def _candidate_tests(
 
 
 def _entrypoint(question: dict[str, Any]) -> str:
+    """Resolve the executable function from the published question contract.
+
+    New imports must persist `entrypoint`. Legacy packages are supported by
+    inspecting their starter code once in the trusted API. The sandbox never
+    guesses a function name and never receives the full question package.
+    """
+
     mode = question_mode(question)
-    value = mode.get("entrypoint") or mode.get("function_name") or "solve"
-    entrypoint = str(value)
+    explicit = mode.get("entrypoint") or mode.get("function_name")
+    if explicit is not None:
+        entrypoint = str(explicit)
+    else:
+        starter = mode.get("starter_code")
+        if not isinstance(starter, str) or not starter.strip():
+            raise HTTPException(
+                status_code=409,
+                detail="Python question is missing a persisted entrypoint and starter code.",
+            )
+        try:
+            parsed = ast.parse(starter)
+        except SyntaxError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail="Python starter code is invalid and cannot define an entrypoint.",
+            ) from exc
+        candidates = [
+            node.name
+            for node in parsed.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and not node.name.startswith("_")
+        ]
+        if "solve" in candidates:
+            entrypoint = "solve"
+        elif len(candidates) == 1:
+            entrypoint = candidates[0]
+        else:
+            raise HTTPException(
+                status_code=409,
+                detail="Python question must persist an unambiguous execution entrypoint.",
+            )
     if not entrypoint.isidentifier():
         raise HTTPException(status_code=409, detail="Question execution entrypoint is invalid.")
     return entrypoint
+
+
+def _invocation_mode(question: dict[str, Any]) -> str:
+    mode = question_mode(question)
+    value = str(mode.get("invocation_mode") or "auto")
+    if value not in INVOCATION_MODES:
+        raise HTTPException(status_code=409, detail="Question invocation mode is invalid.")
+    return value
 
 
 def _sql_input_payload(
@@ -338,6 +391,7 @@ def _runtime_execution_config(
             {
                 "schema_version": 1,
                 "entrypoint": _entrypoint(question),
+                "invocation_mode": _invocation_mode(question),
                 "tests": _candidate_tests(question, public_only=public_only),
             },
         )
@@ -538,11 +592,9 @@ def queue_submit(
                 session_id=request.session_id,
                 slug=slug,
             )
-            if request.runtime is not runtime:
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Submission runtime must match practice runtime {runtime.value}.",
-                )
+            # The persisted practice session and published question are the
+            # runtime authority. Older clients sent a hard-coded Python value;
+            # accepting that hint must never block a valid SQL session.
             question_version_id = UUID(str(question["question_version_id"]))
             existing = _existing_execution(
                 connection,
