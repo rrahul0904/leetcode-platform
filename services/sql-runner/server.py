@@ -11,13 +11,7 @@ from typing import Any, cast
 from uuid import UUID
 
 import psycopg
-
-from runner import (
-    RunnerInfrastructureError,
-    RunnerInputError,
-    parse_request,
-    run_request,
-)
+from runner import RunnerInfrastructureError, RunnerInputError, parse_request, run_request
 
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
 MAX_RESPONSE_BYTES = 512 * 1024
