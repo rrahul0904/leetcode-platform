@@ -174,12 +174,20 @@ def local_execution_checks(engine: Engine, adapter: str) -> list[ReadinessCheck]
         ReadinessCheck(
             name="python_runner",
             status="ready" if python_ready else "not_ready",
-            detail="reachable through internal execution network" if python_ready else "unreachable",
+            detail=(
+                "reachable through internal execution network"
+                if python_ready
+                else "unreachable"
+            ),
         ),
         ReadinessCheck(
             name="sql_runner",
             status="ready" if sql_ready else "not_ready",
-            detail="reachable through internal execution network" if sql_ready else "unreachable",
+            detail=(
+                "reachable through internal execution network"
+                if sql_ready
+                else "unreachable"
+            ),
         ),
     ]
 
