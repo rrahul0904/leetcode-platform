@@ -22,6 +22,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Prepare trusted build CA
+        run: cp /etc/ssl/certs/ca-certificates.crt infra/certs/local-build-ca.pem
+
       - name: Validate Compose
         run: docker compose config --quiet
 
