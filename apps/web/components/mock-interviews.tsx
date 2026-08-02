@@ -31,7 +31,7 @@ const domainMeta: Record<Domain, { label: string; accent: string }> = {
   leadership: { label: "Staff leadership", accent: "teal" },
 };
 
-const questions: readonly ExamQuestion[] = [
+const questions = [
   {
     id: "q1",
     domain: "coding",
@@ -200,7 +200,7 @@ const questions: readonly ExamQuestion[] = [
       "Replace all explanations with generated summaries.",
     ],
   },
-];
+] as const satisfies readonly ExamQuestion[];
 
 function formatTime(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
@@ -216,7 +216,8 @@ export function MockInterviews() {
   const [flagged, setFlagged] = useState<Set<string>>(() => new Set());
 
   const answeredCount = Object.keys(answers).length;
-  const current = questions[currentIndex];
+  const current = questions[currentIndex] ?? questions[0];
+  const visibleStage = stage === "exam" && remaining === 0 ? "complete" : stage;
   const completion = Math.round((answeredCount / questions.length) * 100);
   const domainCounts = useMemo(
     () =>
@@ -234,10 +235,6 @@ export function MockInterviews() {
       1000,
     );
     return () => window.clearInterval(timer);
-  }, [remaining, stage]);
-
-  useEffect(() => {
-    if (stage === "exam" && remaining === 0) setStage("complete");
   }, [remaining, stage]);
 
   function startExam() {
@@ -261,7 +258,7 @@ export function MockInterviews() {
     setAnswers((previous) => ({ ...previous, [current.id]: answer }));
   }
 
-  if (stage === "intro") {
+  if (visibleStage === "intro") {
     return (
       <div className="cert-experience cert-intro">
         <section className="cert-intro__hero">
@@ -329,7 +326,7 @@ export function MockInterviews() {
     );
   }
 
-  if (stage === "complete") {
+  if (visibleStage === "complete") {
     return (
       <div className="cert-experience cert-complete">
         <div className="cert-complete__mark"><CheckCircle2 size={30} /></div>
@@ -345,7 +342,14 @@ export function MockInterviews() {
           <div><strong>{flagged.size}</strong><span>flagged</span></div>
         </div>
         <div className="cert-complete__actions">
-          <button className="cert-secondary" onClick={() => setStage("exam")} type="button">
+          <button
+            className="cert-secondary"
+            onClick={() => {
+              setRemaining((value) => Math.max(value, 1));
+              setStage("exam");
+            }}
+            type="button"
+          >
             <ArrowLeft size={15} /> Review responses
           </button>
           <button className="cert-primary" onClick={startExam} type="button">
