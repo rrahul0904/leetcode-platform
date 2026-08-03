@@ -87,7 +87,7 @@ def database_checks(engine: Engine) -> tuple[list[ReadinessCheck], int]:
                     text(
                         """
                         SELECT
-                          (SELECT count(*) FROM external_references)
+                          (SELECT count(*) FROM external_question_references)
                           + (SELECT count(*) FROM question_versions)
                         """
                     )
