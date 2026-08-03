@@ -144,12 +144,13 @@ if [ "$restored_questions" != "$expected_questions" ] \
   exit 1
 fi
 
-# Verify the role used by Alembic can read its version table before attempting
-# to restart the dependent application services.
-migrator_schema=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
-  "SET ROLE rigor_migrator; SELECT version_num FROM alembic_version;")
-if [ "$migrator_schema" != "$expected_schema" ]; then
-  echo "Restored migration ownership is invalid." >&2
+# Confirm the Alembic role retained access after the same-environment restore.
+# Checking the privilege directly avoids including the `SET` command tag in
+# command-substitution output.
+migrator_access=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SELECT has_table_privilege('rigor_migrator', 'public.alembic_version', 'SELECT');")
+if [ "$migrator_access" != "t" ]; then
+  echo "Restored migration privileges are invalid." >&2
   exit 1
 fi
 
