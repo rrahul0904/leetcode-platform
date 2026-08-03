@@ -49,11 +49,51 @@ jobs:
 
       - name: Start and verify optional observability profile
         run: |
-          docker compose -f compose.yaml -f compose.reliability.yaml -f compose.observability.yaml --profile observability up -d --wait execution-metrics prometheus otel-collector grafana
-          curl --fail --silent http://localhost:9090/-/ready >/dev/null
-          curl --fail --silent http://localhost:3002/api/health >/dev/null
-          docker compose -f compose.yaml -f compose.reliability.yaml -f compose.observability.yaml --profile observability exec -T prometheus wget -qO- http://execution-metrics:9108/metrics | tee artifacts/execution-metrics.prom | grep -q '^rigor_execution_metrics_up 1$'
-          docker compose -f compose.yaml -f compose.reliability.yaml -f compose.observability.yaml --profile observability exec -T prometheus wget -qO- 'http://localhost:9090/api/v1/query?query=rigor_execution_queue_depth' | tee artifacts/prometheus-query.json | grep -q '"status":"success"'
+          set -eu
+          compose_observe() {
+            docker compose -f compose.yaml -f compose.reliability.yaml -f compose.observability.yaml --profile observability "$@"
+          }
+          wait_http() {
+            url=$1
+            label=$2
+            attempt=0
+            until curl --fail --silent "$url" >/dev/null 2>&1; do
+              attempt=$((attempt + 1))
+              if [ "$attempt" -ge 60 ]; then
+                echo "$label did not become ready: $url" >&2
+                exit 1
+              fi
+              sleep 2
+            done
+          }
+          compose_observe up -d --wait execution-metrics prometheus otel-collector grafana
+          wait_http http://localhost:9090/-/ready Prometheus
+          wait_http http://localhost:3002/api/health Grafana
+
+          attempt=0
+          until compose_observe exec -T prometheus wget -qO- http://execution-metrics:9108/metrics \
+            | tee artifacts/execution-metrics.prom \
+            | grep -q '^rigor_execution_metrics_up 1$'; do
+            attempt=$((attempt + 1))
+            if [ "$attempt" -ge 30 ]; then
+              echo "Execution metrics did not become available." >&2
+              exit 1
+            fi
+            sleep 2
+          done
+
+          attempt=0
+          until compose_observe exec -T prometheus wget -qO- \
+            'http://localhost:9090/api/v1/query?query=rigor_execution_queue_depth' \
+            | tee artifacts/prometheus-query.json \
+            | grep -q 'rigor_execution_queue_depth'; do
+            attempt=$((attempt + 1))
+            if [ "$attempt" -ge 30 ]; then
+              echo "Prometheus did not ingest execution queue metrics." >&2
+              exit 1
+            fi
+            sleep 2
+          done
 
       - name: Install isolated browser-test runtime
         run: |
