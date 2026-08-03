@@ -87,7 +87,7 @@ def test_local_runner_urls_fail_closed_for_non_http_boundaries() -> None:
         local_controller.LocalExecutionTransportError,
         match="internal HTTP Docker network",
     ):
-        local_controller.LocalHttpSandboxExecutor._validate_internal_url(
-            "https://public.example/python",
-            label="Python runner",
+        local_controller.LocalHttpSandboxExecutor(
+            python_url="https://public.example/python",
+            sql_url="http://sql-runner:8082",
         )
