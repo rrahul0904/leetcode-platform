@@ -1,4 +1,4 @@
-.PHONY: bootstrap reset-local verify-local stop-local logs-local backup-local restore-local release-local test-content
+.PHONY: bootstrap reset-local verify-local stop-local logs-local backup-local restore-local release-local observability-local verify-observability capacity-local test-content
 
 bootstrap:
 	./scripts/start-populated-local
@@ -28,6 +28,19 @@ restore-local:
 
 release-local:
 	sh scripts/release-local
+
+observability-local:
+	docker compose -f compose.yaml -f compose.observability.yaml --profile observability up -d --wait execution-metrics prometheus otel-collector grafana
+
+verify-observability:
+	docker compose -f compose.yaml -f compose.observability.yaml --profile observability config --quiet
+	curl --fail --silent http://localhost:9090/-/ready >/dev/null
+	curl --fail --silent http://localhost:3002/api/health >/dev/null
+	docker compose -f compose.yaml -f compose.observability.yaml --profile observability exec -T prometheus wget -qO- http://execution-metrics:9108/metrics | grep -q '^rigor_execution_metrics_up 1$$'
+	docker compose -f compose.yaml -f compose.observability.yaml --profile observability exec -T prometheus wget -qO- 'http://localhost:9090/api/v1/query?query=rigor_execution_queue_depth' | grep -q '"status":"success"'
+
+capacity-local:
+	sh scripts/benchmark-local
 
 test-content:
 	uv run python scripts/validate_content.py
