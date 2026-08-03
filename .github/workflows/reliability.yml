@@ -90,8 +90,10 @@ jobs:
             docker compose exec -T postgres psql -U rigor -d rigor -x -c 'SELECT id, visible_at, receive_count, created_at FROM local_execution_queue ORDER BY created_at' || true
             echo '=== terminal errors ==='
             docker compose exec -T postgres psql -U rigor -d rigor -x -c "SELECT state, attempt_count, error_category, count(*) FROM execution_requests GROUP BY state, attempt_count, error_category ORDER BY state, attempt_count" || true
-            echo '=== recent service logs ==='
+            echo '=== recent application and runner logs ==='
             docker compose logs --tail=120 api execution-controller python-runner sql-runner execution-postgres || true
+            echo '=== recent observability logs ==='
+            docker compose -f compose.yaml -f compose.reliability.yaml -f compose.observability.yaml --profile observability logs --tail=160 execution-metrics prometheus otel-collector grafana || true
           } > artifacts/reliability-diagnostics.txt 2>&1
 
       - name: Upload reliability evidence
