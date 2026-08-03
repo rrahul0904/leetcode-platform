@@ -7,3 +7,7 @@ services:
       RIGOR_EXECUTION_MAX_ATTEMPTS: "3"
       RIGOR_EXECUTION_POLL_SECONDS: "0.05"
       RIGOR_EXECUTION_RECONCILIATION_LIMIT: "100"
+
+  execution-postgres:
+    tmpfs:
+      - /var/lib/postgresql:size=384m,mode=0700,uid=999,gid=999
