@@ -110,12 +110,15 @@ FROM pg_stat_activity
 WHERE datname='rigor' AND pid <> pg_backend_pid();
 SQL
 
+# This is a same-environment local restore. Preserve the ownership metadata in
+# the archive so migration-owned objects remain accessible to rigor_migrator.
+# Restoring with --no-owner would recreate every object as the bootstrap
+# superuser and break subsequent Alembic runs.
 docker compose exec -T postgres pg_restore \
   -U rigor \
   -d rigor \
   --clean \
   --if-exists \
-  --no-owner \
   --exit-on-error < "$dump_file"
 
 restored_schema=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
@@ -138,6 +141,15 @@ if [ "$restored_questions" != "$expected_questions" ] \
   echo "Questions: expected=$expected_questions restored=$restored_questions" >&2
   echo "Published: expected=$expected_published restored=$restored_published" >&2
   echo "Executions: expected=$expected_executions restored=$restored_executions" >&2
+  exit 1
+fi
+
+# Verify the role used by Alembic can read its version table before attempting
+# to restart the dependent application services.
+migrator_schema=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+  "SET ROLE rigor_migrator; SELECT version_num FROM alembic_version;")
+if [ "$migrator_schema" != "$expected_schema" ]; then
+  echo "Restored migration ownership is invalid." >&2
   exit 1
 fi
 
