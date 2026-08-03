@@ -91,7 +91,10 @@ jobs:
           assert result["execution_id"] == execution_id, result
           assert result["status"] == "COMPLETED", result
           assert result["tests"][0]["ok"] is True, result
-          assert result["tests"][0]["actual"] == [[1], [2]], result
+          assert result["tests"][0]["actual"] == {
+              "columns": ["value"],
+              "rows": [[1], [2]],
+          }, result
           PY
 
       - name: Backup and restore application PostgreSQL
