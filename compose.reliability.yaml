@@ -5,13 +5,13 @@ services:
       - -ec
       - |
         attempt=1
-        while [ "$attempt" -le 3 ]; do
+        while [ "$${attempt}" -le 3 ]; do
           if python /app/scripts/collect_external_references.py --ca-file /run/secrets/build_ca; then
             exit 0
           fi
-          echo "catalog collection attempt ${attempt}/3 failed" >&2
-          sleep $((attempt * 5))
-          attempt=$((attempt + 1))
+          echo "catalog collection attempt $${attempt}/3 failed" >&2
+          sleep $$((attempt * 5))
+          attempt=$$((attempt + 1))
         done
         exit 1
 
