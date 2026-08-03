@@ -1,0 +1,127 @@
+services:
+  execution-metrics:
+    profiles: ["observability"]
+    image: rigor-execution-controller:0.1.0-local
+    command: ["python", "-m", "rigor_api.local_execution_metrics"]
+    environment:
+      RIGOR_METRICS_DATABASE_URL: postgresql+psycopg://rigor_readonly:rigor_readonly_local_only@postgres:5432/rigor
+      RIGOR_METRICS_HOST: 0.0.0.0
+      RIGOR_METRICS_PORT: "9108"
+      RIGOR_LOCAL_EXECUTION_PARALLELISM: "4"
+    expose:
+      - "9108"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      execution-controller:
+        condition: service_healthy
+    networks:
+      - rigor-app
+      - rigor-observability
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9108/healthz', timeout=2).read()",
+        ]
+      interval: 5s
+      timeout: 3s
+      start_period: 45s
+      retries: 24
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-lifecycle
+    volumes:
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - rigor-prometheus:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      execution-metrics:
+        condition: service_healthy
+    networks:
+      - rigor-observability
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+
+  otel-collector:
+    profiles: ["observability"]
+    image: otel/opentelemetry-collector-contrib:0.131.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./infra/observability/otel-collector.yml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+      - "127.0.0.1:8889:8889"
+    networks:
+      - rigor-observability
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 384m
+    cpus: 0.75
+    pids_limit: 128
+
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:12.1.0
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_SECURITY_ADMIN_PASSWORD: local-observability-only
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - rigor-grafana:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3002:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - rigor-observability
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 384m
+    cpus: 0.75
+    pids_limit: 128
+
+networks:
+  rigor-observability:
+    internal: false
+
+volumes:
+  rigor-prometheus:
+  rigor-grafana:
