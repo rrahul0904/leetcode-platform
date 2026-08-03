@@ -54,7 +54,7 @@ services:
       - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - rigor-prometheus:/prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     depends_on:
       execution-metrics:
         condition: service_healthy
@@ -76,9 +76,9 @@ services:
     volumes:
       - ./infra/observability/otel-collector.yml:/etc/otelcol-contrib/config.yaml:ro
     ports:
-      - "4317:4317"
-      - "4318:4318"
-      - "8889:8889"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+      - "127.0.0.1:8889:8889"
     networks:
       - rigor-observability
     restart: unless-stopped
@@ -104,7 +104,7 @@ services:
       - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - rigor-grafana:/var/lib/grafana
     ports:
-      - "3002:3000"
+      - "127.0.0.1:3002:3000"
     depends_on:
       - prometheus
     networks:
@@ -117,6 +117,10 @@ services:
     mem_limit: 384m
     cpus: 0.75
     pids_limit: 128
+
+networks:
+  rigor-observability:
+    internal: false
 
 volumes:
   rigor-prometheus:
