@@ -13,7 +13,7 @@ from .execution_routes import (
 )
 from .schemas import ReadinessCheck, ReadinessResponse
 
-EXPECTED_MIGRATION_VERSION = "20260802_0015"
+EXPECTED_MIGRATION_VERSION = "20260803_0016"
 REQUIRED_TABLES = (
     "practice_sessions",
     "submissions",
@@ -78,9 +78,7 @@ def database_checks(engine: Engine) -> tuple[list[ReadinessCheck], int]:
                     name="required_tables",
                     status="not_ready" if missing else "ready",
                     detail=(
-                        f"missing={','.join(missing)}"
-                        if missing
-                        else "all required tables present"
+                        f"missing={','.join(missing)}" if missing else "all required tables present"
                     ),
                 )
             )
@@ -89,10 +87,8 @@ def database_checks(engine: Engine) -> tuple[list[ReadinessCheck], int]:
                     text(
                         """
                         SELECT
-                          (SELECT count(*) FROM questions q
-                           JOIN question_versions v ON v.id=q.current_published_version_id
-                           WHERE v.state='published'::content_state)
-                          + (SELECT count(*) FROM external_question_references)
+                          (SELECT count(*) FROM external_practice_references)
+                          + (SELECT count(*) FROM question_versions)
                         """
                     )
                 ).scalar_one()
@@ -102,152 +98,73 @@ def database_checks(engine: Engine) -> tuple[list[ReadinessCheck], int]:
             ReadinessCheck(
                 name="postgresql",
                 status="not_ready",
-                detail=f"database check failed: {exc.__class__.__name__}",
+                detail=f"{exc.__class__.__name__}: database check failed",
             )
         )
     return checks, content_count
 
 
-def local_execution_checks(engine: Engine, adapter: str) -> list[ReadinessCheck]:
-    if adapter != "LOCAL_DOCKER":
-        return []
-    try:
-        with engine.connect() as connection:
-            row = (
-                connection.execute(
-                    text(
-                        """
-                        SELECT
-                          heartbeat_at > CURRENT_TIMESTAMP - INTERVAL '30 seconds'
-                            AS heartbeat_ready,
-                          queue_depth,
-                          python_runner_ready,
-                          sql_runner_ready
-                        FROM local_execution_controller_status
-                        WHERE controller_key='local'
-                        """
-                    )
-                )
-                .mappings()
-                .one_or_none()
-            )
-    except SQLAlchemyError as exc:
-        return [
-            ReadinessCheck(
-                name="local_execution_controller",
-                status="not_ready",
-                detail=f"status check failed: {exc.__class__.__name__}",
-            )
-        ]
-    if row is None:
-        return [
-            ReadinessCheck(
-                name="local_execution_controller",
-                status="not_ready",
-                detail="controller heartbeat is unavailable",
-            ),
-            ReadinessCheck(
-                name="python_runner",
-                status="not_ready",
-                detail="controller has not reported runner status",
-            ),
-            ReadinessCheck(
-                name="sql_runner",
-                status="not_ready",
-                detail="controller has not reported runner status",
-            ),
-        ]
-
-    controller_ready = row["heartbeat_ready"] is True
-    python_ready = row["python_runner_ready"] is True
-    sql_ready = row["sql_runner_ready"] is True
-    return [
-        ReadinessCheck(
-            name="local_execution_controller",
-            status="ready" if controller_ready else "not_ready",
-            detail=(
-                f"heartbeat fresh; queued={int(row['queue_depth'])}"
-                if controller_ready
-                else "controller heartbeat is stale"
-            ),
-        ),
-        ReadinessCheck(
-            name="python_runner",
-            status="ready" if python_ready else "not_ready",
-            detail=(
-                "reachable through internal execution network"
-                if python_ready
-                else "unreachable"
-            ),
-        ),
-        ReadinessCheck(
-            name="sql_runner",
-            status="ready" if sql_ready else "not_ready",
-            detail=(
-                "reachable through internal execution network"
-                if sql_ready
-                else "unreachable"
-            ),
-        ),
-    ]
-
-
-def valkey_check(url: str) -> ReadinessCheck:
+def _tcp_check(name: str, url: str) -> ReadinessCheck:
     parsed = urlparse(url)
-    host = parsed.hostname or "localhost"
-    port = parsed.port or 6379
+    if parsed.hostname is None or parsed.port is None:
+        return ReadinessCheck(name=name, status="not_ready", detail="invalid URL")
     try:
-        with socket.create_connection((host, port), timeout=1.5) as connection:
-            connection.sendall(b"*1\r\n$4\r\nPING\r\n")
-            response = connection.recv(16)
-        if response.startswith(b"+PONG"):
-            return ReadinessCheck(name="valkey", status="ready", detail="reachable")
-        return ReadinessCheck(name="valkey", status="not_ready", detail="unexpected response")
+        with socket.create_connection((parsed.hostname, parsed.port), timeout=1.5):
+            return ReadinessCheck(name=name, status="ready", detail="reachable")
     except OSError as exc:
         return ReadinessCheck(
-            name="valkey",
+            name=name,
             status="not_ready",
-            detail=f"connection failed: {exc.__class__.__name__}",
+            detail=f"{exc.__class__.__name__}: unreachable",
         )
 
 
 def readiness_report(engine: Engine, settings: Settings) -> ReadinessResponse:
     checks, content_count = database_checks(engine)
-    adapter = settings.execution_adapter.strip().upper()
-    checks.extend(
-        [
-            valkey_check(settings.valkey_url),
-            ReadinessCheck(
-                name="content",
-                status="ready" if content_count > 0 else "not_ready",
-                detail=f"available records={content_count}",
-            ),
-            ReadinessCheck(
-                name="execution_adapter",
-                status="ready" if adapter in EXECUTION_ADAPTERS else "not_ready",
-                detail=adapter,
-            ),
-            ReadinessCheck(
-                name="async_execution_api",
-                status="ready" if EXECUTION_ROUTES_REGISTERED else "not_ready",
-                detail="registered" if EXECUTION_ROUTES_REGISTERED else "missing",
-            ),
-            ReadinessCheck(
-                name="legacy_candidate_execution",
-                status="ready" if LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED else "not_ready",
-                detail=(
-                    "synchronous HTTP execution blocked"
-                    if LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED
-                    else "unsafe synchronous route available"
-                ),
-            ),
-            ReadinessCheck(
-                name="ai_adapter",
-                status="ready" if settings.ai_adapter in AI_ADAPTERS else "not_ready",
-                detail=settings.ai_adapter,
-            ),
-        ]
+    checks.append(_tcp_check("valkey", settings.valkey_url))
+    checks.append(
+        ReadinessCheck(
+            name="content",
+            status="ready" if content_count > 0 else "not_ready",
+            detail=f"available records={content_count}",
+        )
     )
-    checks.extend(local_execution_checks(engine, adapter))
-    status = "ready" if all(check.status == "ready" for check in checks) else "not_ready"
-    return ReadinessResponse(status=status, checks=checks)
+    checks.append(
+        ReadinessCheck(
+            name="execution_adapter",
+            status=(
+                "ready" if settings.execution_adapter in EXECUTION_ADAPTERS else "not_ready"
+            ),
+            detail=settings.execution_adapter,
+        )
+    )
+    checks.append(
+        ReadinessCheck(
+            name="async_execution_api",
+            status="ready" if EXECUTION_ROUTES_REGISTERED else "not_ready",
+            detail="registered" if EXECUTION_ROUTES_REGISTERED else "missing",
+        )
+    )
+    checks.append(
+        ReadinessCheck(
+            name="legacy_candidate_execution",
+            status=("ready" if LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED else "not_ready"),
+            detail=(
+                "synchronous HTTP execution blocked"
+                if LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED
+                else "legacy synchronous execution still reachable"
+            ),
+        )
+    )
+    checks.append(
+        ReadinessCheck(
+            name="ai_adapter",
+            status="ready" if settings.ai_adapter in AI_ADAPTERS else "not_ready",
+            detail=settings.ai_adapter,
+        )
+    )
+    return ReadinessResponse(
+        status=("ready" if all(check.status == "ready" for check in checks) else "not_ready"),
+        service="rigor-api",
+        checks=checks,
+    )
