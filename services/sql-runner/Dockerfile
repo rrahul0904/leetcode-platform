@@ -18,10 +18,11 @@ RUN --mount=type=secret,id=build_ca,required=true \
     PIP_CERT=/run/secrets/build_ca \
     pip install --no-cache-dir "psycopg[binary]==3.3.4"
 COPY services/sql-runner/runner.py /opt/rigor/runner.py
+COPY services/sql-runner/server.py /opt/rigor/server.py
 
 RUN mkdir -p /workspace/tmp \
     && chown -R 65532:65532 /workspace \
-    && chmod 0555 /opt/rigor/runner.py
+    && chmod 0555 /opt/rigor/runner.py /opt/rigor/server.py
 
 USER 65532:65532
 

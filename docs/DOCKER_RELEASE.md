@@ -2,41 +2,111 @@
 
 ## Scope
 
-The Docker release packages every currently implemented Rigor component: the Next.js web application, FastAPI API, PostgreSQL 18 with pgvector and trigram search, idempotent migrations, taxonomy seeding, and Valkey. It does **not** represent unimplemented milestones—authentication, secure code/SQL execution, Temporal workflows, AI evaluation, payments, or the complete reviewed question bank—as finished.
+The local Docker release packages the implemented Rigor application:
+
+- Next.js Web;
+- FastAPI API and local OIDC;
+- PostgreSQL 18 with pgvector and trigram search;
+- Valkey;
+- idempotent migrations, taxonomy seeds, source synchronization, and local publication;
+- durable local execution controller;
+- dedicated Python runner;
+- dedicated SQL runner;
+- separate disposable execution PostgreSQL.
+
+The release is intended for a trusted local development machine. It does not claim production gVisor isolation, cloud readiness, mobile completion, payments, or public-launch readiness.
+
+## Build trust
+
+On a managed network that intercepts TLS, place the organization-approved root certificate in:
+
+```text
+infra/certs/local-build-ca.pem
+```
+
+The certificate is mounted as a BuildKit secret only during dependency resolution and is not copied into final images. Do not disable TLS verification.
 
 ## Start
 
-On a managed network that intercepts TLS, export the organization root certificate as the build-only secret `.docker-build-ca.pem`. This file is ignored by Git, mounted only during dependency resolution, and is not copied into either final image. On this development machine the certificate is exported from the macOS System keychain:
-
 ```bash
-security find-certificate -a -c Zscaler -p /Library/Keychains/System.keychain > .docker-build-ca.pem
+make bootstrap
 ```
 
-On a network without interception, point the same secret at the organization-approved/public CA bundle. Do not disable TLS verification.
-
-```bash
-docker compose up --build -d
-docker compose ps
-```
-
-The local published surfaces are:
+Published surfaces:
 
 - Web: `http://localhost:3001`
 - API: `http://localhost:8002`
-- PostgreSQL: `localhost:5434`
+- application PostgreSQL: `localhost:5434`
 - Valkey: `localhost:6381`
 
-`migrate` and `seed` are one-shot services. The API waits for both before starting. Images run as non-root users with dropped Linux capabilities, read-only filesystems, bounded temporary storage, and `no-new-privileges`.
+The controller, runners, and execution PostgreSQL are internal-only.
 
-## Stop and inspect
+## Service order
+
+1. application PostgreSQL and Valkey become healthy;
+2. Alembic migrates to the single head;
+3. deterministic seeds are applied;
+4. approved external references are synchronized;
+5. hosted content is synchronized;
+6. the controlled local cohort is published;
+7. execution PostgreSQL, Python runner, and SQL runner become healthy;
+8. the local controller starts and reports a heartbeat;
+9. the API starts only after controller and runners are ready;
+10. the Web starts only after API readiness passes.
+
+## Runtime hardening
+
+Application and execution services use combinations of:
+
+- non-root users where practical;
+- read-only root filesystems;
+- bounded `tmpfs` storage;
+- dropped Linux capabilities;
+- `no-new-privileges`;
+- CPU, memory, and process limits;
+- explicit application and internal execution networks;
+- no Docker socket;
+- no host source-code mounts;
+- no cloud credentials in runner services;
+- no application database credentials in runner services.
+
+Candidate SQL uses only the disposable `execution-postgres` service.
+
+## Inspect and stop
 
 ```bash
-docker compose logs --tail=200 web api migrate seed
-docker compose down
+make verify-local
+make logs-local
+make stop-local
 ```
 
-`docker compose down` preserves the database volume. Removing the volume deletes local Rigor database data and should be an explicit action.
+`stop-local` preserves the application PostgreSQL volume. `reset-local` removes it and must be deliberate:
 
-## Registry publication
+```bash
+make backup-local
+make reset-local
+```
 
-The images are tagged locally as `rigor-web:0.1.0-local` and `rigor-api:0.1.0-local`. Pushing them requires a chosen registry namespace and credentials. For AWS, the images will be retagged to ECR, scanned, assigned immutable digests, signed, and deployed through Terraform and GitHub OIDC rather than pushed manually from a developer laptop.
+## Release validation
+
+```bash
+make release-local
+```
+
+This gate validates locked dependencies, Web and Python quality checks, a clean Compose build, migrations, populated startup, dependency health, and backup/restore.
+
+GitHub Actions separately builds all three execution images, rejects HIGH/CRITICAL fixed vulnerabilities through Trivy, and publishes CycloneDX SBOM artifacts.
+
+## Image tags
+
+Local images use:
+
+```text
+rigor-web:0.1.0-local
+rigor-api:0.1.0-local
+rigor-execution-controller:0.1.0-local
+rigor-python-runner:0.1.0-local
+rigor-sql-runner:0.1.0-local
+```
+
+Registry publication and cloud deployment are outside the local milestone. Production images require immutable digests, signing, attestations, cloud secrets, and the separate Kubernetes/gVisor execution architecture.

@@ -15,10 +15,11 @@ RUN apt-get update \
 
 WORKDIR /opt/rigor
 COPY services/python-runner/runner.py /opt/rigor/runner.py
+COPY services/python-runner/server.py /opt/rigor/server.py
 
 RUN mkdir -p /workspace/tmp \
     && chown -R 65532:65532 /workspace \
-    && chmod 0555 /opt/rigor/runner.py
+    && chmod 0555 /opt/rigor/runner.py /opt/rigor/server.py
 
 USER 65532:65532
 

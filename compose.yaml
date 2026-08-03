@@ -15,6 +15,8 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    networks:
+      - rigor-app
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777
@@ -23,6 +25,9 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 256
 
   api:
     image: rigor-api:0.1.0-local
@@ -42,8 +47,10 @@ services:
       RIGOR_DATABASE_URL: postgresql+psycopg://rigor_app:rigor_app_local_only@postgres:5432/rigor
       RIGOR_OPERATIONAL_DATABASE_URL: postgresql+psycopg://rigor_readonly:rigor_readonly_local_only@postgres:5432/rigor
       RIGOR_VALKEY_URL: redis://valkey:6379/0
-      RIGOR_EXECUTION_ADAPTER: LOCAL_FUNCTIONAL
+      RIGOR_EXECUTION_ADAPTER: LOCAL_DOCKER
       RIGOR_AI_ADAPTER: DETERMINISTIC
+      RIGOR_LOCAL_PYTHON_RUNNER_URL: http://python-runner:8081
+      RIGOR_LOCAL_SQL_RUNNER_URL: http://sql-runner:8082
     ports:
       - "8002:8002"
     secrets:
@@ -53,6 +60,10 @@ services:
         condition: service_completed_successfully
       valkey:
         condition: service_healthy
+      execution-controller:
+        condition: service_healthy
+    networks:
+      - rigor-app
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777
@@ -61,6 +72,9 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 256
 
   migrate:
     image: rigor-api:0.1.0-local
@@ -75,6 +89,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - rigor-app
     restart: "no"
     security_opt:
       - no-new-privileges:true
@@ -89,6 +105,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    networks:
+      - rigor-app
     restart: "no"
     security_opt:
       - no-new-privileges:true
@@ -113,6 +131,8 @@ services:
     depends_on:
       seed:
         condition: service_completed_successfully
+    networks:
+      - rigor-app
     restart: "no"
     security_opt:
       - no-new-privileges:true
@@ -136,6 +156,8 @@ services:
     depends_on:
       seed:
         condition: service_completed_successfully
+    networks:
+      - rigor-app
     restart: "no"
     security_opt:
       - no-new-privileges:true
@@ -161,6 +183,8 @@ services:
     depends_on:
       catalog-init:
         condition: service_completed_successfully
+    networks:
+      - rigor-app
     read_only: true
     tmpfs:
       - /tmp:size=32m,mode=1777
@@ -181,12 +205,172 @@ services:
     depends_on:
       content-sync:
         condition: service_completed_successfully
+    networks:
+      - rigor-app
     read_only: true
     restart: "no"
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+
+  execution-controller:
+    image: rigor-execution-controller:0.1.0-local
+    build:
+      context: .
+      dockerfile: services/execution-controller/Dockerfile
+      secrets:
+        - build_ca
+    command: ["python", "-m", "rigor_api.local_execution_controller"]
+    environment:
+      RIGOR_ENVIRONMENT: local
+      RIGOR_EXECUTOR_DATABASE_URL: postgresql+psycopg://rigor_executor:rigor_executor_local_only@postgres:5432/rigor
+      RIGOR_LOCAL_PYTHON_RUNNER_URL: http://python-runner:8081
+      RIGOR_LOCAL_SQL_RUNNER_URL: http://sql-runner:8082
+      RIGOR_EXECUTION_WORKER_ID: local-docker-controller
+      RIGOR_EXECUTION_LEASE_SECONDS: "60"
+      RIGOR_EXECUTION_VISIBILITY_SECONDS: "90"
+      RIGOR_EXECUTION_STALE_QUEUED_SECONDS: "30"
+      RIGOR_EXECUTION_MAX_ATTEMPTS: "3"
+      RIGOR_LOCAL_EXECUTION_PARALLELISM: "4"
+    depends_on:
+      local-release:
+        condition: service_completed_successfully
+      python-runner:
+        condition: service_healthy
+      sql-runner:
+        condition: service_healthy
+    networks:
+      - rigor-app
+      - rigor-execution
+    healthcheck:
+      test: ["CMD", "python", "-m", "rigor_api.local_execution_health"]
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 12
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+
+  python-runner:
+    image: rigor-python-runner:0.1.0-local
+    build:
+      context: .
+      dockerfile: services/python-runner/Dockerfile
+    entrypoint: ["python", "/opt/rigor/server.py"]
+    environment:
+      RIGOR_RUNNER_HOST: 0.0.0.0
+      RIGOR_RUNNER_PORT: "8081"
+      RIGOR_RUNNER_CONCURRENCY: "2"
+    expose:
+      - "8081"
+    networks:
+      - rigor-execution
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/healthz', timeout=2).read()",
+        ]
+      interval: 5s
+      timeout: 3s
+      start_period: 5s
+      retries: 12
+    read_only: true
+    tmpfs:
+      - /workspace/tmp:size=96m,mode=1777,uid=65532,gid=65532
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 384m
+    cpus: 1.0
+    pids_limit: 64
+
+  sql-runner:
+    image: rigor-sql-runner:0.1.0-local
+    build:
+      context: .
+      dockerfile: services/sql-runner/Dockerfile
+      secrets:
+        - build_ca
+    entrypoint: ["python", "/opt/rigor/server.py"]
+    environment:
+      RIGOR_RUNNER_HOST: 0.0.0.0
+      RIGOR_RUNNER_PORT: "8082"
+      RIGOR_SQL_HOST: execution-postgres
+      RIGOR_SQL_PORT: "5432"
+      RIGOR_SQL_DATABASE: rigor_execution
+      RIGOR_SQL_OWNER_USER: rigor_sql_owner
+      RIGOR_SQL_OWNER_PASSWORD: rigor_sql_owner_local_only
+      RIGOR_SQL_CANDIDATE_USER: rigor_sql_candidate
+      RIGOR_SQL_CANDIDATE_PASSWORD: rigor_sql_candidate_local_only
+    expose:
+      - "8082"
+    depends_on:
+      execution-postgres:
+        condition: service_healthy
+    networks:
+      - rigor-execution
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8082/healthz', timeout=2).read()",
+        ]
+      interval: 5s
+      timeout: 3s
+      start_period: 5s
+      retries: 12
+    read_only: true
+    tmpfs:
+      - /workspace/tmp:size=64m,mode=1777,uid=65532,gid=65532
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 384m
+    cpus: 1.0
+    pids_limit: 64
+
+  execution-postgres:
+    image: pgvector/pgvector:0.8.1-pg18-trixie@sha256:2fd905ba95f99a51be207d0ff0b8d5b8538cbce7e9083b3ccfa65b93bb28b938
+    environment:
+      POSTGRES_DB: rigor_execution
+      POSTGRES_USER: rigor_sql_owner
+      POSTGRES_PASSWORD: rigor_sql_owner_local_only
+    expose:
+      - "5432"
+    networks:
+      - rigor-execution
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rigor_sql_owner -d rigor_execution"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    tmpfs:
+      - /var/lib/postgresql:size=384m,mode=0700
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
 
   postgres:
     image: pgvector/pgvector:0.8.1-pg18-trixie@sha256:2fd905ba95f99a51be207d0ff0b8d5b8538cbce7e9083b3ccfa65b93bb28b938
@@ -196,6 +380,8 @@ services:
       POSTGRES_PASSWORD: rigor_local_only
     ports:
       - "5434:5432"
+    networks:
+      - rigor-app
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U rigor -d rigor"]
       interval: 2s
@@ -207,6 +393,9 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+    mem_limit: 1024m
+    cpus: 2.0
+    pids_limit: 256
 
   valkey:
     image: valkey/valkey:8.1.3-bookworm@sha256:fea8b3e67b15729d4bb70589eb03367bab9ad1ee89c876f54327fc7c6e618571
@@ -214,6 +403,8 @@ services:
     command: ["valkey-server", "--save", "", "--appendonly", "no", "--dir", "/tmp"]
     ports:
       - "6381:6379"
+    networks:
+      - rigor-app
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
       interval: 2s
@@ -221,12 +412,22 @@ services:
       retries: 20
     read_only: true
     tmpfs:
-      - /tmp:size=16m,mode=1777
+      - /tmp:size=16m,mode=1777,uid=999,gid=999
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+
+networks:
+  rigor-app:
+  rigor-execution:
+    internal: true
+  rigor-observability:
+    internal: true
 
 volumes:
   rigor-postgres:

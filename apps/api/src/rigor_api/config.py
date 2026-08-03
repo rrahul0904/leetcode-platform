@@ -40,9 +40,10 @@ class Settings(BaseSettings):
     def production_execution_must_fail_closed(self) -> Self:
         environment = self.environment.strip().lower()
         adapter = self.execution_adapter.strip().upper()
-        if environment in {"production", "staging"} and adapter == "LOCAL_FUNCTIONAL":
+        local_only_adapters = {"LOCAL_FUNCTIONAL", "LOCAL_DOCKER"}
+        if environment in {"production", "staging"} and adapter in local_only_adapters:
             raise ValueError(
-                "LOCAL_FUNCTIONAL candidate execution is forbidden in staging and production. "
+                f"{adapter} candidate execution is forbidden in staging and production. "
                 "Configure the isolated Kubernetes execution plane instead."
             )
         return self

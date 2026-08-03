@@ -1,0 +1,8 @@
+# PostgreSQL 18 stores cluster data beneath /var/lib/postgresql/<major>/docker.
+# The disposable execution database therefore needs a writable parent tmpfs
+# owned by the postgres image user. This override replaces the legacy mount
+# declared in compose.yaml without adding a persistent execution volume.
+services:
+  execution-postgres:
+    tmpfs: !override
+      - /var/lib/postgresql:size=384m,mode=0700,uid=999,gid=999
