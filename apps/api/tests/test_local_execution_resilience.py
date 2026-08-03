@@ -20,6 +20,17 @@ def _handle():
     )
 
 
+def _python_payload() -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "execution_id": str(uuid4()),
+        "attempt": 1,
+        "source_code": "def solve(value): return value",
+        "entrypoint": "solve",
+        "tests": [{"id": "public-1", "visibility": "public", "input": 1}],
+    }
+
+
 def test_new_controller_observes_pre_restart_execution_as_missing() -> None:
     executor = local_controller.LocalHttpSandboxExecutor(
         python_url="http://python-runner:8081",
@@ -66,14 +77,7 @@ def test_runner_transport_outage_is_classified_for_durable_retry(
     ):
         local_controller.LocalHttpSandboxExecutor._invoke(
             "http://python-runner:8081",
-            {
-                "schema_version": 1,
-                "execution_id": str(uuid4()),
-                "attempt": 1,
-                "source_code": "def solve(value): return value",
-                "entrypoint": "solve",
-                "tests": [{"id": "public-1", "visibility": "public", "input": 1}],
-            },
+            _python_payload(),
             10,
         )
 
@@ -83,7 +87,8 @@ def test_local_runner_urls_fail_closed_for_non_http_boundaries() -> None:
         local_controller.LocalExecutionTransportError,
         match="internal HTTP Docker network",
     ):
-        local_controller.LocalHttpSandboxExecutor(
-            python_url="https://public.example/python",
-            sql_url="http://sql-runner:8082",
+        local_controller.LocalHttpSandboxExecutor._invoke(
+            "https://public.example/python",
+            _python_payload(),
+            10,
         )
