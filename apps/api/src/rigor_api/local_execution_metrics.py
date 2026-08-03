@@ -183,37 +183,47 @@ def _escape_label(value: str) -> str:
 
 def render_prometheus(snapshot: LocalExecutionMetricsSnapshot) -> str:
     lines = [
-        "# HELP rigor_execution_metrics_up Whether the execution metrics snapshot was collected.",
+        "# HELP rigor_execution_metrics_up "
+        "Whether the execution metrics snapshot was collected.",
         "# TYPE rigor_execution_metrics_up gauge",
         "rigor_execution_metrics_up 1",
         "# HELP rigor_execution_queue_depth Visible durable execution messages.",
         "# TYPE rigor_execution_queue_depth gauge",
         f"rigor_execution_queue_depth {snapshot.queue_depth}",
-        "# HELP rigor_execution_queue_inflight Messages hidden by an active visibility lease.",
+        "# HELP rigor_execution_queue_inflight "
+        "Messages hidden by an active visibility lease.",
         "# TYPE rigor_execution_queue_inflight gauge",
         f"rigor_execution_queue_inflight {snapshot.queue_inflight}",
-        "# HELP rigor_execution_queue_oldest_age_seconds Age of the oldest visible message.",
+        "# HELP rigor_execution_queue_oldest_age_seconds "
+        "Age of the oldest visible message.",
         "# TYPE rigor_execution_queue_oldest_age_seconds gauge",
         f"rigor_execution_queue_oldest_age_seconds {snapshot.oldest_queued_seconds:.6f}",
         "# HELP rigor_execution_active Current dispatching and running executions.",
         "# TYPE rigor_execution_active gauge",
         f"rigor_execution_active {snapshot.active_executions}",
-        "# HELP rigor_execution_runner_capacity Configured local execution parallelism.",
+        "# HELP rigor_execution_runner_capacity "
+        "Configured local execution parallelism.",
         "# TYPE rigor_execution_runner_capacity gauge",
         f"rigor_execution_runner_capacity {snapshot.runner_capacity}",
-        "# HELP rigor_execution_runner_saturation_ratio Active executions divided by capacity.",
+        "# HELP rigor_execution_runner_saturation_ratio "
+        "Active executions divided by capacity.",
         "# TYPE rigor_execution_runner_saturation_ratio gauge",
         f"rigor_execution_runner_saturation_ratio {snapshot.runner_saturation_ratio:.6f}",
-        "# HELP rigor_execution_retry_total Durable execution retries recorded in aggregate attempts.",
+        "# HELP rigor_execution_retry_total "
+        "Durable execution retries recorded in aggregate attempts.",
         "# TYPE rigor_execution_retry_total gauge",
         f"rigor_execution_retry_total {snapshot.retries}",
-        "# HELP rigor_execution_dead_letter_total Executions exhausted by infrastructure attempt limits.",
+        "# HELP rigor_execution_dead_letter_total "
+        "Executions exhausted by infrastructure attempt limits.",
         "# TYPE rigor_execution_dead_letter_total gauge",
         f"rigor_execution_dead_letter_total {snapshot.dead_letters}",
-        "# HELP rigor_execution_controller_heartbeat_age_seconds Age of the controller heartbeat.",
+        "# HELP rigor_execution_controller_heartbeat_age_seconds "
+        "Age of the controller heartbeat.",
         "# TYPE rigor_execution_controller_heartbeat_age_seconds gauge",
-        f"rigor_execution_controller_heartbeat_age_seconds {snapshot.controller_heartbeat_age_seconds:.6f}",
-        "# HELP rigor_execution_runner_ready Runner readiness reported by the controller.",
+        "rigor_execution_controller_heartbeat_age_seconds "
+        f"{snapshot.controller_heartbeat_age_seconds:.6f}",
+        "# HELP rigor_execution_runner_ready "
+        "Runner readiness reported by the controller.",
         "# TYPE rigor_execution_runner_ready gauge",
         f'rigor_execution_runner_ready{{runner="python"}} {int(snapshot.python_runner_ready)}',
         f'rigor_execution_runner_ready{{runner="sql"}} {int(snapshot.sql_runner_ready)}',
@@ -231,7 +241,8 @@ def render_prometheus(snapshot: LocalExecutionMetricsSnapshot) -> str:
     )
     lines.extend(
         [
-            "# HELP rigor_execution_error_total Recent terminal executions by error category.",
+            "# HELP rigor_execution_error_total "
+            "Recent terminal executions by error category.",
             "# TYPE rigor_execution_error_total gauge",
         ]
     )
