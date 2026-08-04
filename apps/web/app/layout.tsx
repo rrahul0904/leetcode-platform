@@ -12,6 +12,7 @@ import "./cinematic-support.css";
 import "./cinematic-workflows.css";
 import "./knowledge-bank.css";
 import "./knowledge-collections.css";
+import "./coding-pad.css";
 import "./certification-experience.css";
 import "./curriculum-experience.css";
 import "./editorial-experience.css";
