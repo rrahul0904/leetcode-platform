@@ -1,30 +1,65 @@
 # Source-backed question bank
 
-Generated from the 11 user-provided archives.
+Generated from the 11 user-provided archives and integrated with Rigor's native PostgreSQL knowledge bank.
 
 ## Generated inventory
 
-- 3,424 unique company-indexed questions
-- 121 statement-backed hosted-question candidates
-- 120 hosted candidates with a reference solution
+- 3,424 company-indexed questions
+- 1 additional statement-backed problem absent from the company CSVs
+- 3,425 total searchable problems
+- 121 statement-backed candidates
+- 120 reference solutions
 - 1,063 unique solution slugs across the uploaded repositories
 - 29 system-design resources
-- 35,348 company-to-question associations
-- 92,728 deduplicated company CSV rows
+- 35,348 normalized company-to-question associations
+- 92,728 deduplicated source CSV rows
 
-## Data files
+## Runtime model
 
-The generated bank is stored under `content/imported/source-backed/`:
+The generated ZIP is installed as:
 
-- `external_question_index_*.jsonl` — searchable company/problem metadata
-- `hosted_question_candidates.jsonl` — imported statements, topics, company tags, explanations where available, and a preferred reference solution
-- `system_design_resources.jsonl` — imported system-design markdown resources
-- `manifest.json` — generated integrity counts
+`content/imported/source-backed/question-bank.zip.b64`
 
-## Publication boundary
+The importer projects it into existing native tables:
 
-Imported statement-backed records begin as `imported-draft` with `runnable=false`. The uploaded repositories provide statements and solutions but do not contain a complete validated public/hidden test suite for every problem. They can be indexed and reviewed immediately; runnable hosted publication requires deterministic test generation and validation.
+- `knowledge_problems`
+- `knowledge_topics`
+- `knowledge_problem_topics`
+- `knowledge_companies`
+- `knowledge_company_observations`
+- `knowledge_solution_approaches`
+- `knowledge_solutions`
+- `knowledge_system_design_articles`
+- source-file and import-run audit tables
+
+The process is deterministic and idempotent. Re-importing the same corpus returns `already_imported` instead of creating duplicates.
+
+## Installation
+
+```bash
+make install-question-bank BANK=/absolute/path/to/rigor_source_backed_question_bank.zip
+make validate-question-bank
+make bootstrap
+```
+
+When the bank is installed before the Docker image build, `make bootstrap` imports it automatically and refuses to complete unless PostgreSQL contains at least:
+
+- 3,425 searchable knowledge problems
+- 100 company indexes
+- 29 system-design resources
+
+For an already-running stack:
+
+```bash
+make import-question-bank
+```
+
+## Candidate behavior
+
+All 3,425 problem records are imported as searchable `metadata_only` knowledge records. Company, topic, difficulty, language, and frequency filters use PostgreSQL-backed native relationships rather than client-side JSON scanning.
+
+The 120 reference solutions are stored for editorial and technical review but are not marked executable. They cannot be returned by the candidate solution endpoint until an independently validated test suite exists and the records pass the existing publication workflow.
 
 ## Regeneration
 
-Run `scripts/build_uploaded_question_bank.py` against the source ZIP archives. The generator normalizes slugs, deduplicates repeated company datasets, preserves source provenance, and keeps metadata-only references separate from hosted candidates.
+Run `scripts/build_uploaded_question_bank.py` against the source ZIP archives. The generator normalizes slugs, deduplicates repeated company datasets, preserves source archive/path provenance, extracts statements and preferred solutions, and separates searchable metadata from executable hosted content.
