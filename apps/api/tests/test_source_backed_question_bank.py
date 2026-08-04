@@ -1,10 +1,19 @@
+import importlib
 import json
+import sys
 from pathlib import Path
 
-from scripts.import_source_backed_question_bank import _difficulty, _frequency, _language
-from scripts.install_source_backed_question_bank import EXPECTED
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-ROOT = Path(__file__).resolve().parents[2]
+source_bank = importlib.import_module("scripts.import_source_backed_question_bank")
+installer = importlib.import_module("scripts.install_source_backed_question_bank")
+
+_difficulty = source_bank._difficulty
+_frequency = source_bank._frequency
+_language = source_bank._language
+EXPECTED = installer.EXPECTED
 
 
 def test_generated_inventory_manifest_matches_uploaded_archives() -> None:
