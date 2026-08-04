@@ -1,4 +1,4 @@
-.PHONY: bootstrap reset-local verify-local stop-local logs-local backup-local restore-local release-local test-content
+.PHONY: bootstrap reset-local verify-local stop-local logs-local backup-local restore-local release-local install-question-bank import-question-bank validate-question-bank test-content
 
 bootstrap:
 	./scripts/start-populated-local
@@ -29,6 +29,20 @@ restore-local:
 release-local:
 	sh scripts/release-local
 
+install-question-bank:
+	@test -n "$(BANK)" || (echo "Usage: make install-question-bank BANK=/path/to/rigor_source_backed_question_bank.zip" >&2; exit 2)
+	uv run python scripts/install_source_backed_question_bank.py "$(BANK)"
+
+validate-question-bank:
+	uv run python scripts/import_source_backed_question_bank.py --validate-only
+
+import-question-bank:
+	docker compose exec -T api python /app/scripts/import_source_backed_question_bank.py \
+		--database-url postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
+
 test-content:
 	uv run python scripts/validate_content.py
 	uv run python scripts/test_content_references.py
+	@if [ -f content/imported/source-backed/question-bank.zip.b64 ]; then \
+		uv run python scripts/import_source_backed_question_bank.py --validate-only; \
+	fi
