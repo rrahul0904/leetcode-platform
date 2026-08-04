@@ -1,4 +1,4 @@
-import type { CandidateSubmission } from "@/lib/api";
+import type { CandidateSubmission, PracticeSession } from "@/lib/api";
 
 const apiUrl = process.env.NEXT_PUBLIC_RIGOR_API_URL ?? "http://localhost:8002";
 
@@ -101,6 +101,16 @@ async function executionRequest<T>(
     throw new Error(`Rigor execution API returned ${response.status}`);
   }
   return (await response.json()) as T;
+}
+
+export function createRuntimePracticeSession(
+  questionSlug: string,
+  runtime: SubmissionRuntime,
+) {
+  return executionRequest<PracticeSession>("/api/v1/practice-sessions", {
+    method: "POST",
+    body: { question_slug: questionSlug, runtime },
+  });
 }
 
 export function queueRunExecution(
