@@ -15,6 +15,7 @@ import "./knowledge-collections.css";
 import "./question-bank-operations.css";
 import "./coding-pad.css";
 import "./controlled-code-editor.css";
+import "./attempt-history.css";
 import "./certification-experience.css";
 import "./curriculum-experience.css";
 import "./editorial-experience.css";
