@@ -2,6 +2,7 @@ import type { CandidateSubmission } from "@/lib/api";
 
 const apiUrl = process.env.NEXT_PUBLIC_RIGOR_API_URL ?? "http://localhost:8002";
 
+export type SubmissionRuntime = "python3.13" | "postgresql18";
 export type AsyncExecutionStatus =
   | "QUEUED"
   | "DISPATCHING"
@@ -122,6 +123,7 @@ export function queueSubmitExecution(
   slug: string,
   sessionId: string,
   sourceCode: string,
+  runtime: SubmissionRuntime,
   idempotencyKey: string,
 ) {
   return executionRequest<ExecutionAccepted>(
@@ -132,7 +134,7 @@ export function queueSubmitExecution(
       body: {
         session_id: sessionId,
         source_code: sourceCode,
-        runtime: "python3.13",
+        runtime,
       },
     },
   );
