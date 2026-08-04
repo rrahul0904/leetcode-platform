@@ -12,32 +12,51 @@ import os
 import re
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from rigor_api.config import get_settings
 from rigor_api.database import create_database_engine
 from rigor_api.knowledge_store import import_knowledge_payload
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_ARCHIVE = ROOT / "content" / "imported" / "source-backed" / "question-bank.zip.b64"
+DEFAULT_ARCHIVE = (
+    ROOT / "content" / "imported" / "source-backed" / "question-bank.zip.b64"
+)
+JsonObject = dict[str, object]
 
 
-def _jsonl(bundle: zipfile.ZipFile, name: str) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
+def _jsonl(bundle: zipfile.ZipFile, name: str) -> list[JsonObject]:
+    rows: list[JsonObject] = []
     with bundle.open(name) as stream:
         for line_number, raw in enumerate(stream, 1):
             if not raw.strip():
                 continue
-            value = json.loads(raw)
+            value: object = json.loads(raw)
             if not isinstance(value, dict):
                 raise ValueError(f"{name}:{line_number} must be a JSON object")
-            rows.append(value)
+            rows.append(cast(JsonObject, value))
     return rows
+
+
+def _object_list(value: object) -> list[object]:
+    return cast(list[object], value) if isinstance(value, list) else []
+
+
+def _object_dict(value: object) -> JsonObject:
+    return cast(JsonObject, value) if isinstance(value, dict) else {}
+
+
+def _last_object(value: object) -> JsonObject:
+    values = _object_list(value)
+    return _object_dict(values[-1]) if values else {}
 
 
 def _hash(value: object) -> str:
     encoded = json.dumps(
-        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
@@ -95,6 +114,35 @@ def _headings(markdown: str) -> list[str]:
     ]
 
 
+def _solution_record(
+    hosted_row: JsonObject,
+    *,
+    canonical_key: str,
+    slug: str,
+) -> JsonObject | None:
+    language = _language(hosted_row.get("reference_solution_language"))
+    code = str(hosted_row.get("reference_solution_code") or "")
+    if not language or not code.strip():
+        return None
+    solution_source = _last_object(hosted_row.get("source_files"))
+    return {
+        "canonical_key": canonical_key,
+        "language": language,
+        "source_code": code,
+        "explanation": str(hosted_row.get("explanation_markdown") or "") or None,
+        "source_name": str(
+            solution_source.get("archive")
+            or "uploaded-source-backed-question-bank"
+        ),
+        "source_path": str(
+            solution_source.get("path")
+            or f"hosted_question_candidates.jsonl#{slug}"
+        ),
+        "source_hash": hashlib.sha256(code.encode("utf-8")).hexdigest(),
+        "disposition": "rights_review_required",
+    }
+
+
 def load_payload(archive_path: Path) -> dict[str, object]:
     encoded = "".join(archive_path.read_text(encoding="ascii").split())
     archive_bytes = base64.b64decode(encoded, validate=True)
@@ -102,21 +150,28 @@ def load_payload(archive_path: Path) -> dict[str, object]:
         external = _jsonl(bundle, "external_question_index.jsonl")
         hosted = _jsonl(bundle, "hosted_question_candidates.jsonl")
         system_design = _jsonl(bundle, "system_design_resources.jsonl")
-        manifest = json.loads(bundle.read("manifest.json"))
+        manifest_value: object = json.loads(bundle.read("manifest.json"))
+    if not isinstance(manifest_value, dict):
+        raise ValueError("manifest.json must contain a JSON object")
+    manifest = cast(JsonObject, manifest_value)
 
     hosted_by_slug = {str(row["slug"]): row for row in hosted}
-    problems: list[dict[str, object]] = []
-    solutions: list[dict[str, object]] = []
-    companies: list[dict[str, object]] = []
+    problems: list[JsonObject] = []
+    solutions: list[JsonObject] = []
+    companies: list[JsonObject] = []
 
     for row in external:
         slug = str(row["slug"])
         hosted_row = hosted_by_slug.get(slug)
-        links = row.get("links") if isinstance(row.get("links"), list) else []
+        links = _object_list(row.get("links"))
         source_url = (
             str(hosted_row.get("source_url"))
             if hosted_row and hosted_row.get("source_url")
-            else (str(links[0]) if links else f"https://leetcode.com/problems/{slug}/")
+            else (
+                str(links[0])
+                if links
+                else f"https://leetcode.com/problems/{slug}/"
+            )
         )
         description = (
             str(hosted_row.get("problem_markdown") or "")
@@ -124,7 +179,7 @@ def load_payload(archive_path: Path) -> dict[str, object]:
             else None
         )
         canonical_key = f"leetcode:{slug}"
-        problem_record = {
+        problem_record: JsonObject = {
             "canonical_key": canonical_key,
             "external_id": slug,
             "title": str(row.get("title") or slug.replace("-", " ").title()),
@@ -132,7 +187,7 @@ def load_payload(archive_path: Path) -> dict[str, object]:
             "description": description,
             "difficulty": _difficulty(row.get("difficulty")),
             "source_url": source_url,
-            "topics": row.get("topics") if isinstance(row.get("topics"), list) else [],
+            "topics": _object_list(row.get("topics")),
             "source_name": "uploaded-source-backed-question-bank",
             "source_path": f"external_question_index.jsonl#{slug}",
             "source_hash": _hash(row),
@@ -140,15 +195,12 @@ def load_payload(archive_path: Path) -> dict[str, object]:
         }
         problems.append(problem_record)
 
-        frequency_map = (
-            row.get("company_frequency")
-            if isinstance(row.get("company_frequency"), dict)
-            else {}
-        )
-        company_names = row.get("companies") if isinstance(row.get("companies"), list) else []
-        for company in company_names:
-            windows = frequency_map.get(company)
-            if not isinstance(windows, dict) or not windows:
+        frequency_map = _object_dict(row.get("company_frequency"))
+        company_names = _object_list(row.get("companies"))
+        for company_value in company_names:
+            company = str(company_value)
+            windows = _object_dict(frequency_map.get(company))
+            if not windows:
                 windows = {"unknown": None}
             numeric_frequencies = [
                 value
@@ -158,14 +210,14 @@ def load_payload(archive_path: Path) -> dict[str, object]:
             aggregated_frequency = (
                 max(numeric_frequencies) if numeric_frequencies else None
             )
-            observation = {
+            observation: JsonObject = {
                 "canonical_key": canonical_key,
                 "external_id": slug,
                 "title": problem_record["title"],
                 "difficulty": problem_record["difficulty"],
                 "problem_url": source_url,
                 "topics": problem_record["topics"],
-                "company": str(company),
+                "company": company,
                 "observation_window": "aggregated",
                 "frequency": aggregated_frequency,
                 "source_name": "uploaded-source-backed-question-bank",
@@ -181,38 +233,13 @@ def load_payload(archive_path: Path) -> dict[str, object]:
             companies.append(observation)
 
         if hosted_row:
-            language = _language(hosted_row.get("reference_solution_language"))
-            code = str(hosted_row.get("reference_solution_code") or "")
-            if language and code.strip():
-                source_files = hosted_row.get("source_files")
-                solution_source = (
-                    source_files[-1]
-                    if isinstance(source_files, list)
-                    and source_files
-                    and isinstance(source_files[-1], dict)
-                    else {}
-                )
-                solutions.append(
-                    {
-                        "canonical_key": canonical_key,
-                        "language": language,
-                        "source_code": code,
-                        "explanation": str(
-                            hosted_row.get("explanation_markdown") or ""
-                        )
-                        or None,
-                        "source_name": str(
-                            solution_source.get("archive")
-                            or "uploaded-source-backed-question-bank"
-                        ),
-                        "source_path": str(
-                            solution_source.get("path")
-                            or f"hosted_question_candidates.jsonl#{slug}"
-                        ),
-                        "source_hash": hashlib.sha256(code.encode("utf-8")).hexdigest(),
-                        "disposition": "rights_review_required",
-                    }
-                )
+            solution = _solution_record(
+                hosted_row,
+                canonical_key=canonical_key,
+                slug=slug,
+            )
+            if solution:
+                solutions.append(solution)
 
     imported_slugs = {str(row["slug"]) for row in external}
     for hosted_row in hosted:
@@ -224,7 +251,9 @@ def load_payload(archive_path: Path) -> dict[str, object]:
             {
                 "canonical_key": canonical_key,
                 "external_id": slug,
-                "title": str(hosted_row.get("title") or slug.replace("-", " ").title()),
+                "title": str(
+                    hosted_row.get("title") or slug.replace("-", " ").title()
+                ),
                 "slug": f"leetcode-{slug}",
                 "description": str(hosted_row.get("problem_markdown") or "") or None,
                 "difficulty": _difficulty(hosted_row.get("difficulty")),
@@ -232,57 +261,31 @@ def load_payload(archive_path: Path) -> dict[str, object]:
                     hosted_row.get("source_url")
                     or f"https://leetcode.com/problems/{slug}/"
                 ),
-                "topics": hosted_row.get("topics")
-                if isinstance(hosted_row.get("topics"), list)
-                else [],
+                "topics": _object_list(hosted_row.get("topics")),
                 "source_name": "uploaded-source-backed-question-bank",
                 "source_path": f"hosted_question_candidates.jsonl#{slug}",
                 "source_hash": _hash(hosted_row),
                 "disposition": "external_reference_only",
             }
         )
-        language = _language(hosted_row.get("reference_solution_language"))
-        code = str(hosted_row.get("reference_solution_code") or "")
-        if language and code.strip():
-            source_files = hosted_row.get("source_files")
-            solution_source = (
-                source_files[-1]
-                if isinstance(source_files, list)
-                and source_files
-                and isinstance(source_files[-1], dict)
-                else {}
-            )
-            solutions.append(
-                {
-                    "canonical_key": canonical_key,
-                    "language": language,
-                    "source_code": code,
-                    "explanation": str(
-                        hosted_row.get("explanation_markdown") or ""
-                    )
-                    or None,
-                    "source_name": str(
-                        solution_source.get("archive")
-                        or "uploaded-source-backed-question-bank"
-                    ),
-                    "source_path": str(
-                        solution_source.get("path")
-                        or f"hosted_question_candidates.jsonl#{slug}"
-                    ),
-                    "source_hash": hashlib.sha256(code.encode("utf-8")).hexdigest(),
-                    "disposition": "rights_review_required",
-                }
-            )
+        solution = _solution_record(
+            hosted_row,
+            canonical_key=canonical_key,
+            slug=slug,
+        )
+        if solution:
+            solutions.append(solution)
 
-    articles: list[dict[str, object]] = []
+    articles: list[JsonObject] = []
     for row in system_design:
         body = str(row.get("markdown") or "")
         if not body.strip():
             continue
+        row_slug = str(row["slug"])
         articles.append(
             {
-                "slug": f"uploaded-{row['slug']}",
-                "title": str(row.get("title") or row["slug"]),
+                "slug": f"uploaded-{row_slug}",
+                "title": str(row.get("title") or row_slug),
                 "body": body,
                 "headings": _headings(body),
                 "image_paths": [],
@@ -290,7 +293,8 @@ def load_payload(archive_path: Path) -> dict[str, object]:
                     row.get("source_archive") or "uploaded-system-design-notes"
                 ),
                 "source_path": str(
-                    row.get("source_path") or f"system_design_resources.jsonl#{row['slug']}"
+                    row.get("source_path")
+                    or f"system_design_resources.jsonl#{row_slug}"
                 ),
                 "source_hash": hashlib.sha256(body.encode("utf-8")).hexdigest(),
                 "disposition": "external_reference_only",
