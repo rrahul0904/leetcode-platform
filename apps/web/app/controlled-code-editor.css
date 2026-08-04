@@ -1,0 +1,121 @@
+.controlled-editor {
+  display: grid;
+  grid-template-rows: auto minmax(360px, 1fr) auto;
+  min-height: 520px;
+  border-bottom: 1px solid var(--line, rgba(255,255,255,.12));
+  background: #0d1117;
+  color: #d9e0ea;
+}
+
+.controlled-editor--fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  min-height: 100vh;
+}
+
+.controlled-editor__toolbar,
+.controlled-editor > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #27303e;
+  background: #111827;
+}
+
+.controlled-editor > footer {
+  min-height: 34px;
+  border-top: 1px solid #27303e;
+  border-bottom: 0;
+  color: #8390a3;
+  font-family: var(--kb-mono, ui-monospace, monospace);
+  font-size: 9px;
+}
+
+.controlled-editor__toolbar > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.controlled-editor__toolbar strong {
+  font-family: var(--kb-mono, ui-monospace, monospace);
+  font-size: 10px;
+  letter-spacing: .08em;
+}
+
+.controlled-editor__toolbar span {
+  color: #8390a3;
+  font-size: 10px;
+}
+
+.controlled-editor__toolbar button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 30px;
+  border: 1px solid #344054;
+  background: #172033;
+  color: #d9e0ea;
+  cursor: pointer;
+}
+
+.controlled-editor__toolbar button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+.controlled-editor__body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.controlled-editor__body pre,
+.controlled-editor__body textarea {
+  margin: 0;
+  border: 0;
+  outline: 0;
+  font: 14px/1.65 var(--kb-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  tab-size: 4;
+}
+
+.controlled-editor__body pre {
+  min-width: 50px;
+  padding: 16px 11px;
+  overflow: hidden;
+  background: #111720;
+  color: #566176;
+  text-align: right;
+  user-select: none;
+}
+
+.controlled-editor__body textarea {
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  padding: 16px;
+  resize: none;
+  overflow: auto;
+  background: #0d1117;
+  color: #d9e0ea;
+  caret-color: #fff;
+}
+
+.controlled-editor__body textarea:focus {
+  box-shadow: inset 0 0 0 1px var(--kb-accent, #e78c6c);
+}
+
+@media (max-width: 900px) {
+  .controlled-editor {
+    min-height: 440px;
+  }
+
+  .controlled-editor__body textarea {
+    min-height: 300px;
+  }
+}
