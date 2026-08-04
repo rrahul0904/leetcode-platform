@@ -3,8 +3,8 @@
 import { useState } from "react";
 
 import {
-  CodingLanguage,
-  CodingPadResult,
+  type CodingLanguage,
+  type CodingPadResult,
   InteractiveCodingPad,
 } from "@/components/interactive-coding-pad";
 
@@ -20,6 +20,9 @@ FROM users
 GROUP BY 1
 ORDER BY 1;
 `;
+
+const sqlSchema =
+  "users\n  user_id bigint primary key\n  signup_date timestamptz not null";
 
 async function simulatedRun(
   language: CodingLanguage,
@@ -59,6 +62,7 @@ async function simulatedRun(
 export default function CodingLabPage() {
   const [language, setLanguage] = useState<CodingLanguage>("python");
   const python = language === "python";
+  const codingPadProps = python ? {} : { schema: sqlSchema };
 
   return (
     <div className="coding-lab-page">
@@ -127,11 +131,7 @@ export default function CodingLabPage() {
           language={language}
           initialSource={python ? pythonStarter : sqlStarter}
           executionEnabled
-          schema={
-            python
-              ? undefined
-              : "users\n  user_id bigint primary key\n  signup_date timestamptz not null"
-          }
+          {...codingPadProps}
           onRun={(source) => simulatedRun(language, source)}
           onSubmit={(source) => simulatedRun(language, source)}
         />
