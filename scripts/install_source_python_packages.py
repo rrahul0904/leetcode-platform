@@ -136,7 +136,9 @@ def _tree_digest(directory: Path) -> str:
     return digest.hexdigest()
 
 
-def verify_package_tree(root: Path) -> dict[str, str]:
+def verify_package_tree(
+    root: Path, *, allow_unrelated_packages: bool = False
+) -> dict[str, str]:
     expected = set(EXPECTED_PACKAGE_IDS)
     actual = (
         {path.name for path in root.iterdir() if path.is_dir()}
@@ -145,7 +147,7 @@ def verify_package_tree(root: Path) -> dict[str, str]:
     )
     missing = sorted(expected - actual)
     unexpected = sorted(actual - expected)
-    if missing or unexpected:
+    if missing or (unexpected and not allow_unrelated_packages):
         raise ValueError(
             f"native package set mismatch; missing={missing}, unexpected={unexpected}"
         )
@@ -207,7 +209,9 @@ def install_packages(
                 shutil.rmtree(target)
             os.replace(source, target)
             installed.append(package_id)
-    installed_digests = verify_package_tree(output)
+    installed_digests = verify_package_tree(
+        output, allow_unrelated_packages=True
+    )
     return {
         "status": "installed",
         "archive_sha256": EXPECTED_ARCHIVE_SHA256,
@@ -229,7 +233,9 @@ def check_packages(
         staged = Path(temporary) / "staged"
         extract_archive(archive, staged)
         expected_digests = verify_package_tree(staged)
-    installed_digests = verify_package_tree(output)
+    installed_digests = verify_package_tree(
+        output, allow_unrelated_packages=True
+    )
     mismatched = [
         package_id
         for package_id in EXPECTED_PACKAGE_IDS
