@@ -1,0 +1,6 @@
+# Temporary exception for the execution-controller image only in practice.
+# Trivy reports cryptography 49.0.0 as affected by CVE-2026-69247 and names
+# 50.0.0 as the fixed version, but that release is not yet published on PyPI.
+# Keep this exception narrow and time-bounded; remove it as soon as a patched
+# cryptography release is available and the lockfile has been refreshed.
+CVE-2026-69247 exp:2026-08-20
