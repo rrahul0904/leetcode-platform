@@ -1,0 +1,36 @@
+.kb-availability {
+  display: inline-flex;
+  justify-self: center;
+  width: min-content;
+  min-width: 76px;
+  padding: 5px 7px !important;
+  border: 1px solid currentColor;
+  font-family: var(--kb-mono);
+  font-size: 8px !important;
+  line-height: 1.2;
+  letter-spacing: 0.05em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.kb-availability--runnable {
+  color: var(--kb-success) !important;
+}
+
+.kb-availability--hosted {
+  color: #8fb7d8 !important;
+}
+
+.kb-availability--in_review {
+  color: var(--kb-warning) !important;
+}
+
+.kb-availability--reference_only {
+  color: var(--kb-muted) !important;
+}
+
+@media (max-width: 880px) {
+  .kb-availability {
+    justify-self: start;
+  }
+}

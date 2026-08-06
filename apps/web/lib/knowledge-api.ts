@@ -1,9 +1,27 @@
 const apiUrl = process.env.NEXT_PUBLIC_RIGOR_API_URL ?? "http://localhost:8002";
 
+export type Availability = "runnable" | "hosted" | "in_review" | "reference_only";
+
 export type KnowledgeStats = {
   problems: number;
   published_problems: number;
   metadata_only_problems: number;
+  python_solutions: number;
+  javascript_solutions: number;
+  sql_solutions: number;
+  companies: number;
+  topics: number;
+  system_design_articles: number;
+  source_files: number;
+};
+
+export type KnowledgeCatalogStats = {
+  problems: number;
+  runnable_problems: number;
+  hosted_problems: number;
+  in_review_problems: number;
+  reference_only_problems: number;
+  statement_backed_problems: number;
   python_solutions: number;
   javascript_solutions: number;
   sql_solutions: number;
@@ -24,6 +42,7 @@ export type ProblemSummary = {
   source_url: string | null;
   publication_status: string;
   review_status: string;
+  availability: Availability;
   acceptance_rate: number | null;
   popularity: number | null;
   languages: string[];
@@ -117,6 +136,10 @@ export function getKnowledgeStats(signal?: AbortSignal) {
   return request<KnowledgeStats>("/api/v1/knowledge/stats", signal);
 }
 
+export function getKnowledgeCatalogStats(signal?: AbortSignal) {
+  return request<KnowledgeCatalogStats>("/api/v1/knowledge/catalog/stats", signal);
+}
+
 export function getKnowledgeProblems(
   filters: {
     query?: string;
@@ -124,6 +147,7 @@ export function getKnowledgeProblems(
     language?: string;
     company?: string;
     topic?: string;
+    availability?: Availability | "";
     sort?: string;
     page?: number;
     pageSize?: number;
@@ -141,18 +165,19 @@ export function getKnowledgeProblems(
     language: filters.language,
     company: filters.company,
     topic: filters.topic,
+    availability: filters.availability,
   })) {
     if (value) parameters.set(key, value);
   }
   return request<ProblemPage>(
-    `/api/v1/knowledge/problems?${parameters.toString()}`,
+    `/api/v1/knowledge/catalog/problems?${parameters.toString()}`,
     signal,
   );
 }
 
 export function getKnowledgeProblem(slug: string, signal?: AbortSignal) {
   return request<ProblemDetail>(
-    `/api/v1/knowledge/problems/${encodeURIComponent(slug)}`,
+    `/api/v1/knowledge/catalog/problems/${encodeURIComponent(slug)}`,
     signal,
   );
 }

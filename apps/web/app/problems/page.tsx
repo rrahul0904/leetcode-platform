@@ -1,11 +1,11 @@
 import { Suspense } from "react";
 
-import { KnowledgeProblemBank } from "@/components/knowledge-problem-bank";
+import { OperationalQuestionBank } from "@/components/operational-question-bank";
 
 export default function ProblemsPage() {
   return (
     <Suspense fallback={<div className="kb-workspace-loading">Loading question bank…</div>}>
-      <KnowledgeProblemBank />
+      <OperationalQuestionBank />
     </Suspense>
   );
 }

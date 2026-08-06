@@ -1,7 +1,8 @@
-import type { CandidateSubmission } from "@/lib/api";
+import type { CandidateSubmission, PracticeSession } from "@/lib/api";
 
 const apiUrl = process.env.NEXT_PUBLIC_RIGOR_API_URL ?? "http://localhost:8002";
 
+export type SubmissionRuntime = "python3.13" | "postgresql18";
 export type AsyncExecutionStatus =
   | "QUEUED"
   | "DISPATCHING"
@@ -102,6 +103,16 @@ async function executionRequest<T>(
   return (await response.json()) as T;
 }
 
+export function createRuntimePracticeSession(
+  questionSlug: string,
+  runtime: SubmissionRuntime,
+) {
+  return executionRequest<PracticeSession>("/api/v1/practice-sessions", {
+    method: "POST",
+    body: { question_slug: questionSlug, runtime },
+  });
+}
+
 export function queueRunExecution(
   slug: string,
   sessionId: string,
@@ -122,6 +133,7 @@ export function queueSubmitExecution(
   slug: string,
   sessionId: string,
   sourceCode: string,
+  runtime: SubmissionRuntime,
   idempotencyKey: string,
 ) {
   return executionRequest<ExecutionAccepted>(
@@ -132,7 +144,7 @@ export function queueSubmitExecution(
       body: {
         session_id: sessionId,
         source_code: sourceCode,
-        runtime: "python3.13",
+        runtime,
       },
     },
   );
