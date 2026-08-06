@@ -1,4 +1,4 @@
-.PHONY: bootstrap reset-local verify-local stop-local logs-local backup-local restore-local release-local install-question-bank import-question-bank validate-question-bank assess-question-bank test-content
+.PHONY: bootstrap reset-local verify-local stop-local logs-local backup-local restore-local release-local install-question-bank import-question-bank validate-question-bank assess-question-bank materialize-question-bank test-content
 
 bootstrap:
 	./scripts/start-populated-local
@@ -41,11 +41,16 @@ assess-question-bank:
 	uv run python scripts/assess_source_backed_candidates.py \
 		--output content/imported/source-backed/readiness.json
 
+materialize-question-bank:
+	uv run python scripts/source_python_batch.py >/dev/null
+	uv run python scripts/install_source_python_packages.py --force
+	uv run python scripts/install_source_python_packages.py --check >/dev/null
+
 import-question-bank:
 	docker compose exec -T api python /app/scripts/import_source_backed_question_bank.py \
 		--database-url postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
 
-test-content:
+test-content: materialize-question-bank
 	uv run python scripts/validate_content.py
 	uv run python scripts/test_content_references.py
 	@if [ -f content/imported/source-backed/question-bank.zip.b64 ]; then \
