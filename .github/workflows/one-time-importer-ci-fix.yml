@@ -19,21 +19,45 @@ jobs:
           ref: agent/source-backed-question-bank
           fetch-depth: 0
 
-      - name: Patch PostgreSQL disposition bind
+      - name: Patch importer and rebuilder defects
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
 
-          path = Path("apps/api/src/rigor_api/knowledge_store.py")
-          text = path.read_text(encoding="utf-8")
-          old = "jsonb_build_object('disposition', :disposition)"
-          new = "jsonb_build_object('disposition', CAST(:disposition AS text))"
-          count = text.count(old)
-          if count != 1:
-              raise SystemExit(f"expected exactly one importer disposition bind, found {count}")
-          path.write_text(text.replace(old, new), encoding="utf-8")
+          knowledge_path = Path("apps/api/src/rigor_api/knowledge_store.py")
+          knowledge = knowledge_path.read_text(encoding="utf-8")
+          old_sql = "jsonb_build_object('disposition', :disposition)"
+          new_sql = "jsonb_build_object('disposition', CAST(:disposition AS text))"
+          sql_count = knowledge.count(old_sql)
+          if sql_count != 1:
+              raise SystemExit(f"expected exactly one importer disposition bind, found {sql_count}")
+          knowledge_path.write_text(knowledge.replace(old_sql, new_sql), encoding="utf-8")
+
+          rebuild_path = Path("scripts/rebuild_source_backed_question_bank.py")
+          rebuild = rebuild_path.read_text(encoding="utf-8")
+          old_mismatches = "    mismatches = []\n"
+          if rebuild.count(old_mismatches) != 1:
+              raise SystemExit("expected exactly one untyped mismatches list")
+          rebuild = rebuild.replace(
+              old_mismatches,
+              "    mismatches: list[str] = []\n",
+          )
+          old_help = (
+              '        help="diagnostic only: validate manifest but do not require the reviewed '
+              'normalized ZIP SHA-256",\n'
+          )
+          if rebuild.count(old_help) != 1:
+              raise SystemExit("expected exactly one long skip-reviewed-sha help line")
+          rebuild = rebuild.replace(
+              old_help,
+              '        help=(\n'
+              '            "diagnostic only: validate manifest but do not require the reviewed "\n'
+              '            "normalized ZIP SHA-256"\n'
+              '        ),\n',
+          )
+          rebuild_path.write_text(rebuild, encoding="utf-8")
           PY
 
       - name: Set up Python
