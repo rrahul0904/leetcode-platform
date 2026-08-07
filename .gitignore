@@ -17,5 +17,6 @@ backups/
 coverage/
 playwright-report/
 test-results/
+content/imported/source-backed/materialized/
 *.pyc
 *.tsbuildinfo
