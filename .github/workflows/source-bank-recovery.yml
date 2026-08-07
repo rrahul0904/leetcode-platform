@@ -9,7 +9,7 @@ permissions:
 jobs:
   reconstruct:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,85 +19,88 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .recovery/repos .recovery/archives .recovery/generated
-
           archive_repo() {
-            local url="$1"
-            local work="$2"
-            local root="$3"
-            local output="$4"
+            local url="$1" work="$2" root="$3" output="$4"
             git clone --quiet "$url" ".recovery/repos/$work"
             pushd ".recovery/repos/$work" >/dev/null
             local sha
             sha=$(git rev-list -1 --before='2026-08-02T00:00:00Z' HEAD)
-            if [ -z "$sha" ]; then
-              echo "No historical commit found for $url" >&2
-              exit 1
-            fi
             echo "SOURCE $output $url $sha"
             git archive --format=zip --prefix="$root/" "$sha" > "../../archives/$output"
             popd >/dev/null
           }
-
-          archive_repo https://github.com/md-shamim-ahmad/LeetCode-Problem-Solution.git lc_problem \
-            LeetCode-Problem-Solution-main LeetCode-Problem-Solution-main.zip
-          archive_repo https://github.com/withaarzoo/LeetCode-Solutions.git withaarzoo \
-            LeetCode-Solutions-main LeetCode-Solutions-main.zip
-          archive_repo https://github.com/codedecks-in/LeetCode-Solutions.git codedecks \
-            LeetCode-Solutions-master 'LeetCode-Solutions-master (1).zip'
-          archive_repo https://github.com/liquidslr/interview-company-wise-problems.git company_index \
-            leetcode-company-wise-problems-main leetcode-company-wise-problems-main.zip
-          cp .recovery/archives/leetcode-company-wise-problems-main.zip \
-            '.recovery/archives/leetcode-company-wise-problems-main (1).zip'
-          archive_repo https://github.com/snehasishroy/leetcode-companywise-interview-questions.git company_interview \
-            leetcode-companywise-interview-questions-master leetcode-companywise-interview-questions-master.zip
-          archive_repo https://github.com/krishnadey30/LeetCode-Questions-CompanyWise.git company_large \
-            LeetCode-Questions-CompanyWise-master LeetCode-Questions-CompanyWise-master.zip
-          archive_repo https://github.com/ashishps1/awesome-leetcode-resources.git awesome \
-            awesome-leetcode-resources-main awesome-leetcode-resources-main.zip
-          archive_repo https://github.com/liquidslr/system-design-notes.git system_design \
-            system-design-notes-main system-design-notes-main.zip
-
-          python scripts/build_uploaded_question_bank.py \
-            .recovery/archives/*.zip \
-            --output .recovery/generated
+          archive_repo https://github.com/md-shamim-ahmad/LeetCode-Problem-Solution.git lc_problem LeetCode-Problem-Solution-main LeetCode-Problem-Solution-main.zip
+          archive_repo https://github.com/withaarzoo/LeetCode-Solutions.git withaarzoo LeetCode-Solutions-main LeetCode-Solutions-main.zip
+          archive_repo https://github.com/codedecks-in/LeetCode-Solutions.git codedecks LeetCode-Solutions-master 'LeetCode-Solutions-master (1).zip'
+          archive_repo https://github.com/liquidslr/interview-company-wise-problems.git company_index leetcode-company-wise-problems-main leetcode-company-wise-problems-main.zip
+          cp .recovery/archives/leetcode-company-wise-problems-main.zip '.recovery/archives/leetcode-company-wise-problems-main (1).zip'
+          archive_repo https://github.com/snehasishroy/leetcode-companywise-interview-questions.git company_interview leetcode-companywise-interview-questions-master leetcode-companywise-interview-questions-master.zip
+          archive_repo https://github.com/krishnadey30/LeetCode-Questions-CompanyWise.git company_large LeetCode-Questions-CompanyWise-master LeetCode-Questions-CompanyWise-master.zip
+          archive_repo https://github.com/ashishps1/awesome-leetcode-resources.git awesome awesome-leetcode-resources-main awesome-leetcode-resources-main.zip
+          archive_repo https://github.com/liquidslr/system-design-notes.git system_design system-design-notes-main system-design-notes-main.zip
+          python scripts/build_uploaded_question_bank.py .recovery/archives/*.zip --output .recovery/generated
 
       - name: Compare reconstruction fingerprints
         run: |
           python - <<'PY'
-          import hashlib
-          import json
+          import hashlib, json
           from pathlib import Path
           from scripts.source_python_batch import load_python_candidates
-
           root = Path('.recovery/generated')
           manifest = json.loads((root / 'manifest.json').read_text())
           print('RECONSTRUCTED_MANIFEST=' + json.dumps(manifest, sort_keys=True))
-
-          generated = []
-          for raw in (root / 'hosted_question_candidates.jsonl').read_text().splitlines():
-              if raw.strip():
-                  generated.append(json.loads(raw))
+          generated = [json.loads(x) for x in (root / 'hosted_question_candidates.jsonl').read_text().splitlines() if x.strip()]
           by_slug = {row.get('slug'): row for row in generated}
           embedded = load_python_candidates()
-          matched_slug = matched_path = matched_solution = 0
-          mismatches = []
+          matched = 0
           for expected in embedded:
-              slug = expected.get('slug')
-              actual = by_slug.get(slug)
-              if actual is None:
-                  mismatches.append([slug, 'missing_slug'])
-                  continue
-              matched_slug += 1
-              expected_path = str(expected.get('source_path') or '')
-              actual_path = str(actual.get('reference_solution_path') or actual.get('source_path') or '')
-              if expected_path and (expected_path == actual_path or expected_path.endswith(actual_path) or actual_path.endswith(expected_path)):
-                  matched_path += 1
-              expected_code = str(expected.get('reference_solution_code') or '')
-              actual_code = str(actual.get('reference_solution_code') or '')
-              if expected_code and actual_code and hashlib.sha256(expected_code.encode()).digest() == hashlib.sha256(actual_code.encode()).digest():
-                  matched_solution += 1
-              else:
-                  mismatches.append([slug, 'solution_or_path_mismatch', expected_path, actual_path])
-          print(f'FINGERPRINTS slug={matched_slug}/{len(embedded)} path={matched_path}/{len(embedded)} solution={matched_solution}/{len(embedded)}')
-          print('MISMATCHES=' + json.dumps(mismatches[:30]))
+            actual = by_slug.get(expected.get('slug'))
+            if actual and hashlib.sha256(str(expected.get('reference_solution_code') or '').encode()).hexdigest() == hashlib.sha256(str(actual.get('reference_solution_code') or '').encode()).hexdigest():
+              matched += 1
+          print(f'PYTHON_SOLUTION_FINGERPRINTS={matched}/{len(embedded)}')
           PY
+
+      - name: Fingerprint missing archive candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .recovery/candidates
+          fingerprint() {
+            local label="$1" url="$2"
+            local dir=".recovery/candidates/${label}"
+            rm -rf "$dir"
+            if ! git clone --quiet "$url" "$dir"; then
+              echo "CANDIDATE clone_failed $label $url"
+              return
+            fi
+            pushd "$dir" >/dev/null
+            local sha files bytes
+            sha=$(git rev-list -1 --before='2026-08-02T00:00:00Z' HEAD || true)
+            if [ -z "$sha" ]; then
+              popd >/dev/null
+              return
+            fi
+            files=$(git ls-tree -r --name-only "$sha" | wc -l | tr -d ' ')
+            git archive --format=zip --prefix="probe-master/" "$sha" > ../probe.zip
+            bytes=$(wc -c < ../probe.zip | tr -d ' ')
+            rm -f ../probe.zip
+            echo "CANDIDATE $label files=$files bytes=$bytes sha=$sha url=$url"
+            popd >/dev/null
+          }
+
+          fingerprint js_dmitry https://github.com/DmitryNaimark/leetcode-solutions.git
+          fingerprint js_manthan https://github.com/manthanank/leetcode-solutions.git
+          fingerprint js_zhangxin https://github.com/zhangxin840/leetcode-solutions.git
+          fingerprint js_ifmos https://github.com/ifmos/leetcode-solutions.git
+          fingerprint js_zhangyuf https://github.com/zhangyuf00/LeetCode-Solutions.git
+          fingerprint js_apsolut https://github.com/apsolut-javascript/LeetCode-Solutions.git
+          fingerprint js_nadim https://github.com/nadimtuhin/leetcode-solutions.git
+
+          fingerprint cp_yash https://github.com/yash0530/Competitive-Programming.git
+          fingerprint cp_ashutosh https://github.com/ashutoshm1771/Competitive-Programming.git
+          fingerprint cp_aj https://github.com/Aj163/Competitive-Programming.git
+          fingerprint cp_kevin https://github.com/KevinMathewT/Competitive-Programming.git
+          fingerprint cp_om https://github.com/om-ashish-soni/Competitive-Programming.git
+          fingerprint cp_risal https://github.com/risal-shefin/Competitive-Programming.git
+          fingerprint cp_pranjal https://github.com/pranjalwalia/Competitive-programming.git
+          fingerprint cp_dolphin https://github.com/dolphingarlic/CompetitiveProgramming.git
