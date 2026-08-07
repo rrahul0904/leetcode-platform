@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install checksum-pinned native Python question packages safely and idempotently."""
+"""Install checksum-pinned source-backed Python review packages safely."""
 
 from __future__ import annotations
 
@@ -12,11 +12,13 @@ import shutil
 import tarfile
 import tempfile
 from pathlib import Path, PurePosixPath
-from typing import BinaryIO
+from typing import IO
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DIRECTORY = ROOT / "content" / "imported" / "source-backed"
-DEFAULT_OUTPUT = ROOT / "content" / "questions" / "python"
+# IMP-* packages are review-stage artifacts. They must stay outside the
+# canonical content/questions tree until the publication gate promotes them.
+DEFAULT_OUTPUT = DEFAULT_DIRECTORY / "materialized" / "python"
 PART_GLOB = "python-packages.tar.xz.part[0-9][0-9]"
 EXPECTED_PART_COUNT = 6
 EXPECTED_ARCHIVE_SHA256 = (
@@ -93,7 +95,7 @@ def _safe_relative_path(name: str) -> Path:
     return Path(*pure.parts)
 
 
-def _copy_member(source: BinaryIO, destination: Path) -> None:
+def _copy_member(source: IO[bytes], destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("wb") as stream:
         shutil.copyfileobj(source, stream)
@@ -102,26 +104,27 @@ def _copy_member(source: BinaryIO, destination: Path) -> None:
 def extract_archive(archive: bytes, destination: Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     try:
-        bundle = tarfile.open(fileobj=io.BytesIO(archive), mode="r:xz")
+        with tarfile.open(fileobj=io.BytesIO(archive), mode="r:xz") as bundle:
+            for member in bundle.getmembers():
+                relative = _safe_relative_path(member.name)
+                target = destination / relative
+                if member.isdir():
+                    target.mkdir(parents=True, exist_ok=True)
+                    continue
+                if not member.isfile():
+                    raise ValueError(
+                        "archive member must be a regular file or directory: "
+                        f"{member.name!r}"
+                    )
+                source = bundle.extractfile(member)
+                if source is None:
+                    raise ValueError(f"could not read archive member: {member.name!r}")
+                with source:
+                    _copy_member(source, target)
     except (tarfile.TarError, EOFError, OSError) as exc:
-        raise ValueError("native package archive is not a valid xz-compressed tar") from exc
-    with bundle:
-        for member in bundle.getmembers():
-            relative = _safe_relative_path(member.name)
-            target = destination / relative
-            if member.isdir():
-                target.mkdir(parents=True, exist_ok=True)
-                continue
-            if not member.isfile():
-                raise ValueError(
-                    "archive member must be a regular file or directory: "
-                    f"{member.name!r}"
-                )
-            source = bundle.extractfile(member)
-            if source is None:
-                raise ValueError(f"could not read archive member: {member.name!r}")
-            with source:
-                _copy_member(source, target)
+        raise ValueError(
+            "native package archive is not a valid xz-compressed tar"
+        ) from exc
 
 
 def _tree_digest(directory: Path) -> str:
