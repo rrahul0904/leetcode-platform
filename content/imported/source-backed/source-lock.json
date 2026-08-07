@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "reviewed_normalized_archive_sha256": "9236110b4c4af1547455998e96f100ce5d2ba945bba1fd02d9194714a11a873b",
+  "expected_manifest": {
+    "archives": 11,
+    "unique_company_index_questions": 3424,
+    "statement_backed_hosted_candidates": 121,
+    "hosted_candidates_with_reference_solution": 120,
+    "system_design_resources": 29,
+    "unique_solution_slugs": 1063,
+    "company_mentions": 35348,
+    "source_csv_rows_after_dedup": 92728
+  },
+  "sources": [
+    {
+      "archive_name": "LeetCode-Problem-Solution-main.zip",
+      "archive_root": "LeetCode-Problem-Solution-main",
+      "repository": "https://github.com/md-shamim-ahmad/LeetCode-Problem-Solution.git",
+      "commit": "dab69e9cca7f78b88ac9850f1df6141b02896593",
+      "disposition": "rights_review_required",
+      "resolution": "output_fingerprint_verified",
+      "evidence": "The recovered source reproduces the reviewed statement-backed count when combined with the locked source set. Exact original ZIP bytes are not claimed."
+    },
+    {
+      "archive_name": "LeetCode-Solutions-main.zip",
+      "archive_root": "LeetCode-Solutions-main",
+      "repository": "https://github.com/withaarzoo/LeetCode-Solutions.git",
+      "commit": "e3b410cb1f922dec53b63b241a8fbdb3515f619d",
+      "disposition": "rights_review_required",
+      "resolution": "output_fingerprint_verified",
+      "evidence": "Recovered source participates in a reconstruction that matches all 20 embedded reviewed Python solution hashes. Exact original ZIP bytes are not claimed."
+    },
+    {
+      "archive_name": "LeetCode-Solutions-master.zip",
+      "archive_root": "LeetCode-Solutions-master",
+      "repository": null,
+      "commit": null,
+      "disposition": "hostable_licensed",
+      "resolution": "unresolved",
+      "expected_fingerprint": {
+        "raw_zip_entries": 288,
+        "useful_files": 222,
+        "useful_code_files": 210,
+        "license": "MIT",
+        "readme_shape": "catalog table with topic, difficulty, time and space complexity, and solution links"
+      }
+    },
+    {
+      "archive_name": "LeetCode-Solutions-master (1).zip",
+      "archive_root": "LeetCode-Solutions-master",
+      "repository": "https://github.com/codedecks-in/LeetCode-Solutions.git",
+      "commit": "76b58426f107baeb4c336d5f0258041254d7f423",
+      "disposition": "hostable_licensed",
+      "resolution": "candidate_provenance",
+      "expected_fingerprint": {
+        "raw_zip_entries": 334,
+        "useful_files": 111,
+        "useful_cpp_files": 108,
+        "license": "MIT"
+      },
+      "evidence": "Repository identity was recovered from the reconstruction pass but still requires the full upload fingerprint before release."
+    },
+    {
+      "archive_name": "Competitive-Programming-master.zip",
+      "archive_root": "Competitive-Programming-master",
+      "repository": null,
+      "commit": null,
+      "disposition": "rights_review_required",
+      "resolution": "unresolved",
+      "expected_fingerprint": {
+        "raw_zip_entries": 470,
+        "useful_files": 224,
+        "useful_cpp_files": 149
+      }
+    },
+    {
+      "archive_name": "leetcode-company-wise-problems-main.zip",
+      "archive_root": "leetcode-company-wise-problems-main",
+      "repository": "https://github.com/liquidslr/interview-company-wise-problems.git",
+      "commit": "ff477f5d870ffbaeaa9728a152bb3d07d2d207f6",
+      "disposition": "external_reference_only",
+      "resolution": "exact_content_fingerprint_verified",
+      "expected_fingerprint": {
+        "csv_files": 2350,
+        "csv_rows": 32922
+      }
+    },
+    {
+      "archive_name": "leetcode-company-wise-problems-main (1).zip",
+      "archive_root": "leetcode-company-wise-problems-main",
+      "duplicate_of": "leetcode-company-wise-problems-main.zip",
+      "disposition": "external_reference_only",
+      "resolution": "exact_duplicate"
+    },
+    {
+      "archive_name": "leetcode-companywise-interview-questions-master.zip",
+      "archive_root": "leetcode-companywise-interview-questions-master",
+      "repository": "https://github.com/snehasishroy/leetcode-companywise-interview-questions.git",
+      "commit": "bb85b004aefaa5c65fde4b99573ad2f6af87eb43",
+      "disposition": "external_reference_only",
+      "resolution": "exact_content_fingerprint_verified",
+      "expected_fingerprint": {
+        "csv_files": 1648,
+        "csv_rows": 39353
+      }
+    },
+    {
+      "archive_name": "LeetCode-Questions-CompanyWise-master.zip",
+      "archive_root": "LeetCode-Questions-CompanyWise-master",
+      "repository": "https://github.com/krishnadey30/LeetCode-Questions-CompanyWise.git",
+      "commit": "fb5f78b55eead7f948aada8459c5bfd31ae8abbc",
+      "disposition": "external_reference_only",
+      "resolution": "exact_content_fingerprint_verified",
+      "expected_fingerprint": {
+        "csv_files": 537,
+        "csv_rows": 20453
+      }
+    },
+    {
+      "archive_name": "awesome-leetcode-resources-main.zip",
+      "archive_root": "awesome-leetcode-resources-main",
+      "repository": "https://github.com/ashishps1/awesome-leetcode-resources.git",
+      "commit": "095f5a34af0414f147fe6efdcf1e070664eff362",
+      "disposition": "rights_review_required",
+      "resolution": "candidate_provenance",
+      "expected_fingerprint": {
+        "pattern_code_files": 56,
+        "license": "GPL-3.0"
+      }
+    },
+    {
+      "archive_name": "system-design-notes-main.zip",
+      "archive_root": "system-design-notes-main",
+      "repository": "https://github.com/liquidslr/system-design-notes.git",
+      "commit": "aa7ac69e206bca659020baa5954bb65cfd70ab99",
+      "disposition": "rights_review_required",
+      "resolution": "output_fingerprint_verified",
+      "expected_fingerprint": {
+        "chapter_directories": 28,
+        "markdown_files": 29,
+        "png_files": 392
+      },
+      "evidence": "Recovered source reproduces the reviewed 29 system-design resource count."
+    }
+  ]
+}
