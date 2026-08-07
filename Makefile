@@ -66,8 +66,10 @@ import-question-bank:
 		--database-url postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
 
 test-content: materialize-question-bank
-	uv run python scripts/validate_content.py
-	uv run python scripts/test_content_references.py
+	uv run python scripts/validate_content.py \
+		--extra-package-root "$(SOURCE_REVIEW_OUTPUT)"
+	uv run python scripts/test_content_references.py \
+		--extra-package-root "$(SOURCE_REVIEW_OUTPUT)"
 	@if [ -f "$(SOURCE_BANK_ARCHIVE)" ]; then \
 		uv run python scripts/import_source_backed_question_bank.py --validate-only; \
 		uv run python scripts/assess_source_backed_candidates.py --output /tmp/source-backed-readiness.json; \
