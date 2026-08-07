@@ -20,7 +20,7 @@ import sys
 import zipfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIRECTORY = ROOT / "content" / "imported" / "source-backed"
