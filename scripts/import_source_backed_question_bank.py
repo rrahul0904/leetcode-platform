@@ -23,6 +23,12 @@ DEFAULT_ARCHIVE = (
     ROOT / "content" / "imported" / "source-backed" / "question-bank.zip.b64"
 )
 JsonObject = dict[str, object]
+EXPECTED_IMPORT_COUNTS = {
+    "problems": 3425,
+    "solutions": 120,
+    "company_observations": 35348,
+    "system_design_articles": 29,
+}
 
 
 def _jsonl(bundle: zipfile.ZipFile, name: str) -> list[JsonObject]:
@@ -329,19 +335,10 @@ def validate_payload(payload: dict[str, object]) -> dict[str, int]:
         "company_observations": len(companies),
         "system_design_articles": len(system_design),
     }
-    if counts["problems"] != 3425:
-        raise ValueError(f"expected 3425 problems, found {counts['problems']}")
-    if counts["solutions"] != 120:
-        raise ValueError(f"expected 120 solutions, found {counts['solutions']}")
-    if counts["system_design_articles"] != 29:
-        raise ValueError(
-            f"expected 29 system-design articles, found {counts['system_design_articles']}"
-        )
-    if counts["company_observations"] < 35_000:
-        raise ValueError(
-            "expected at least 35,000 company observations, "
-            f"found {counts['company_observations']}"
-        )
+    for key, expected in EXPECTED_IMPORT_COUNTS.items():
+        actual = counts[key]
+        if actual != expected:
+            raise ValueError(f"expected {expected} {key.replace('_', ' ')}, found {actual}")
     return counts
 
 
