@@ -1,5 +1,7 @@
 .PHONY: bootstrap reset-local verify-local stop-local logs-local backup-local restore-local release-local install-question-bank import-question-bank validate-question-bank assess-question-bank materialize-question-bank test-content
 
+SOURCE_REVIEW_OUTPUT ?= content/imported/source-backed/materialized/python
+
 bootstrap:
 	./scripts/start-populated-local
 
@@ -41,10 +43,15 @@ assess-question-bank:
 	uv run python scripts/assess_source_backed_candidates.py \
 		--output content/imported/source-backed/readiness.json
 
+# Source-backed IMP-* packages are review artifacts until publication approval.
+# Materialize them outside content/questions so the canonical content synchronizer
+# cannot mistake review-stage packages for approved native catalog entries.
 materialize-question-bank:
 	uv run python scripts/source_python_batch.py >/dev/null
-	uv run python scripts/install_source_python_packages.py --force
-	uv run python scripts/install_source_python_packages.py --check >/dev/null
+	uv run python scripts/install_source_python_packages.py \
+		--output "$(SOURCE_REVIEW_OUTPUT)" --force
+	uv run python scripts/install_source_python_packages.py \
+		--output "$(SOURCE_REVIEW_OUTPUT)" --check >/dev/null
 
 import-question-bank:
 	docker compose exec -T api python /app/scripts/import_source_backed_question_bank.py \
