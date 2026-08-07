@@ -47,6 +47,10 @@
       "evidence": "Raw ZIP entry count is retained as packaging evidence, but source recovery prioritizes the 222 useful / 210 code builder-relevant content fingerprint and catalog/license signature. The reviewed normalized corpus SHA-256 is the final equality gate.",
       "rejected_candidates": [
         {
+          "repository": "https://github.com/kamyu104/LeetCode-Solutions.git",
+          "reason": "A targeted scan of 3,515 unique 2013-2016 trees found useful=222 only at commit 8a7fbe5dee33ea96da107f72dfb83969b63aae88 with code=221, and code=210 only at commit 509b6e13058b1034408a5dcd87d88019eb50a352 with useful=211. No tree reproduced the reviewed 222 useful / 210 code fingerprint."
+        },
+        {
           "repository": "https://github.com/apsolut-javascript/LeetCode-Solutions.git",
           "reason": "Historical content scan found useful=222 only with code=221, and code=210 only with useful=211; no tree matched the reviewed 222 useful / 210 code fingerprint."
         },
@@ -133,6 +137,11 @@
           "reason": "A 149-C++ tree contains 276 useful files and only three binary-like files."
         },
         {
+          "repository": "https://github.com/thecodingwizard/competitive-programming.git",
+          "commit": "2c5fce89639ce8bd208e23e75488079487f986e1",
+          "reason": "A 149-C++ tree contains only 151 useful files, 152 files overall, no binary-like files, and about 338 KB of content."
+        },
+        {
           "repository": "https://github.com/kothariji/competitive-programming.git",
           "reason": "Scan of 1,672 unique historical trees found no raw-entry or C++ boundary match."
         },
@@ -147,6 +156,18 @@
         {
           "repository": "https://github.com/luctivud/All-Of-Competitive-Programming.git",
           "reason": "Historical scan found no 224-useful or 149-C++ content match."
+        },
+        {
+          "repository": "https://github.com/shiningflash/Competitive-Programming-Resources.git",
+          "reason": "Scan of 128 unique historical trees found no 224-useful or 149-C++ content match."
+        },
+        {
+          "repository": "https://github.com/satyajitghana/Competitive-Programming.git",
+          "reason": "Scan of 315 unique historical trees found no 224-useful or 149-C++ content match."
+        },
+        {
+          "repository": "https://github.com/jonh14lk/Competitive_Programming.git",
+          "reason": "Scan of 381 unique historical trees found no 224-useful or 149-C++ content match."
         }
       ]
     },
