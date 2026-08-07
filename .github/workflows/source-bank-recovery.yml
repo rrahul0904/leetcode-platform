@@ -1,0 +1,37 @@
+name: Source bank recovery diagnostic
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  provenance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Print candidate-safe source provenance
+        run: |
+          python - <<'PY'
+          import json
+          from scripts.source_python_batch import load_python_candidates
+
+          rows = load_python_candidates()
+          if rows:
+              print("ROW_KEYS=" + json.dumps(sorted(rows[0].keys())))
+          for row in rows:
+              safe = {
+                  key: value
+                  for key, value in row.items()
+                  if (
+                      any(token in key.casefold() for token in ("source", "archive", "path", "license", "disposition"))
+                      and "code" not in key.casefold()
+                      and "markdown" not in key.casefold()
+                  )
+              }
+              safe["id"] = row.get("id")
+              safe["slug"] = row.get("slug")
+              print("PROVENANCE=" + json.dumps(safe, sort_keys=True))
+          PY
