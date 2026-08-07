@@ -1,0 +1,83 @@
+name: One-time importer CI fix
+
+on:
+  push:
+    branches:
+      - agent/source-backed-question-bank
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/source-backed-question-bank
+          fetch-depth: 0
+
+      - name: Patch PostgreSQL disposition bind
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("apps/api/src/rigor_api/knowledge_store.py")
+          text = path.read_text(encoding="utf-8")
+          old = "jsonb_build_object('disposition', :disposition)"
+          new = "jsonb_build_object('disposition', CAST(:disposition AS text))"
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f"expected exactly one importer disposition bind, found {count}")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install workspace
+        run: uv sync --frozen --all-packages
+
+      - name: Format and lint touched Python
+        run: |
+          uv run ruff format \
+            apps/api/src/rigor_api/knowledge_store.py \
+            apps/api/tests/test_knowledge_store_idempotency.py \
+            apps/api/tests/test_source_bank_reconstruction.py \
+            scripts/rebuild_source_backed_question_bank.py
+          uv run ruff check --fix \
+            apps/api/src/rigor_api/knowledge_store.py \
+            apps/api/tests/test_knowledge_store_idempotency.py \
+            apps/api/tests/test_source_bank_reconstruction.py \
+            scripts/rebuild_source_backed_question_bank.py
+          uv run ruff check \
+            apps/api/src/rigor_api/knowledge_store.py \
+            apps/api/tests/test_knowledge_store_idempotency.py \
+            apps/api/tests/test_source_bank_reconstruction.py \
+            scripts/rebuild_source_backed_question_bank.py
+
+      - name: Type-check source-bank rebuilder
+        run: uv run pyright scripts/rebuild_source_backed_question_bank.py
+
+      - name: Remove one-time workflow
+        run: rm .github/workflows/one-time-importer-ci-fix.yml
+
+      - name: Commit fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix knowledge import idempotency and source-bank checks"
+          git push origin HEAD:agent/source-backed-question-bank
