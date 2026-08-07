@@ -43,22 +43,40 @@
         "useful_code_files": 210,
         "license": "MIT",
         "readme_shape": "catalog table with topic, difficulty, time and space complexity, and solution links"
-      }
+      },
+      "rejected_candidates": [
+        {
+          "repository": "https://github.com/kamyu104/LeetCode-Solutions.git",
+          "commit": "f78539b4106eb7b4114a9ea1af2f0cf0badbf1a6",
+          "reason": "Matched 288 raw entries but contained 276 code files and no JavaScript files; README/license signature did not match the reviewed archive."
+        },
+        {
+          "repository": "https://github.com/apsolut-javascript/LeetCode-Solutions.git",
+          "commit": "ccbd7fb6139df702b1405cb1011bfa9d0a943c68",
+          "reason": "Matched 288 raw entries and MIT/JavaScript characteristics, but had 245 code files including 223 JavaScript files and the README lacked the reviewed topic/difficulty/time/space catalog signature."
+        }
+      ]
     },
     {
       "archive_name": "LeetCode-Solutions-master (1).zip",
       "archive_root": "LeetCode-Solutions-master",
-      "repository": "https://github.com/codedecks-in/LeetCode-Solutions.git",
-      "commit": "76b58426f107baeb4c336d5f0258041254d7f423",
+      "repository": null,
+      "commit": null,
       "disposition": "hostable_licensed",
-      "resolution": "candidate_provenance",
+      "resolution": "unresolved",
       "expected_fingerprint": {
         "raw_zip_entries": 334,
         "useful_files": 111,
         "useful_cpp_files": 108,
         "license": "MIT"
       },
-      "evidence": "Repository identity was recovered from the reconstruction pass but still requires the full upload fingerprint before release."
+      "rejected_candidates": [
+        {
+          "repository": "https://github.com/codedecks-in/LeetCode-Solutions.git",
+          "commit": "76b58426f107baeb4c336d5f0258041254d7f423",
+          "reason": "Focused history scan found no tree matching either 334 raw ZIP entries or 108 C++ files, so this repository cannot be the reviewed upload."
+        }
+      ]
     },
     {
       "archive_name": "Competitive-Programming-master.zip",
@@ -71,7 +89,18 @@
         "raw_zip_entries": 470,
         "useful_files": 224,
         "useful_cpp_files": 149
-      }
+      },
+      "rejected_candidates": [
+        {
+          "repository": "https://github.com/ashutoshm1771/Competitive-Programming.git",
+          "reason": "Historical 470-entry trees contain 233 C++ files and 395 useful files, not the reviewed 149 C++ / 224 useful-file fingerprint."
+        },
+        {
+          "repository": "https://github.com/om-ashish-soni/Competitive-Programming.git",
+          "commit": "c680695a82e8441873662f9074ee06fba449d31f",
+          "reason": "The only 470-entry tree contains 315 C++ files and 368 useful files, not the reviewed 149 C++ / 224 useful-file fingerprint."
+        }
+      ]
     },
     {
       "archive_name": "leetcode-company-wise-problems-main.zip",
