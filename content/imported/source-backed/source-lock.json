@@ -19,7 +19,7 @@
       "commit": "dab69e9cca7f78b88ac9850f1df6141b02896593",
       "disposition": "rights_review_required",
       "resolution": "output_fingerprint_verified",
-      "evidence": "The recovered source reproduces the reviewed statement-backed count when combined with the locked source set. Exact original ZIP bytes are not claimed."
+      "evidence": "The recovered deterministic source reproduces the reviewed statement-backed count when combined with the locked source set. Exact original ZIP bytes are not claimed; the final normalized corpus SHA-256 remains authoritative."
     },
     {
       "archive_name": "LeetCode-Solutions-main.zip",
@@ -28,7 +28,7 @@
       "commit": "e3b410cb1f922dec53b63b241a8fbdb3515f619d",
       "disposition": "rights_review_required",
       "resolution": "output_fingerprint_verified",
-      "evidence": "Recovered source participates in a reconstruction that matches all 20 embedded reviewed Python solution hashes. Exact original ZIP bytes are not claimed."
+      "evidence": "Recovered deterministic source participates in a reconstruction matching all 20 embedded reviewed Python solution hashes. Exact original ZIP bytes are not claimed; the final normalized corpus SHA-256 remains authoritative."
     },
     {
       "archive_name": "LeetCode-Solutions-master.zip",
@@ -44,37 +44,53 @@
         "license": "MIT",
         "readme_shape": "catalog table with topic, difficulty, time and space complexity, and solution links"
       },
+      "evidence": "Raw ZIP entry count is retained as packaging evidence, but source recovery prioritizes the 222 useful / 210 code builder-relevant content fingerprint and catalog/license signature. The reviewed normalized corpus SHA-256 is the final equality gate.",
       "rejected_candidates": [
         {
-          "repository": "https://github.com/kamyu104/LeetCode-Solutions.git",
-          "commit": "f78539b4106eb7b4114a9ea1af2f0cf0badbf1a6",
-          "reason": "Matched 288 raw entries but contained 276 code files and no JavaScript files; README/license signature did not match the reviewed archive."
+          "repository": "https://github.com/apsolut-javascript/LeetCode-Solutions.git",
+          "reason": "Historical content scan found useful=222 only with code=221, and code=210 only with useful=211; no tree matched the reviewed 222 useful / 210 code fingerprint."
         },
         {
-          "repository": "https://github.com/apsolut-javascript/LeetCode-Solutions.git",
-          "commit": "ccbd7fb6139df702b1405cb1011bfa9d0a943c68",
-          "reason": "Matched 288 raw entries and MIT/JavaScript characteristics, but had 245 code files including 223 JavaScript files and the README lacked the reviewed topic/difficulty/time/space catalog signature."
+          "repository": "https://github.com/SHY-Corp/LeetCode-Solutions.git",
+          "reason": "Historical content scan found useful=222 with code=218 and code=210 with useful=214; no tree matched the reviewed 222 useful / 210 code fingerprint."
+        },
+        {
+          "repository": "https://github.com/JoshCrozier/leetcode-javascript.git",
+          "reason": "Historical content scan found useful=222 with code=221 and code=210 with useful=211; no tree matched the reviewed 222 useful / 210 code fingerprint."
+        },
+        {
+          "repository": "https://github.com/BaffinLee/leetcode-javascript.git",
+          "reason": "Historical content scan found no tree matching any of the reviewed 222 useful / 210 code boundary counts."
+        },
+        {
+          "repository": "https://github.com/chihungyu1116/leetcode-javascript.git",
+          "reason": "Historical content scan found no tree matching any of the reviewed 222 useful / 210 code boundary counts."
+        },
+        {
+          "repository": "https://github.com/yiminghe/leetcode-solutions.git",
+          "reason": "The repository is MIT/ECMAScript but its README history and focused 288-entry scan do not reproduce the reviewed catalog/content fingerprint."
         }
       ]
     },
     {
       "archive_name": "LeetCode-Solutions-master (1).zip",
       "archive_root": "LeetCode-Solutions-master",
-      "repository": null,
-      "commit": null,
+      "repository": "https://github.com/RajwardhanShinde/LeetCode-Solutions.git",
+      "commit": "3dad1af94834da381de2652d076780555130e3c6",
       "disposition": "hostable_licensed",
-      "resolution": "unresolved",
+      "resolution": "exact_content_fingerprint_verified",
       "expected_fingerprint": {
         "raw_zip_entries": 334,
         "useful_files": 111,
         "useful_cpp_files": 108,
         "license": "MIT"
       },
+      "evidence": "The recovered tree contains exactly 111 files: 108 C++ solution files plus README.md, LICENSE.md, and _config.yml. The README is a topic-organized LeetCode catalog and LICENSE.md is MIT. This matches the builder-relevant uploaded content fingerprint; original ZIP directory/packaging entries are not claimed byte-identical.",
       "rejected_candidates": [
         {
           "repository": "https://github.com/codedecks-in/LeetCode-Solutions.git",
           "commit": "76b58426f107baeb4c336d5f0258041254d7f423",
-          "reason": "Focused history scan found no tree matching either 334 raw ZIP entries or 108 C++ files, so this repository cannot be the reviewed upload."
+          "reason": "Focused history scan found no tree matching either 334 raw ZIP entries or 108 C++ files."
         }
       ]
     },
@@ -90,6 +106,7 @@
         "useful_files": 224,
         "useful_cpp_files": 149
       },
+      "evidence": "Recovery requires the combined 224 useful / 149 C++ content fingerprint plus the reviewed binary/PDF-heavy archive shape. Close matches are rejected rather than accepted by raw entry count or C++ count alone.",
       "rejected_candidates": [
         {
           "repository": "https://github.com/ashutoshm1771/Competitive-Programming.git",
@@ -98,7 +115,38 @@
         {
           "repository": "https://github.com/om-ashish-soni/Competitive-Programming.git",
           "commit": "c680695a82e8441873662f9074ee06fba449d31f",
-          "reason": "The only 470-entry tree contains 315 C++ files and 368 useful files, not the reviewed 149 C++ / 224 useful-file fingerprint."
+          "reason": "The only 470-entry tree contains 315 C++ files and 368 useful files."
+        },
+        {
+          "repository": "https://github.com/esbanarango/Competitive-Programming.git",
+          "commit": "2ff89ffa95036c57ea07322f07250efa3eee153b",
+          "reason": "A 470-entry tree contains 331 C++ files and 336 useful files."
+        },
+        {
+          "repository": "https://github.com/tmwilliamlin168/CompetitiveProgramming.git",
+          "commit": "9862a9247ed139ded225691a5bbc1e0ccbb9ffc9",
+          "reason": "A 149-C++ tree contains 993 useful files and 1,036 files overall."
+        },
+        {
+          "repository": "https://github.com/smv1999/CompetitiveProgrammingQuestionBank.git",
+          "commit": "006da04162fcb5ebadeb17a167a65d69fa95b121",
+          "reason": "A 149-C++ tree contains 276 useful files and only three binary-like files."
+        },
+        {
+          "repository": "https://github.com/kothariji/competitive-programming.git",
+          "reason": "Scan of 1,672 unique historical trees found no raw-entry or C++ boundary match."
+        },
+        {
+          "repository": "https://github.com/Manwe56/competitive-programming.git",
+          "reason": "Historical scan found no raw-entry or C++ boundary match."
+        },
+        {
+          "repository": "https://github.com/prasadgujar/CompetitiveProgramming.git",
+          "reason": "Historical scan found no 224-useful or 149-C++ content match."
+        },
+        {
+          "repository": "https://github.com/luctivud/All-Of-Competitive-Programming.git",
+          "reason": "Historical scan found no 224-useful or 149-C++ content match."
         }
       ]
     },
@@ -151,11 +199,12 @@
       "repository": "https://github.com/ashishps1/awesome-leetcode-resources.git",
       "commit": "095f5a34af0414f147fe6efdcf1e070664eff362",
       "disposition": "rights_review_required",
-      "resolution": "candidate_provenance",
+      "resolution": "exact_content_fingerprint_verified",
       "expected_fingerprint": {
         "pattern_code_files": 56,
         "license": "GPL-3.0"
-      }
+      },
+      "evidence": "Exact locked revision independently verified with 56 pattern code files, 56 code files total, and a GPL-3.0 license."
     },
     {
       "archive_name": "system-design-notes-main.zip",
@@ -169,7 +218,7 @@
         "markdown_files": 29,
         "png_files": 392
       },
-      "evidence": "Recovered source reproduces the reviewed 29 system-design resource count."
+      "evidence": "Recovered deterministic source reproduces the reviewed 29 system-design resource count; exact original ZIP bytes are not claimed and the normalized corpus SHA-256 remains authoritative."
     }
   ]
 }
