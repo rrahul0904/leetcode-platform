@@ -38,7 +38,29 @@ def test_release_validation_fails_closed_while_sources_are_unresolved() -> None:
     message = str(error.value)
     assert "LeetCode-Solutions-master.zip" in message
     assert "Competitive-Programming-master.zip" in message
-    assert "release-grade" in message or "unresolved" in message
+    assert "output_fingerprint_verified" not in message
+    assert "unresolved" in message
+
+
+def test_output_fingerprint_sources_are_reconstructable_but_sha_remains_authoritative() -> None:
+    lock = rebuild.load_source_lock()
+    sources = list(lock["sources"])
+
+    for index, source in enumerate(sources):
+        if source.get("resolution") != "unresolved":
+            continue
+        replacement = dict(source)
+        replacement["repository"] = f"https://github.com/example/recovered-source-{index}.git"
+        replacement["commit"] = f"{index + 1:040x}"
+        replacement["resolution"] = "output_fingerprint_verified"
+        sources[index] = replacement
+
+    changed = dict(lock)
+    changed["sources"] = sources
+
+    validated = rebuild.validate_source_lock(changed)
+    assert len(validated) == 11
+    assert "output_fingerprint_verified" in rebuild.RECONSTRUCTABLE_RESOLUTIONS
 
 
 def test_duplicate_source_must_reference_an_existing_archive() -> None:
