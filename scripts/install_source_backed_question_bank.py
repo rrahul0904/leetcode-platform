@@ -10,6 +10,7 @@ import json
 import re
 import zipfile
 from pathlib import Path
+from typing import cast
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIRECTORY = ROOT / "content" / "imported" / "source-backed"
@@ -58,7 +59,7 @@ def validate_archive(
         manifest_value: object = json.loads(bundle.read("manifest.json"))
     if not isinstance(manifest_value, dict):
         raise ValueError("manifest.json must contain a JSON object")
-    manifest = dict(manifest_value)
+    manifest = cast(dict[str, object], manifest_value)
     for key, expected in EXPECTED.items():
         actual = manifest.get(key)
         if actual != expected:
