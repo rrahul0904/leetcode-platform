@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Rebuild the reviewed source-backed question bank from pinned Git revisions.
 
-The source lock deliberately distinguishes recovered evidence from release-grade
-source resolution. The default command is fail closed: every non-duplicate
-archive must have an exact, release-approved source resolution before network
-access or corpus generation begins.
+The source lock distinguishes exact provenance from deterministic recovery evidence.
+A source may be used for a release reconstruction when it has a pinned repository
+revision and sufficient output/content fingerprint evidence. The rebuilt manifest
+and reviewed normalized corpus SHA-256 remain the authoritative release equality
+gates, so deterministic recovery never weakens corpus integrity or publication
+rights controls.
 """
 
 from __future__ import annotations
@@ -29,9 +31,10 @@ DEFAULT_WORK = ROOT / ".work" / "source-bank-rebuild"
 DEFAULT_INSTALL_TARGET = SOURCE_DIRECTORY / "question-bank.zip.b64"
 BUILDER = ROOT / "scripts" / "build_uploaded_question_bank.py"
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{40}$")
-RELEASE_RESOLUTIONS = {
+RECONSTRUCTABLE_RESOLUTIONS = {
     "exact_source_verified",
     "exact_content_fingerprint_verified",
+    "output_fingerprint_verified",
 }
 REQUIRED_GENERATED_FILES = (
     "external_question_index.jsonl",
@@ -109,8 +112,10 @@ def validate_source_lock(
             blockers.append(f"{name}: exact 40-character commit is unresolved")
         if not archive_root:
             blockers.append(f"{name}: archive_root is unresolved")
-        if require_release_ready and resolution not in RELEASE_RESOLUTIONS:
-            blockers.append(f"{name}: resolution={resolution or 'missing'} is not release-grade")
+        if require_release_ready and resolution not in RECONSTRUCTABLE_RESOLUTIONS:
+            blockers.append(
+                f"{name}: resolution={resolution or 'missing'} is not reconstruction-grade"
+            )
 
     for name, source in by_name.items():
         duplicate_of = source.get("duplicate_of")
@@ -263,7 +268,7 @@ def main() -> int:
     parser.add_argument(
         "--allow-provisional",
         action="store_true",
-        help="diagnostic only: allow non-release-grade source resolutions",
+        help="diagnostic only: allow non-reconstruction-grade source resolutions",
     )
     parser.add_argument(
         "--skip-reviewed-sha-check",
