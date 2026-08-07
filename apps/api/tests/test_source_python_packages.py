@@ -35,6 +35,12 @@ def test_embedded_source_batch_matches_native_package_ids() -> None:
     assert len({str(row["slug"]) for row in rows}) == 20
 
 
+def test_default_materialization_is_review_only() -> None:
+    canonical_root = ROOT / "content" / "questions"
+    assert installer.DEFAULT_OUTPUT == SOURCE_DIRECTORY / "materialized" / "python"
+    assert canonical_root not in installer.DEFAULT_OUTPUT.parents
+
+
 def test_installer_materializes_and_rechecks_exact_packages(tmp_path: Path) -> None:
     output = tmp_path / "questions"
     first = installer.install_packages(SOURCE_DIRECTORY, output)
