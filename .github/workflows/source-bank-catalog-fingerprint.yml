@@ -1,0 +1,57 @@
+name: Source bank catalog fingerprint
+
+on:
+  push:
+    branches:
+      - agent/source-backed-question-bank
+
+permissions:
+  contents: read
+
+jobs:
+  catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        repository:
+          - kamyu104/LeetCode-Solutions
+          - SHY-Corp/LeetCode-Solutions
+          - apsolut-javascript/LeetCode-Solutions
+          - chihungyu1116/leetcode-javascript
+          - BaffinLee/leetcode-javascript
+          - JoshCrozier/leetcode-javascript
+    steps:
+      - name: Scan historical content fingerprint
+        shell: bash
+        env:
+          CANDIDATE: ${{ matrix.repository }}
+        run: |
+          set -euo pipefail
+          git clone --quiet --filter=blob:none "https://github.com/${CANDIDATE}.git" /tmp/repo
+          python - <<'PY'
+          import os, pathlib, subprocess, tempfile, zipfile
+          full=os.environ['CANDIDATE']; repo='/tmp/repo'
+          code_ext={'.py','.cpp','.cc','.cxx','.c++','.java','.js','.jsx','.ts','.go','.c','.kt','.cs','.dart','.rb','.swift'}
+          useful_ext=code_ext|{'.md','.txt'}
+          rows=subprocess.check_output(['git','-C',repo,'log','--all','--before=2026-08-02T00:00:00Z','--format=%H %T'], text=True).splitlines()
+          seen=set(); hits=[]
+          for line in rows:
+              commit,tree=line.split()
+              if tree in seen: continue
+              seen.add(tree)
+              paths=subprocess.check_output(['git','-C',repo,'ls-tree','-r','--name-only',tree], text=True, errors='replace').splitlines()
+              code=sum(pathlib.PurePosixPath(p).suffix.lower() in code_ext for p in paths)
+              useful=sum(pathlib.PurePosixPath(p).suffix.lower() in useful_ext for p in paths)
+              if len(paths)==222 or useful==222 or code==210:
+                  hits.append((commit,tree,len(paths),useful,code))
+          print(f'CATALOG_SCAN repo={full} unique_trees={len(seen)} hits={len(hits)}')
+          for commit,tree,files,useful,code in hits:
+              with tempfile.NamedTemporaryFile(suffix='.zip') as tmp:
+                  subprocess.run(['git','-C',repo,'archive','--format=zip',f'--output={tmp.name}',commit],check=True)
+                  with zipfile.ZipFile(tmp.name) as zf:
+                      zip_entries=len(zf.infolist())
+                  size=os.path.getsize(tmp.name)
+              print(f'CATALOG_HIT repo={full} sha={commit} tree={tree} files={files} useful={useful} code={code} git_archive_entries={zip_entries} git_archive_bytes={size}')
+          PY
