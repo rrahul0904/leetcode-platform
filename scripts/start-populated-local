@@ -13,10 +13,13 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Materializing checksum-pinned native Python question packages..."
+source_review_output="content/imported/source-backed/materialized/python"
+echo "Materializing checksum-pinned Python review packages outside the canonical catalog..."
 python3 scripts/source_python_batch.py >/dev/null
-python3 scripts/install_source_python_packages.py --force >/dev/null
-python3 scripts/install_source_python_packages.py --check >/dev/null
+python3 scripts/install_source_python_packages.py \
+  --output "$source_review_output" --force >/dev/null
+python3 scripts/install_source_python_packages.py \
+  --output "$source_review_output" --check >/dev/null
 
 docker compose config --quiet
 docker compose up -d --build
@@ -62,8 +65,8 @@ if [ "$external_count" -lt 2000 ]; then
   echo "Expected at least 2,000 external references; found $external_count." >&2
   exit 1
 fi
-if [ "$hosted_count" -lt 70 ]; then
-  echo "Expected at least 70 hosted questions after native package materialization; found $hosted_count." >&2
+if [ "$hosted_count" -lt 50 ]; then
+  echo "Expected at least 50 approved hosted questions; found $hosted_count." >&2
   exit 1
 fi
 if [ "$published_count" -lt 30 ]; then
