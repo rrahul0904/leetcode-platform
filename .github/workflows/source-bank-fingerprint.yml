@@ -11,127 +11,148 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Exact company CSV revisions
+      - name: Discriminate MIT LeetCode solution archives
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/rigor-fp
-          scan_company() {
-            local label="$1" url="$2" want_csv="$3" want_rows="$4"
-            local repo="/tmp/rigor-fp/$label"
-            git clone --quiet "$url" "$repo"
-            python - "$label" "$repo" "$want_csv" "$want_rows" <<'PY'
-          import csv, io, subprocess, sys, tarfile
-          label, repo, want_csv, want_rows = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
-          rows = subprocess.check_output(['git','-C',repo,'log','--all','--before=2026-08-02T00:00:00Z','--format=%H %T'], text=True).splitlines()
-          seen=set(); exact=[]; closest=[]
-          for line in rows:
-              commit, tree = line.split()
-              if tree in seen: continue
-              seen.add(tree)
-              archive = subprocess.check_output(['git','-C',repo,'archive','--format=tar',tree])
-              csv_count=0; row_count=0
-              with tarfile.open(fileobj=io.BytesIO(archive), mode='r:') as tf:
-                  for member in tf.getmembers():
-                      if not member.isfile() or not member.name.lower().endswith('.csv'): continue
-                      csv_count += 1
-                      fh=tf.extractfile(member)
-                      if fh is None: continue
-                      text=fh.read().decode('utf-8-sig', errors='replace')
-                      try:
-                          parsed=list(csv.reader(io.StringIO(text)))
-                          row_count += max(0, len(parsed)-1)
-                      except csv.Error:
-                          row_count += max(0, len(text.splitlines())-1)
-              delta=abs(csv_count-want_csv)*1000000+abs(row_count-want_rows)
-              closest.append((delta,csv_count,row_count,commit,tree))
-              if csv_count==want_csv and row_count==want_rows:
-                  exact.append((commit,tree))
-          closest.sort()
-          print(f'COMPANY_SCAN {label} unique_trees={len(seen)} target_csv={want_csv} target_rows={want_rows}')
-          for commit,tree in exact:
-              print(f'COMPANY_EXACT {label} sha={commit} tree={tree}')
-          if not exact:
-              for delta,csv_count,row_count,commit,tree in closest[:8]:
-                  print(f'COMPANY_CLOSE {label} csv={csv_count} rows={row_count} sha={commit} tree={tree}')
-          PY
-          }
-          scan_company company_index https://github.com/liquidslr/interview-company-wise-problems.git 2350 32922
-          scan_company company_interview https://github.com/snehasishroy/leetcode-companywise-interview-questions.git 1648 39353
-          scan_company company_large https://github.com/krishnadey30/LeetCode-Questions-CompanyWise.git 537 20453
-
-      - name: Exact solution-source tree fingerprints
-        shell: bash
-        run: |
-          set -euo pipefail
-          scan_tree() {
-            local label="$1" url="$2" want_files="$3" want_code="$4" mode="$5"
+          scan_js() {
+            local label="$1" url="$2"
             local repo="/tmp/rigor-fp/$label"
             rm -rf "$repo"
-            git clone --quiet --filter=blob:none "$url" "$repo" || { echo "TREE_CLONE_FAIL $label $url"; return; }
-            python - "$label" "$repo" "$want_files" "$want_code" "$mode" "$url" <<'PY'
-          import pathlib, subprocess, sys
-          label, repo, want_files, want_code, mode, url = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), sys.argv[5], sys.argv[6]
-          rows=subprocess.check_output(['git','-C',repo,'log','--all','--before=2026-08-02T00:00:00Z','--format=%H %T'], text=True).splitlines()
-          seen=set(); exact=[]; close=[]
-          code_ext={'.py','.cpp','.cc','.cxx','.c++','.java','.js','.go','.c','.kt','.cs','.dart'}
+            git clone --quiet --filter=blob:none "$url" "$repo" || { echo "JS_CLONE_FAIL $label $url"; return; }
+            python - "$label" "$repo" "$url" <<'PY'
+          import pathlib, re, subprocess, sys
+          label, repo, url = sys.argv[1:]
+          cutoff='2026-08-02T00:00:00Z'
+          rows=subprocess.check_output(['git','-C',repo,'log','--all',f'--before={cutoff}','--format=%H %T'], text=True).splitlines()
+          seen=set(); matches=[]
+          code_ext={'.py','.cpp','.cc','.cxx','.c++','.java','.js','.jsx','.ts','.go','.c','.kt','.cs','.dart','.rb','.swift'}
           for line in rows:
               commit,tree=line.split()
               if tree in seen: continue
               seen.add(tree)
               paths=subprocess.check_output(['git','-C',repo,'ls-tree','-r','--name-only',tree], text=True, errors='replace').splitlines()
-              files=len(paths)
-              if mode=='cpp':
-                  code=sum(pathlib.PurePosixPath(p).suffix.lower() in {'.cpp','.cc','.cxx','.c++'} for p in paths)
-              else:
-                  code=sum(pathlib.PurePosixPath(p).suffix.lower() in code_ext for p in paths)
-              delta=abs(files-want_files)*1000+abs(code-want_code)
-              close.append((delta,files,code,commit,tree))
-              if files==want_files and code==want_code:
-                  exact.append((commit,tree))
-          close.sort()
-          print(f'TREE_SCAN {label} target_files={want_files} target_code={want_code} mode={mode} url={url} unique_trees={len(seen)}')
-          for commit,tree in exact[:20]: print(f'TREE_EXACT {label} sha={commit} tree={tree} url={url}')
-          if not exact:
-              for delta,files,code,commit,tree in close[:5]: print(f'TREE_CLOSE {label} files={files} code={code} sha={commit} tree={tree} url={url}')
+              dirs=set()
+              for raw in paths:
+                  parent=pathlib.PurePosixPath(raw).parent
+                  while str(parent) not in ('','.'): dirs.add(str(parent)); parent=parent.parent
+              entries=1+len(paths)+len(dirs)
+              if entries != 288: continue
+              code=sum(pathlib.PurePosixPath(p).suffix.lower() in code_ext for p in paths)
+              js=sum(pathlib.PurePosixPath(p).suffix.lower() in {'.js','.jsx'} for p in paths)
+              license_paths=[p for p in paths if pathlib.PurePosixPath(p).name.casefold() in {'license','license.md','license.txt'}]
+              readmes=[p for p in paths if pathlib.PurePosixPath(p).name.casefold() in {'readme','readme.md','readme.txt'}]
+              license_text=''
+              if license_paths:
+                  license_text=subprocess.run(['git','-C',repo,'show',f'{commit}:{license_paths[0]}'], text=True, errors='replace', capture_output=True).stdout
+              readme=''
+              if readmes:
+                  readme=subprocess.run(['git','-C',repo,'show',f'{commit}:{readmes[0]}'], text=True, errors='replace', capture_output=True).stdout
+              lowered=readme.casefold()
+              sig={
+                  'mit': 'mit license' in license_text.casefold() or 'permission is hereby granted' in license_text.casefold(),
+                  'time': bool(re.search(r'\btime\b', lowered)),
+                  'space': bool(re.search(r'\bspace\b', lowered)),
+                  'difficulty': 'difficulty' in lowered or 'level' in lowered,
+                  'topic': 'topic' in lowered or 'tag' in lowered,
+                  'solution': 'solution' in lowered,
+              }
+              score=sum(sig.values())
+              matches.append((score,code,js,commit,tree,sig,readmes[0] if readmes else '',license_paths[0] if license_paths else ''))
+          print(f'JS_SCAN {label} url={url} unique_trees={len(seen)} exact_entry_trees={len(matches)}')
+          for row in sorted(matches, reverse=True)[:30]:
+              score,code,js,commit,tree,sig,readme_path,license_path=row
+              print(f'JS_MATCH {label} score={score} code={code} js={js} sha={commit} tree={tree} readme={readme_path} license={license_path} sig={sig} url={url}')
           PY
           }
 
-          # LeetCode-Solutions-master.zip: actual upload fingerprint = 222 files / 210 code files.
-          scan_tree js_kamyu https://github.com/kamyu104/LeetCode-Solutions.git 222 210 any
-          scan_tree js_apsolut https://github.com/apsolut-javascript/LeetCode-Solutions.git 222 210 any
-          scan_tree js_dmitry https://github.com/DmitryNaimark/leetcode-solutions.git 222 210 any
-          scan_tree js_nadim https://github.com/nadimtuhin/leetcode-solutions.git 222 210 any
-          scan_tree js_tiago https://github.com/tiagogodinho/leetcode-solutions.git 222 210 any
-          scan_tree js_vsthakur https://github.com/vsthakur101/leetcode-solutions.git 222 210 any
-          scan_tree js_rkj https://github.com/rkj180220/leetcode-solutions.git 222 210 any
-          scan_tree js_thevyshnav https://github.com/thevyshnavv/Leetcode_Solutions.git 222 210 any
-          scan_tree js_yiminghe https://github.com/yiminghe/leetcode-solutions.git 222 210 any
-          scan_tree js_yufishing https://github.com/YuFishingfans/leetcode-solutions.git 222 210 any
-          scan_tree js_alexwawl https://github.com/alexwawl/leetcode-solutions-javascript-python.git 222 210 any
-          scan_tree js_antisilent https://github.com/antisilent/leetcode-solutions.git 222 210 any
+          scan_js kamyu https://github.com/kamyu104/LeetCode-Solutions.git
+          scan_js apsolut https://github.com/apsolut-javascript/LeetCode-Solutions.git
+          scan_js codedecks https://github.com/codedecks-in/LeetCode-Solutions.git
+          scan_js shy https://github.com/SHY-Corp/LeetCode-Solutions.git
+          scan_js realhacker https://github.com/RealHacker/leetcode-solutions.git
+          scan_js franklingu https://github.com/franklingu/leetcode-solutions.git
+          scan_js qinhanmin https://github.com/qinhanmin2014/LeetCode-solutions.git
+          scan_js knightjoker https://github.com/KnightJoker/LeetCode-Solutions.git
+          scan_js sankalp https://github.com/sankalpdayal5/LeetCode-Solutions.git
+          scan_js wonz https://github.com/Wonz5130/LeetCode-Solutions.git
+          scan_js trung https://github.com/trung-hn/leetcode-solutions.git
+          scan_js alexey https://github.com/alexeygrigorev/leetcode-solutions.git
+          scan_js ahmetb https://github.com/ahmetb/leetcode-solutions.git
+          scan_js akcps https://github.com/Akcps/leetcode-solutions.git
+          scan_js amanchadha https://github.com/amanchadha/LeetCode-Solutions.git
 
-          # Competitive-Programming-master.zip: actual upload fingerprint = 224 files / 149 C++ files.
-          scan_tree cp_kothari https://github.com/kothariji/competitive-programming.git 224 149 cpp
-          scan_tree cp_ncduy https://github.com/ncduy0303/Competitive-Programming.git 224 149 cpp
-          scan_tree cp_ali https://github.com/AliOsm/CompetitiveProgramming.git 224 149 cpp
-          scan_tree cp_alex https://github.com/AlexandruValeanu/Competitive-Programming.git 224 149 cpp
-          scan_tree cp_lamphan https://github.com/lamphanviet/competitive-programming.git 224 149 cpp
-          scan_tree cp_omar https://github.com/OmarBazaraa/Competitive-Programming.git 224 149 cpp
-          scan_tree cp_lzyrapx https://github.com/lzyrapx/Competitive-Programming.git 224 149 cpp
-          scan_tree cp_ivan https://github.com/IvanIsCoding/CompetitiveProgramming.git 224 149 cpp
-          scan_tree cp_timon https://github.com/TimonKnigge/Competitive-Programming.git 224 149 cpp
-          scan_tree cp_zimpha https://github.com/zimpha/competitive-programming.git 224 149 cpp
-          scan_tree cp_celio https://github.com/celiopassos/competitive-programming.git 224 149 cpp
-          scan_tree cp_sajib https://github.com/sajib21/Competitive-Programming.git 224 149 cpp
-          scan_tree cp_david https://github.com/david-perez/competitive-programming.git 224 149 cpp
-          scan_tree cp_m4573 https://github.com/M4573R/competitive-programming-archive.git 224 149 cpp
-          scan_tree cp_daniel https://github.com/DanielBrito/competitive-programming.git 224 149 cpp
-          scan_tree cp_aarush https://github.com/AarushJ/competitive-programming.git 224 149 cpp
-          scan_tree cp_magdy https://github.com/magdyhasan/competitive-programming.git 224 149 cpp
-          scan_tree cp_inverse https://github.com/InverseAddict/Competitive-Programming.git 224 149 cpp
-          scan_tree cp_vinith https://github.com/vinith/Competitive-programming.git 224 149 cpp
-          scan_tree cp_cwyang https://github.com/cwyang/competitive-programming.git 224 149 cpp
-          scan_tree cp_nauma https://github.com/naumazeredo/competitive-programming.git 224 149 cpp
-          scan_tree cp_ashutosh https://github.com/ashutoshm1771/Competitive-Programming.git 224 149 cpp
-          scan_tree cp_om https://github.com/om-ashish-soni/Competitive-Programming.git 224 149 cpp
+      - name: Discriminate C++ MIT archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo=/tmp/rigor-fp/codedecks-cpp
+          rm -rf "$repo"
+          git clone --quiet https://github.com/codedecks-in/LeetCode-Solutions.git "$repo"
+          python - "$repo" <<'PY'
+          import pathlib, subprocess, sys
+          repo=sys.argv[1]
+          rows=subprocess.check_output(['git','-C',repo,'log','--all','--before=2026-08-02T00:00:00Z','--format=%H %T'], text=True).splitlines()
+          seen=set()
+          for line in rows:
+              commit,tree=line.split()
+              if tree in seen: continue
+              seen.add(tree)
+              paths=subprocess.check_output(['git','-C',repo,'ls-tree','-r','--name-only',tree], text=True, errors='replace').splitlines()
+              dirs=set()
+              for raw in paths:
+                  parent=pathlib.PurePosixPath(raw).parent
+                  while str(parent) not in ('','.'): dirs.add(str(parent)); parent=parent.parent
+              entries=1+len(paths)+len(dirs)
+              cpp=sum(pathlib.PurePosixPath(p).suffix.lower() in {'.cpp','.cc','.cxx','.c++'} for p in paths)
+              if entries==334 or cpp==108:
+                  print(f'CPP_MIT_MATCH entries={entries} files={len(paths)} cpp={cpp} sha={commit} tree={tree}')
+          PY
+
+      - name: Discriminate Competitive Programming archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          scan_cp() {
+            local label="$1" url="$2"
+            local repo="/tmp/rigor-fp/$label"
+            rm -rf "$repo"
+            git clone --quiet --filter=blob:none "$url" "$repo"
+            python - "$label" "$repo" "$url" <<'PY'
+          import pathlib, subprocess, sys
+          label,repo,url=sys.argv[1:]
+          rows=subprocess.check_output(['git','-C',repo,'log','--all','--before=2026-08-02T00:00:00Z','--format=%H %T'], text=True).splitlines()
+          seen=set(); results=[]
+          binary_ext={'.pdf','.zip','.rar','.7z','.exe','.out','.bin','.jpg','.jpeg','.png','.gif','.class'}
+          for line in rows:
+              commit,tree=line.split()
+              if tree in seen: continue
+              seen.add(tree)
+              listing=subprocess.check_output(['git','-C',repo,'ls-tree','-r','-l',tree], text=True, errors='replace').splitlines()
+              paths=[]; total_size=0
+              for raw in listing:
+                  parts=raw.split(None,4)
+                  if len(parts)<5: continue
+                  _,typ,_,size,path=parts
+                  if typ!='blob': continue
+                  paths.append(path)
+                  if size.isdigit(): total_size += int(size)
+              dirs=set()
+              for raw in paths:
+                  parent=pathlib.PurePosixPath(raw).parent
+                  while str(parent) not in ('','.'): dirs.add(str(parent)); parent=parent.parent
+              entries=1+len(paths)+len(dirs)
+              if entries != 470: continue
+              cpp=sum(pathlib.PurePosixPath(p).suffix.lower() in {'.cpp','.cc','.cxx','.c++'} for p in paths)
+              binaries=sum(pathlib.PurePosixPath(p).suffix.lower() in binary_ext for p in paths)
+              useful=sum(pathlib.PurePosixPath(p).suffix.lower() in {'.cpp','.cc','.cxx','.c++','.c','.h','.hpp','.txt','.md','.py','.java'} for p in paths)
+              top=sorted({pathlib.PurePosixPath(p).parts[0] for p in paths if pathlib.PurePosixPath(p).parts})[:25]
+              results.append((abs(cpp-149),cpp,useful,binaries,total_size,commit,tree,top))
+          print(f'CP_SCAN {label} url={url} unique_trees={len(seen)} exact_entry_trees={len(results)}')
+          for delta,cpp,useful,binaries,total_size,commit,tree,top in sorted(results)[:40]:
+              print(f'CP_MATCH {label} cpp={cpp} useful={useful} binaries={binaries} bytes={total_size} sha={commit} tree={tree} top={top} url={url}')
+          PY
+          }
+          scan_cp ashutosh https://github.com/ashutoshm1771/Competitive-Programming.git
+          scan_cp om https://github.com/om-ashish-soni/Competitive-Programming.git
