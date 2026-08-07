@@ -13,6 +13,7 @@ from rigor_question_schema import QuestionPackage, SolutionPackage
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "content" / "question-bank-manifest.json"
+QUESTION_ROOT = ROOT / "content" / "questions"
 EXPECTED_TRACKS = {
     "python-engineering": 150,
     "sql-analytics": 150,
@@ -88,52 +89,62 @@ def validate_manifest() -> list[str]:
     return errors
 
 
-def validate_packages() -> tuple[list[str], int]:
+def validate_packages(package_roots: list[Path] | None = None) -> tuple[list[str], int]:
     errors: list[str] = []
     validated = 0
-    for question_path in sorted((ROOT / "content" / "questions").glob("**/question.json")):
-        package_dir = question_path.parent
-        required_paths = {
-            "solution": package_dir / "solution.json",
-            "rubric": package_dir / "rubric.json",
-            "metadata": package_dir / "metadata.json",
-            "public_tests": package_dir / "tests" / "public.json",
-            "hidden_tests": package_dir / "tests" / "hidden.json",
-        }
-        missing = [name for name, path in required_paths.items() if not path.exists()]
-        if missing:
-            errors.append(f"{package_dir.name}: missing sidecars {missing}")
-            continue
-        try:
-            question = json.loads(question_path.read_text(encoding="utf-8"))
-            rubric = json.loads(required_paths["rubric"].read_text(encoding="utf-8"))
-            metadata = json.loads(required_paths["metadata"].read_text(encoding="utf-8"))
-            public_tests = json.loads(required_paths["public_tests"].read_text(encoding="utf-8"))
-            hidden_tests = json.loads(required_paths["hidden_tests"].read_text(encoding="utf-8"))
-            question["evaluation_rubric"] = rubric
-            question.update(metadata)
-            mode = question["mode_specification"]
-            if "runtime" in mode or "dialect" in mode:
-                mode["tests"] = [*public_tests, *hidden_tests]
-            QuestionPackage.model_validate(question)
-            SolutionPackage.model_validate_json(
-                required_paths["solution"].read_text(encoding="utf-8")
-            )
-        except (json.JSONDecodeError, ValidationError, KeyError, TypeError) as exc:
-            errors.append(f"{package_dir.name}: {exc}")
-        else:
-            validated += 1
+    roots = package_roots or [QUESTION_ROOT]
+    for package_root in roots:
+        for question_path in sorted(package_root.glob("**/question.json")):
+            package_dir = question_path.parent
+            required_paths = {
+                "solution": package_dir / "solution.json",
+                "rubric": package_dir / "rubric.json",
+                "metadata": package_dir / "metadata.json",
+                "public_tests": package_dir / "tests" / "public.json",
+                "hidden_tests": package_dir / "tests" / "hidden.json",
+            }
+            missing = [name for name, path in required_paths.items() if not path.exists()]
+            if missing:
+                errors.append(f"{package_dir.name}: missing sidecars {missing}")
+                continue
+            try:
+                question = json.loads(question_path.read_text(encoding="utf-8"))
+                rubric = json.loads(required_paths["rubric"].read_text(encoding="utf-8"))
+                metadata = json.loads(required_paths["metadata"].read_text(encoding="utf-8"))
+                public_tests = json.loads(required_paths["public_tests"].read_text(encoding="utf-8"))
+                hidden_tests = json.loads(required_paths["hidden_tests"].read_text(encoding="utf-8"))
+                question["evaluation_rubric"] = rubric
+                question.update(metadata)
+                mode = question["mode_specification"]
+                if "runtime" in mode or "dialect" in mode:
+                    mode["tests"] = [*public_tests, *hidden_tests]
+                QuestionPackage.model_validate(question)
+                SolutionPackage.model_validate_json(
+                    required_paths["solution"].read_text(encoding="utf-8")
+                )
+            except (json.JSONDecodeError, ValidationError, KeyError, TypeError) as exc:
+                errors.append(f"{package_dir.name}: {exc}")
+            else:
+                validated += 1
     return errors, validated
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest-only", action="store_true")
+    parser.add_argument(
+        "--extra-package-root",
+        action="append",
+        type=Path,
+        default=[],
+        help="Additional review/quarantine package tree to schema-validate.",
+    )
     args = parser.parse_args()
     errors = validate_manifest()
     package_count = 0
     if not args.manifest_only:
-        package_errors, package_count = validate_packages()
+        package_roots = [QUESTION_ROOT, *args.extra_package_root]
+        package_errors, package_count = validate_packages(package_roots)
         errors.extend(package_errors)
     if errors:
         print("content validation failed")
