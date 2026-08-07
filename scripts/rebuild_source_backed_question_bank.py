@@ -66,7 +66,9 @@ def validate_source_lock(
 
     reviewed_sha = str(lock.get("reviewed_normalized_archive_sha256") or "")
     if not re.fullmatch(r"[0-9a-f]{64}", reviewed_sha):
-        raise SourceLockError("reviewed_normalized_archive_sha256 must be 64 lowercase hex characters")
+        raise SourceLockError(
+            "reviewed_normalized_archive_sha256 must be 64 lowercase hex characters"
+        )
 
     expected_manifest = _object(lock.get("expected_manifest"), label="expected_manifest")
     if expected_manifest.get("archives") != 11:
@@ -93,7 +95,9 @@ def validate_source_lock(
         duplicate_of = source.get("duplicate_of")
         if duplicate_of is not None:
             if resolution != "exact_duplicate":
-                raise SourceLockError(f"{name}: duplicate sources must use exact_duplicate resolution")
+                raise SourceLockError(
+                    f"{name}: duplicate sources must use exact_duplicate resolution"
+                )
             continue
 
         repository = str(source.get("repository") or "")
@@ -114,7 +118,9 @@ def validate_source_lock(
             raise SourceLockError(f"{name}: duplicate_of target {duplicate_of!r} is absent")
 
     if blockers:
-        raise SourceLockError("source reconstruction is blocked:\n- " + "\n- ".join(sorted(set(blockers))))
+        raise SourceLockError(
+            "source reconstruction is blocked:\n- " + "\n- ".join(sorted(set(blockers)))
+        )
     return sources
 
 
@@ -129,7 +135,17 @@ def _archive_source(source: Mapping[str, object], *, cache_root: Path, archive_r
     prefix = str(source["archive_root"]).rstrip("/") + "/"
     cache = cache_root / hashlib.sha256(repository.encode("utf-8")).hexdigest()[:16]
     if not (cache / ".git").exists():
-        _run(["git", "clone", "--quiet", "--filter=blob:none", "--no-checkout", repository, str(cache)])
+        _run(
+            [
+                "git",
+                "clone",
+                "--quiet",
+                "--filter=blob:none",
+                "--no-checkout",
+                repository,
+                str(cache),
+            ]
+        )
     _run(["git", "fetch", "--quiet", "origin", commit], cwd=cache)
     _run(["git", "cat-file", "-e", f"{commit}^{{commit}}"], cwd=cache)
 
@@ -174,28 +190,45 @@ def materialize_source_archives(
         destination = archive_root / name
         shutil.copyfile(original, destination)
         generated[name] = destination
-        if hashlib.sha256(original.read_bytes()).digest() != hashlib.sha256(destination.read_bytes()).digest():
+        if (
+            hashlib.sha256(original.read_bytes()).digest()
+            != hashlib.sha256(destination.read_bytes()).digest()
+        ):
             raise SourceLockError(f"{name}: duplicate archive bytes diverged from {original_name}")
 
     return [generated[str(source["archive_name"])] for source in sources]
 
 
 def validate_manifest(actual: Mapping[str, object], expected: Mapping[str, object]) -> None:
-    mismatches = []
+    mismatches: list[str] = []
     for key, expected_value in expected.items():
         actual_value = actual.get(key)
         if actual_value != expected_value:
             mismatches.append(f"{key}: expected {expected_value!r}, found {actual_value!r}")
     if mismatches:
-        raise SourceLockError("rebuilt corpus manifest does not match the reviewed corpus:\n- " + "\n- ".join(mismatches))
+        raise SourceLockError(
+            "rebuilt corpus manifest does not match the reviewed corpus:\n- "
+            + "\n- ".join(mismatches)
+        )
 
 
 def build_corpus(archives: Sequence[Path], *, output_root: Path) -> dict[str, object]:
     if output_root.exists():
         shutil.rmtree(output_root)
     output_root.mkdir(parents=True)
-    _run([sys.executable, str(BUILDER), *(str(path) for path in archives), "--output", str(output_root)])
-    manifest = _object(json.loads((output_root / "manifest.json").read_text(encoding="utf-8")), label="rebuilt manifest")
+    _run(
+        [
+            sys.executable,
+            str(BUILDER),
+            *(str(path) for path in archives),
+            "--output",
+            str(output_root),
+        ]
+    )
+    manifest = _object(
+        json.loads((output_root / "manifest.json").read_text(encoding="utf-8")),
+        label="rebuilt manifest",
+    )
     missing = [name for name in REQUIRED_GENERATED_FILES if not (output_root / name).is_file()]
     if missing:
         raise SourceLockError(f"builder did not produce required files: {missing}")
@@ -204,7 +237,9 @@ def build_corpus(archives: Sequence[Path], *, output_root: Path) -> dict[str, ob
 
 def write_deterministic_bundle(output_root: Path, destination: Path) -> str:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(destination, mode="w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as bundle:
+    with zipfile.ZipFile(
+        destination, mode="w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+    ) as bundle:
         for name in sorted(REQUIRED_GENERATED_FILES):
             payload = (output_root / name).read_bytes()
             info = zipfile.ZipInfo(filename=name, date_time=(1980, 1, 1, 0, 0, 0))
@@ -233,7 +268,10 @@ def main() -> int:
     parser.add_argument(
         "--skip-reviewed-sha-check",
         action="store_true",
-        help="diagnostic only: validate manifest but do not require the reviewed normalized ZIP SHA-256",
+        help=(
+            "diagnostic only: validate manifest but do not require the reviewed "
+            "normalized ZIP SHA-256"
+        ),
     )
     parser.add_argument("--install", action="store_true")
     parser.add_argument("--install-target", type=Path, default=DEFAULT_INSTALL_TARGET)
@@ -250,7 +288,9 @@ def main() -> int:
     bundle_path = args.work / "rigor_source_backed_question_bank.zip"
     archive_root.mkdir(parents=True, exist_ok=True)
 
-    archives = materialize_source_archives(sources, cache_root=cache_root, archive_root=archive_root)
+    archives = materialize_source_archives(
+        sources, cache_root=cache_root, archive_root=archive_root
+    )
     manifest = build_corpus(archives, output_root=generated_root)
     validate_manifest(manifest, expected_manifest)
     actual_sha = write_deterministic_bundle(generated_root, bundle_path)
@@ -265,7 +305,12 @@ def main() -> int:
             raise SourceLockError("refusing --install when --skip-reviewed-sha-check is enabled")
         install_bundle(bundle_path, target=args.install_target)
 
-    print(json.dumps({"archive": str(bundle_path), "sha256": actual_sha, "manifest": manifest}, sort_keys=True))
+    print(
+        json.dumps(
+            {"archive": str(bundle_path), "sha256": actual_sha, "manifest": manifest},
+            sort_keys=True,
+        )
+    )
     return 0
 
 

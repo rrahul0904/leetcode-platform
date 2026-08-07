@@ -7,7 +7,6 @@ import pytest
 
 from scripts import rebuild_source_backed_question_bank as rebuild
 
-
 EXPECTED_MANIFEST = {
     "archives": 11,
     "unique_company_index_questions": 3424,
