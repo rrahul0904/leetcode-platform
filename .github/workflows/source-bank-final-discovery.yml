@@ -1,7 +1,9 @@
 name: Source bank final provenance discovery
 
 on:
-  pull_request:
+  push:
+    branches:
+      - agent/source-backed-question-bank
 
 permissions:
   contents: read
