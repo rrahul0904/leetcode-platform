@@ -17,10 +17,14 @@ SOURCE_DIRECTORY = ROOT / "content" / "imported" / "source-backed"
 DEFAULT_TARGET = SOURCE_DIRECTORY / "question-bank.zip.b64"
 DEFAULT_CHECKSUM = SOURCE_DIRECTORY / "archive.sha256"
 EXPECTED = {
+    "archives": 11,
     "unique_company_index_questions": 3424,
     "statement_backed_hosted_candidates": 121,
     "hosted_candidates_with_reference_solution": 120,
     "system_design_resources": 29,
+    "unique_solution_slugs": 1063,
+    "company_mentions": 35348,
+    "source_csv_rows_after_dedup": 92728,
 }
 REQUIRED_FILES = {
     "external_question_index.jsonl",
