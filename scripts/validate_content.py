@@ -111,8 +111,12 @@ def validate_packages(package_roots: list[Path] | None = None) -> tuple[list[str
                 question = json.loads(question_path.read_text(encoding="utf-8"))
                 rubric = json.loads(required_paths["rubric"].read_text(encoding="utf-8"))
                 metadata = json.loads(required_paths["metadata"].read_text(encoding="utf-8"))
-                public_tests = json.loads(required_paths["public_tests"].read_text(encoding="utf-8"))
-                hidden_tests = json.loads(required_paths["hidden_tests"].read_text(encoding="utf-8"))
+                public_tests = json.loads(
+                    required_paths["public_tests"].read_text(encoding="utf-8")
+                )
+                hidden_tests = json.loads(
+                    required_paths["hidden_tests"].read_text(encoding="utf-8")
+                )
                 question["evaluation_rubric"] = rubric
                 question.update(metadata)
                 mode = question["mode_specification"]
