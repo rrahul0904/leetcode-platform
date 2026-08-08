@@ -40,6 +40,8 @@ COPY --chown=rigor:rigor scripts/seed_database.py scripts/seed_database.py
 COPY --chown=rigor:rigor scripts/collect_external_references.py scripts/collect_external_references.py
 COPY --chown=rigor:rigor scripts/sync_content.py scripts/sync_content.py
 COPY --chown=rigor:rigor scripts/publish_local_catalog.py scripts/publish_local_catalog.py
+COPY --chown=rigor:rigor scripts/import_source_backed_question_bank.py scripts/import_source_backed_question_bank.py
+COPY --chown=rigor:rigor scripts/verify_source_bank_release.py scripts/verify_source_bank_release.py
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \

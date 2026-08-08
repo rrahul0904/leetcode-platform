@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """Rebuild the reviewed source-backed question bank from pinned Git revisions.
 
-The source lock distinguishes exact provenance from deterministic recovery evidence.
-A source may be used for a release reconstruction when it has a pinned repository
-revision and sufficient output/content fingerprint evidence. The rebuilt manifest
-and reviewed normalized corpus SHA-256 remain the authoritative release equality
-gates, so deterministic recovery never weakens corpus integrity or publication
-rights controls.
+Normal reconstruction is fail-closed: every non-duplicate source must have a
+pinned Git repository revision and a release-grade provenance resolution.
+Provisional/output-only evidence is available only through the explicit
+diagnostic override and can never be installed as a release artifact.
 """
 
 from __future__ import annotations
@@ -30,11 +28,10 @@ DEFAULT_LOCK = SOURCE_DIRECTORY / "source-lock.json"
 DEFAULT_WORK = ROOT / ".work" / "source-bank-rebuild"
 DEFAULT_INSTALL_TARGET = SOURCE_DIRECTORY / "question-bank.zip.b64"
 BUILDER = ROOT / "scripts" / "build_uploaded_question_bank.py"
-SHA256_PATTERN = re.compile(r"^[0-9a-f]{40}$")
-RECONSTRUCTABLE_RESOLUTIONS = {
+COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+RELEASE_GRADE_RESOLUTIONS = {
     "exact_source_verified",
     "exact_content_fingerprint_verified",
-    "output_fingerprint_verified",
 }
 REQUIRED_GENERATED_FILES = (
     "external_question_index.jsonl",
@@ -63,9 +60,10 @@ def validate_source_lock(
     *,
     require_release_ready: bool = True,
 ) -> list[dict[str, object]]:
-    schema_version = lock.get("schema_version")
-    if schema_version != 1:
-        raise SourceLockError(f"unsupported source lock schema_version: {schema_version!r}")
+    if lock.get("schema_version") != 1:
+        raise SourceLockError(
+            f"unsupported source lock schema_version: {lock.get('schema_version')!r}"
+        )
 
     reviewed_sha = str(lock.get("reviewed_normalized_archive_sha256") or "")
     if not re.fullmatch(r"[0-9a-f]{64}", reviewed_sha):
@@ -80,9 +78,14 @@ def validate_source_lock(
     raw_sources = lock.get("sources")
     if not isinstance(raw_sources, list):
         raise SourceLockError("sources must be a JSON array")
-    sources = [_object(item, label=f"sources[{index}]") for index, item in enumerate(raw_sources)]
+    sources = [
+        _object(item, label=f"sources[{index}]")
+        for index, item in enumerate(raw_sources)
+    ]
     if len(sources) != 11:
-        raise SourceLockError(f"source lock must contain 11 archive entries, found {len(sources)}")
+        raise SourceLockError(
+            f"source lock must contain 11 archive entries, found {len(sources)}"
+        )
 
     by_name: dict[str, dict[str, object]] = {}
     blockers: list[str] = []
@@ -106,25 +109,30 @@ def validate_source_lock(
         repository = str(source.get("repository") or "")
         commit = str(source.get("commit") or "").casefold()
         archive_root = str(source.get("archive_root") or "")
-        if not repository.startswith("https://github.com/") or not repository.endswith(".git"):
+        if not repository.startswith("https://github.com/") or not repository.endswith(
+            ".git"
+        ):
             blockers.append(f"{name}: repository is unresolved")
-        if not SHA256_PATTERN.fullmatch(commit):
+        if not COMMIT_PATTERN.fullmatch(commit):
             blockers.append(f"{name}: exact 40-character commit is unresolved")
         if not archive_root:
             blockers.append(f"{name}: archive_root is unresolved")
-        if require_release_ready and resolution not in RECONSTRUCTABLE_RESOLUTIONS:
+        if require_release_ready and resolution not in RELEASE_GRADE_RESOLUTIONS:
             blockers.append(
-                f"{name}: resolution={resolution or 'missing'} is not reconstruction-grade"
+                f"{name}: resolution={resolution or 'missing'} is not release-grade"
             )
 
     for name, source in by_name.items():
         duplicate_of = source.get("duplicate_of")
         if duplicate_of is not None and str(duplicate_of) not in by_name:
-            raise SourceLockError(f"{name}: duplicate_of target {duplicate_of!r} is absent")
+            raise SourceLockError(
+                f"{name}: duplicate_of target {duplicate_of!r} is absent"
+            )
 
     if blockers:
         raise SourceLockError(
-            "source reconstruction is blocked:\n- " + "\n- ".join(sorted(set(blockers)))
+            "source reconstruction is blocked:\n- "
+            + "\n- ".join(sorted(set(blockers)))
         )
     return sources
 
@@ -133,7 +141,12 @@ def _run(args: Sequence[str], *, cwd: Path | None = None) -> None:
     subprocess.run(list(args), cwd=cwd, check=True)
 
 
-def _archive_source(source: Mapping[str, object], *, cache_root: Path, archive_root: Path) -> Path:
+def _archive_source(
+    source: Mapping[str, object],
+    *,
+    cache_root: Path,
+    archive_root: Path,
+) -> Path:
     name = str(source["archive_name"])
     repository = str(source["repository"])
     commit = str(source["commit"])
@@ -183,33 +196,40 @@ def materialize_source_archives(
         if source.get("duplicate_of") is not None:
             pending_duplicates.append(source)
             continue
-        path = _archive_source(source, cache_root=cache_root, archive_root=archive_root)
-        generated[str(source["archive_name"])] = path
+        generated[str(source["archive_name"])] = _archive_source(
+            source,
+            cache_root=cache_root,
+            archive_root=archive_root,
+        )
 
     for source in pending_duplicates:
         name = str(source["archive_name"])
         original_name = str(source["duplicate_of"])
         original = generated.get(original_name)
         if original is None:
-            raise SourceLockError(f"{name}: duplicate source {original_name} was not materialized")
+            raise SourceLockError(
+                f"{name}: duplicate source {original_name} was not materialized"
+            )
         destination = archive_root / name
         shutil.copyfile(original, destination)
+        if original.read_bytes() != destination.read_bytes():
+            raise SourceLockError(
+                f"{name}: duplicate archive bytes diverged from {original_name}"
+            )
         generated[name] = destination
-        if (
-            hashlib.sha256(original.read_bytes()).digest()
-            != hashlib.sha256(destination.read_bytes()).digest()
-        ):
-            raise SourceLockError(f"{name}: duplicate archive bytes diverged from {original_name}")
 
     return [generated[str(source["archive_name"])] for source in sources]
 
 
-def validate_manifest(actual: Mapping[str, object], expected: Mapping[str, object]) -> None:
-    mismatches: list[str] = []
-    for key, expected_value in expected.items():
-        actual_value = actual.get(key)
-        if actual_value != expected_value:
-            mismatches.append(f"{key}: expected {expected_value!r}, found {actual_value!r}")
+def validate_manifest(
+    actual: Mapping[str, object],
+    expected: Mapping[str, object],
+) -> None:
+    mismatches = [
+        f"{key}: expected {expected_value!r}, found {actual.get(key)!r}"
+        for key, expected_value in expected.items()
+        if actual.get(key) != expected_value
+    ]
     if mismatches:
         raise SourceLockError(
             "rebuilt corpus manifest does not match the reviewed corpus:\n- "
@@ -217,7 +237,11 @@ def validate_manifest(actual: Mapping[str, object], expected: Mapping[str, objec
         )
 
 
-def build_corpus(archives: Sequence[Path], *, output_root: Path) -> dict[str, object]:
+def build_corpus(
+    archives: Sequence[Path],
+    *,
+    output_root: Path,
+) -> dict[str, object]:
     if output_root.exists():
         shutil.rmtree(output_root)
     output_root.mkdir(parents=True)
@@ -234,7 +258,11 @@ def build_corpus(archives: Sequence[Path], *, output_root: Path) -> dict[str, ob
         json.loads((output_root / "manifest.json").read_text(encoding="utf-8")),
         label="rebuilt manifest",
     )
-    missing = [name for name in REQUIRED_GENERATED_FILES if not (output_root / name).is_file()]
+    missing = [
+        name
+        for name in REQUIRED_GENERATED_FILES
+        if not (output_root / name).is_file()
+    ]
     if missing:
         raise SourceLockError(f"builder did not produce required files: {missing}")
     return manifest
@@ -243,15 +271,26 @@ def build_corpus(archives: Sequence[Path], *, output_root: Path) -> dict[str, ob
 def write_deterministic_bundle(output_root: Path, destination: Path) -> str:
     destination.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(
-        destination, mode="w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+        destination,
+        mode="w",
+        compression=zipfile.ZIP_DEFLATED,
+        compresslevel=9,
     ) as bundle:
         for name in sorted(REQUIRED_GENERATED_FILES):
             payload = (output_root / name).read_bytes()
-            info = zipfile.ZipInfo(filename=name, date_time=(1980, 1, 1, 0, 0, 0))
+            info = zipfile.ZipInfo(
+                filename=name,
+                date_time=(1980, 1, 1, 0, 0, 0),
+            )
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o100644 << 16
             info.create_system = 3
-            bundle.writestr(info, payload, compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+            bundle.writestr(
+                info,
+                payload,
+                compress_type=zipfile.ZIP_DEFLATED,
+                compresslevel=9,
+            )
     return hashlib.sha256(destination.read_bytes()).hexdigest()
 
 
@@ -268,7 +307,7 @@ def main() -> int:
     parser.add_argument(
         "--allow-provisional",
         action="store_true",
-        help="diagnostic only: allow non-reconstruction-grade source resolutions",
+        help="diagnostic only: allow non-release-grade source resolutions",
     )
     parser.add_argument(
         "--skip-reviewed-sha-check",
@@ -279,12 +318,22 @@ def main() -> int:
         ),
     )
     parser.add_argument("--install", action="store_true")
-    parser.add_argument("--install-target", type=Path, default=DEFAULT_INSTALL_TARGET)
+    parser.add_argument(
+        "--install-target",
+        type=Path,
+        default=DEFAULT_INSTALL_TARGET,
+    )
     args = parser.parse_args()
 
     lock = load_source_lock(args.lock)
-    sources = validate_source_lock(lock, require_release_ready=not args.allow_provisional)
-    expected_manifest = _object(lock["expected_manifest"], label="expected_manifest")
+    sources = validate_source_lock(
+        lock,
+        require_release_ready=not args.allow_provisional,
+    )
+    expected_manifest = _object(
+        lock["expected_manifest"],
+        label="expected_manifest",
+    )
     expected_sha = str(lock["reviewed_normalized_archive_sha256"])
 
     cache_root = args.work / "repos"
@@ -294,7 +343,9 @@ def main() -> int:
     archive_root.mkdir(parents=True, exist_ok=True)
 
     archives = materialize_source_archives(
-        sources, cache_root=cache_root, archive_root=archive_root
+        sources,
+        cache_root=cache_root,
+        archive_root=archive_root,
     )
     manifest = build_corpus(archives, output_root=generated_root)
     validate_manifest(manifest, expected_manifest)
@@ -307,12 +358,22 @@ def main() -> int:
         )
     if args.install:
         if args.skip_reviewed_sha_check:
-            raise SourceLockError("refusing --install when --skip-reviewed-sha-check is enabled")
+            raise SourceLockError(
+                "refusing --install when --skip-reviewed-sha-check is enabled"
+            )
+        if args.allow_provisional:
+            raise SourceLockError(
+                "refusing --install when --allow-provisional is enabled"
+            )
         install_bundle(bundle_path, target=args.install_target)
 
     print(
         json.dumps(
-            {"archive": str(bundle_path), "sha256": actual_sha, "manifest": manifest},
+            {
+                "archive": str(bundle_path),
+                "sha256": actual_sha,
+                "manifest": manifest,
+            },
             sort_keys=True,
         )
     )

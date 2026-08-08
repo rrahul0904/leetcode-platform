@@ -34,9 +34,9 @@ done
 source_bank_installed=false
 if docker compose exec -T api test -f \
   /app/content/imported/source-backed/question-bank.zip.b64; then
-  echo "Importing the bundled source-backed question bank..."
+  echo "Verifying the bundled source-backed question bank..."
   docker compose exec -T api python \
-    /app/scripts/import_source_backed_question_bank.py \
+    /app/scripts/verify_source_bank_release.py \
     --database-url \
     postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
   source_bank_installed=true
@@ -81,16 +81,12 @@ if [ "$source_bank_installed" = true ]; then
     "SELECT count(*) FROM knowledge_companies;")
   system_design_count=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
     "SELECT count(*) FROM knowledge_system_design_articles;")
-  if [ "$knowledge_count" -lt 3425 ]; then
-    echo "Expected at least 3,425 searchable knowledge-bank problems; found $knowledge_count." >&2
+  if [ "$knowledge_count" -ne 3425 ]; then
+    echo "Expected exactly 3,425 searchable knowledge-bank problems; found $knowledge_count." >&2
     exit 1
   fi
-  if [ "$company_count" -lt 100 ]; then
-    echo "Expected at least 100 company indexes; found $company_count." >&2
-    exit 1
-  fi
-  if [ "$system_design_count" -lt 29 ]; then
-    echo "Expected at least 29 imported system-design resources; found $system_design_count." >&2
+  if [ "$system_design_count" -ne 29 ]; then
+    echo "Expected exactly 29 imported system-design resources; found $system_design_count." >&2
     exit 1
   fi
 fi

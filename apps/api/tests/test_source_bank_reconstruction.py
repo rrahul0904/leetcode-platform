@@ -29,20 +29,21 @@ def test_source_lock_preserves_reviewed_manifest_contract() -> None:
     assert len(lock["sources"]) == 11
 
 
-def test_release_validation_fails_closed_while_sources_are_unresolved() -> None:
+def test_release_validation_fails_closed_while_sources_are_not_release_grade() -> None:
     lock = rebuild.load_source_lock()
 
     with pytest.raises(rebuild.SourceLockError) as error:
         rebuild.validate_source_lock(lock)
 
     message = str(error.value)
+    assert "LeetCode-Problem-Solution-main.zip" in message
     assert "LeetCode-Solutions-master.zip" in message
     assert "Competitive-Programming-master.zip" in message
-    assert "output_fingerprint_verified" not in message
+    assert "output_fingerprint_verified" in message
     assert "unresolved" in message
 
 
-def test_output_fingerprint_sources_are_reconstructable_but_sha_remains_authoritative() -> None:
+def test_output_fingerprint_is_diagnostic_only() -> None:
     lock = rebuild.load_source_lock()
     sources = list(lock["sources"])
 
@@ -50,25 +51,37 @@ def test_output_fingerprint_sources_are_reconstructable_but_sha_remains_authorit
         if source.get("resolution") != "unresolved":
             continue
         replacement = dict(source)
-        replacement["repository"] = f"https://github.com/example/recovered-source-{index}.git"
+        replacement["repository"] = (
+            f"https://github.com/example/recovered-source-{index}.git"
+        )
         replacement["commit"] = f"{index + 1:040x}"
-        replacement["resolution"] = "output_fingerprint_verified"
+        replacement["archive_root"] = f"recovered-source-{index}-master"
+        replacement["resolution"] = "exact_source_verified"
         sources[index] = replacement
 
     changed = dict(lock)
     changed["sources"] = sources
 
-    validated = rebuild.validate_source_lock(changed)
+    with pytest.raises(rebuild.SourceLockError, match="output_fingerprint_verified"):
+        rebuild.validate_source_lock(changed)
+
+    validated = rebuild.validate_source_lock(
+        changed,
+        require_release_ready=False,
+    )
     assert len(validated) == 11
-    assert "output_fingerprint_verified" in rebuild.RECONSTRUCTABLE_RESOLUTIONS
+    assert "output_fingerprint_verified" not in rebuild.RELEASE_GRADE_RESOLUTIONS
 
 
 def test_duplicate_source_must_reference_an_existing_archive() -> None:
     lock = rebuild.load_source_lock()
     sources = list(lock["sources"])
-    duplicate = dict(next(item for item in sources if item.get("duplicate_of")))
+    duplicate_index = next(
+        index for index, source in enumerate(sources) if source.get("duplicate_of")
+    )
+    duplicate = dict(sources[duplicate_index])
     duplicate["duplicate_of"] = "missing-source.zip"
-    sources[sources.index(next(item for item in sources if item.get("duplicate_of")))] = duplicate
+    sources[duplicate_index] = duplicate
     changed = dict(lock)
     changed["sources"] = sources
 
