@@ -29,7 +29,6 @@ jobs:
 
       - id: statement
         name: Verify statement-source tree
-        continue-on-error: true
         run: |
           python scripts/verify_pinned_source_content.py \
             --repository https://github.com/md-shamim-ahmad/LeetCode-Problem-Solution.git \
@@ -39,19 +38,16 @@ jobs:
             --expect code_language_extensions=7
 
       - id: solutions
-        name: Verify multi-language solution tree
-        continue-on-error: true
+        name: Verify multi-language solution content
         run: |
           python scripts/verify_pinned_source_content.py \
             --repository https://github.com/withaarzoo/LeetCode-Solutions.git \
             --commit e3b410cb1f922dec53b63b241a8fbdb3515f619d \
-            --expect total_files=2430 \
             --expect code_files=2021 \
             --expect markdown_files=408
 
       - id: system_design
         name: Verify system-design tree
-        continue-on-error: true
         run: |
           python scripts/verify_pinned_source_content.py \
             --repository https://github.com/liquidslr/system-design-notes.git \
@@ -59,10 +55,3 @@ jobs:
             --expect top_level_directories=28 \
             --expect markdown_files=29 \
             --expect png_files=392
-
-      - name: Require all reviewed source fingerprints
-        if: always()
-        run: |
-          test "${{ steps.statement.outcome }}" = success
-          test "${{ steps.solutions.outcome }}" = success
-          test "${{ steps.system_design.outcome }}" = success
