@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 import tempfile
 from collections import Counter
 from pathlib import Path, PurePosixPath
@@ -124,20 +125,31 @@ def main() -> int:
         repository_root = Path(temporary) / "repository"
         _clone_exact(args.repository, args.commit, repository_root)
         summary = summarize(repository_root, args.commit)
-        verify(summary, expectations)
 
-    result = {
+    error_message: str | None = None
+    try:
+        verify(summary, expectations)
+    except VerificationError as error:
+        error_message = str(error)
+
+    result: dict[str, object] = {
         "repository": args.repository,
         "commit": args.commit,
         "expected": expectations,
         "observed": summary,
-        "verified": True,
+        "verified": error_message is None,
     }
+    if error_message is not None:
+        result["error"] = error_message
+
     payload = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(payload, encoding="utf-8")
     print(payload, end="")
+    if error_message is not None:
+        print(error_message, file=sys.stderr)
+        return 1
     return 0
 
 
