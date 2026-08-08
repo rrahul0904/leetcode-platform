@@ -1,0 +1,55 @@
+name: Source provenance verification
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-provenance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-pinned-content:
+    name: Verify pinned source content fingerprints
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Verify statement-source tree
+        run: |
+          python scripts/verify_pinned_source_content.py \
+            --repository https://github.com/md-shamim-ahmad/LeetCode-Problem-Solution.git \
+            --commit dab69e9cca7f78b88ac9850f1df6141b02896593 \
+            --expect total_files=620 \
+            --expect code_files=462 \
+            --expect code_language_extensions=7
+
+      - name: Verify multi-language solution tree
+        run: |
+          python scripts/verify_pinned_source_content.py \
+            --repository https://github.com/withaarzoo/LeetCode-Solutions.git \
+            --commit e3b410cb1f922dec53b63b241a8fbdb3515f619d \
+            --expect total_files=2430 \
+            --expect code_files=2021 \
+            --expect markdown_files=408
+
+      - name: Verify system-design tree
+        run: |
+          python scripts/verify_pinned_source_content.py \
+            --repository https://github.com/liquidslr/system-design-notes.git \
+            --commit aa7ac69e206bca659020baa5954bb65cfd70ab99 \
+            --expect top_level_directories=28 \
+            --expect markdown_files=29 \
+            --expect png_files=392
