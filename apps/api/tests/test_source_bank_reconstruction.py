@@ -31,33 +31,45 @@ def test_source_lock_preserves_reviewed_manifest_contract() -> None:
 
 def test_release_validation_fails_closed_while_sources_are_not_release_grade() -> None:
     lock = rebuild.load_source_lock()
+    unresolved = {
+        source["archive_name"]
+        for source in lock["sources"]
+        if source.get("resolution") not in rebuild.RELEASE_GRADE_RESOLUTIONS
+    }
+    assert unresolved
 
     with pytest.raises(rebuild.SourceLockError) as error:
         rebuild.validate_source_lock(lock)
 
     message = str(error.value)
-    assert "LeetCode-Problem-Solution-main.zip" in message
-    assert "LeetCode-Solutions-master.zip" in message
-    assert "Competitive-Programming-master.zip" in message
-    assert "output_fingerprint_verified" in message
+    for archive_name in unresolved:
+        assert archive_name in message
     assert "unresolved" in message
 
 
 def test_output_fingerprint_is_diagnostic_only() -> None:
     lock = rebuild.load_source_lock()
-    sources = list(lock["sources"])
+    sources: list[dict[str, object]] = []
 
-    for index, source in enumerate(sources):
-        if source.get("resolution") != "unresolved":
-            continue
-        replacement = dict(source)
-        replacement["repository"] = (
-            f"https://github.com/example/recovered-source-{index}.git"
-        )
-        replacement["commit"] = f"{index + 1:040x}"
-        replacement["archive_root"] = f"recovered-source-{index}-master"
-        replacement["resolution"] = "exact_source_verified"
-        sources[index] = replacement
+    for index, original in enumerate(lock["sources"]):
+        source = dict(original)
+        if source.get("resolution") == "unresolved":
+            source["repository"] = f"https://github.com/example/recovered-source-{index}.git"
+            source["commit"] = f"{index + 1:040x}"
+            source["archive_root"] = f"recovered-source-{index}-master"
+            source["resolution"] = "exact_source_verified"
+        sources.append(source)
+
+    diagnostic_index = next(
+        index
+        for index, source in enumerate(sources)
+        if not source.get("duplicate_of")
+        and source.get("repository")
+        and source.get("commit")
+    )
+    diagnostic = dict(sources[diagnostic_index])
+    diagnostic["resolution"] = "output_fingerprint_verified"
+    sources[diagnostic_index] = diagnostic
 
     changed = dict(lock)
     changed["sources"] = sources
