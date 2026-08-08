@@ -285,7 +285,7 @@ class KnowledgeBankImporter:
                         :canonical_key, :external_id, :title, :slug,
                         left(:description, 500), :description, :difficulty, :source_url,
                         :publication_status, :review_status, NULL,
-                        jsonb_build_object('disposition', :disposition)
+                        jsonb_build_object('disposition', CAST(:disposition AS text))
                     )
                     ON CONFLICT (canonical_key) DO UPDATE
                     SET title=EXCLUDED.title,
