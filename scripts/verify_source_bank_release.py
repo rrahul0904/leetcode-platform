@@ -12,8 +12,6 @@ import os
 from collections.abc import Mapping
 from pathlib import Path
 
-from sqlalchemy import Connection, text
-
 from import_source_backed_question_bank import (
     DEFAULT_ARCHIVE,
     load_payload,
@@ -22,6 +20,7 @@ from import_source_backed_question_bank import (
 from rigor_api.config import get_settings
 from rigor_api.database import create_database_engine
 from rigor_api.knowledge_store import import_knowledge_payload
+from sqlalchemy import Connection, text
 
 REVIEWED_ARCHIVE_SHA256 = (
     "9236110b4c4af1547455998e96f100ce5d2ba945bba1fd02d9194714a11a873b"
