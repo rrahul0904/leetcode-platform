@@ -1,0 +1,48 @@
+name: Source JS Dmitry target
+
+on:
+  push:
+    branches:
+      - agent/source-backed-question-bank
+
+permissions:
+  contents: read
+
+jobs:
+  fingerprint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Scan DmitryNaimark LeetCode Solutions history
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --filter=blob:none --no-checkout https://github.com/DmitryNaimark/leetcode-solutions.git /tmp/repo
+          python - <<'PY'
+          import pathlib, subprocess
+          repo='/tmp/repo'
+          rows=subprocess.check_output(['git','-C',repo,'log','--all','--before=2026-08-02T00:00:00Z','--format=%H %T'], text=True).splitlines()
+          seen=set(); hits=[]
+          code_ext={'.py','.cpp','.cc','.cxx','.c++','.java','.js','.jsx','.ts','.go','.c','.kt','.cs','.dart','.rb','.swift'}
+          for line in rows:
+              commit,tree=line.split()
+              if tree in seen: continue
+              seen.add(tree)
+              paths=subprocess.check_output(['git','-C',repo,'ls-tree','-r','--name-only',tree], text=True).splitlines()
+              dirs=set()
+              for raw in paths:
+                  parent=pathlib.PurePosixPath(raw).parent
+                  while str(parent) not in ('','.'):
+                      dirs.add(str(parent)); parent=parent.parent
+              entries=1+len(paths)+len(dirs)
+              code=sum(pathlib.PurePosixPath(p).suffix.lower() in code_ext for p in paths)
+              useful=sum(pathlib.PurePosixPath(p).suffix.lower() in code_ext|{'.md','.txt'} for p in paths)
+              js=sum(pathlib.PurePosixPath(p).suffix.lower() in {'.js','.jsx'} for p in paths)
+              if entries==288 or (useful==222 and code==210):
+                  hit=(commit,tree,entries,len(paths),useful,code,js)
+                  hits.append(hit)
+                  print('DMITRY_CANDIDATE sha=%s tree=%s entries=%s files=%s useful=%s code=%s js=%s'%hit)
+              if entries==288 and useful==222 and code==210:
+                  print('DMITRY_EXACT sha=%s tree=%s entries=%s files=%s useful=%s code=%s js=%s'%(commit,tree,entries,len(paths),useful,code,js))
+          print(f'DMITRY_SUMMARY unique_trees={len(seen)} candidates={len(hits)}')
+          PY
