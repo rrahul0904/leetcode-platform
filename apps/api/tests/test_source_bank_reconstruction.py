@@ -29,12 +29,12 @@ def test_source_lock_preserves_reviewed_manifest_contract() -> None:
     assert len(lock["sources"]) == 11
 
 
-def test_release_validation_fails_closed_while_sources_are_not_release_grade() -> None:
+def test_release_validation_fails_closed_while_sources_are_unresolved() -> None:
     lock = rebuild.load_source_lock()
     unresolved = {
         source["archive_name"]
         for source in lock["sources"]
-        if source.get("resolution") not in rebuild.RELEASE_GRADE_RESOLUTIONS
+        if source.get("resolution") == "unresolved"
     }
     assert unresolved
 
