@@ -21,6 +21,9 @@ vi.mock("@/lib/auth", () => ({
     signOut: vi.fn(),
   }),
 }));
+vi.mock("./app-shell", () => ({
+  AppShell: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 
 let pathname = "/";
 
