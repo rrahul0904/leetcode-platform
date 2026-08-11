@@ -125,6 +125,7 @@ services:
       ]
     environment:
       RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
+      RIGOR_GITHUB_API_TOKEN: ${RIGOR_GITHUB_API_TOKEN:-}
       PGOPTIONS: "-c rigor.maintenance_bypass=on"
     secrets:
       - build_ca
@@ -150,6 +151,7 @@ services:
       ]
     environment:
       RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
+      RIGOR_GITHUB_API_TOKEN: ${RIGOR_GITHUB_API_TOKEN:-}
       PGOPTIONS: "-c rigor.maintenance_bypass=on"
     secrets:
       - build_ca

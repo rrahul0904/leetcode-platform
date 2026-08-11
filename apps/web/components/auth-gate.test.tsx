@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AuthGate } from "./auth-gate";
@@ -20,6 +21,9 @@ vi.mock("@/lib/auth", () => ({
     },
     signOut: vi.fn(),
   }),
+}));
+vi.mock("./app-shell", () => ({
+  AppShell: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 let pathname = "/";

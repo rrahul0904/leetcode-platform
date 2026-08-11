@@ -9,6 +9,7 @@ cache while still producing one release-level pass/fail result.
 
 from __future__ import annotations
 
+import argparse
 import subprocess
 import sys
 from pathlib import Path
@@ -17,8 +18,24 @@ ROOT = Path(__file__).resolve().parents[1]
 QUESTION_ROOT = ROOT / "content" / "questions"
 
 
+def discover_reference_tests(package_roots: list[Path]) -> list[Path]:
+    tests: set[Path] = set()
+    for package_root in package_roots:
+        tests.update(package_root.glob("**/test_reference.py"))
+    return sorted(tests)
+
+
 def main() -> int:
-    tests = sorted(QUESTION_ROOT.glob("**/test_reference.py"))
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--extra-package-root",
+        action="append",
+        type=Path,
+        default=[],
+        help="Additional review/quarantine package tree whose references must pass.",
+    )
+    args = parser.parse_args()
+    tests = discover_reference_tests([QUESTION_ROOT, *args.extra_package_root])
     if not tests:
         print("No executable content reference tests were found.", file=sys.stderr)
         return 1

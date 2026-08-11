@@ -16,10 +16,13 @@ jobs:
     name: Clean bootstrap, execution health, backup, and restore
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      RIGOR_GITHUB_API_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Prepare trusted build CA

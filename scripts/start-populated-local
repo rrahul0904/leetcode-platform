@@ -31,6 +31,17 @@ until curl --fail --silent http://localhost:8002/readyz >/dev/null 2>&1 \
   sleep 1
 done
 
+source_bank_installed=false
+if docker compose exec -T api test -f \
+  /app/content/imported/source-backed/question-bank.zip.b64; then
+  echo "Verifying the bundled source-backed question bank..."
+  docker compose exec -T api python \
+    /app/scripts/verify_source_bank_release.py \
+    --database-url \
+    postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
+  source_bank_installed=true
+fi
+
 external_count=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
   "SELECT count(*) FROM external_question_references;")
 hosted_count=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
@@ -47,7 +58,7 @@ if [ "$external_count" -lt 2000 ]; then
   exit 1
 fi
 if [ "$hosted_count" -lt 50 ]; then
-  echo "Expected at least 50 hosted questions; found $hosted_count." >&2
+  echo "Expected at least 50 approved hosted questions; found $hosted_count." >&2
   exit 1
 fi
 if [ "$published_count" -lt 30 ]; then
@@ -61,6 +72,23 @@ fi
 if [ "$controller_ready" -ne 1 ]; then
   echo "Local execution controller or runner health is unavailable." >&2
   exit 1
+fi
+
+if [ "$source_bank_installed" = true ]; then
+  knowledge_count=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+    "SELECT count(*) FROM knowledge_problems WHERE deleted_at IS NULL AND publication_status IN ('published','metadata_only');")
+  company_count=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+    "SELECT count(*) FROM knowledge_companies;")
+  system_design_count=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
+    "SELECT count(*) FROM knowledge_system_design_articles;")
+  if [ "$knowledge_count" -ne 3425 ]; then
+    echo "Expected exactly 3,425 searchable knowledge-bank problems; found $knowledge_count." >&2
+    exit 1
+  fi
+  if [ "$system_design_count" -ne 29 ]; then
+    echo "Expected exactly 29 imported system-design resources; found $system_design_count." >&2
+    exit 1
+  fi
 fi
 
 python_published=$(docker compose exec -T postgres psql -U rigor -d rigor -Atc \
@@ -81,5 +109,10 @@ fi
 echo "Rigor is populated and ready: http://localhost:3001"
 echo "API: http://localhost:8002"
 echo "External references: $external_count | Hosted: $hosted_count | Published: $published_count"
+if [ "$source_bank_installed" = true ]; then
+  echo "Source-backed bank: Problems=$knowledge_count | Companies=$company_count | System design=$system_design_count"
+else
+  echo "Source-backed bank: not installed; run make install-question-bank BANK=/path/to/archive"
+fi
 echo "Execution: controller=ready | Python runner=ready | SQL runner=ready"
 echo "Release allocation: Python=$python_published | SQL=$sql_published | System design=$system_design_published | Other architecture/data=$other_published"
