@@ -118,8 +118,13 @@ PATTERN_RULES: dict[str, str] = {
 
 
 class JsonClient:
-    def __init__(self, ca_file: str | None) -> None:
+    def __init__(
+        self,
+        ca_file: str | None,
+        github_token: str | None = None,
+    ) -> None:
         self.context = ssl.create_default_context(cafile=ca_file) if ca_file else None
+        self.github_token = github_token or os.getenv("RIGOR_GITHUB_API_TOKEN")
         if self.context is not None and hasattr(ssl, "VERIFY_X509_STRICT"):
             # Python 3.13 enables strict X.509 checks that reject some enterprise
             # interception roots. Keep chain and hostname verification enabled,
@@ -127,10 +132,11 @@ class JsonClient:
             self.context.verify_flags &= ~ssl.VERIFY_X509_STRICT
 
     def get(self, url: str) -> dict[str, Any]:
-        request = Request(
-            url,
-            headers={"Accept": "application/json", "User-Agent": USER_AGENT},
-        )
+        headers = {"Accept": "application/json", "User-Agent": USER_AGENT}
+        if self.github_token and url.startswith("https://api.github.com/"):
+            headers["Authorization"] = f"Bearer {self.github_token}"
+            headers["X-GitHub-Api-Version"] = "2022-11-28"
+        request = Request(url, headers=headers)
         with urlopen(request, timeout=30, context=self.context) as response:
             value = json.loads(response.read().decode("utf-8"))
         if not isinstance(value, dict):
