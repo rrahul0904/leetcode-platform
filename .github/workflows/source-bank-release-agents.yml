@@ -34,7 +34,7 @@ jobs:
           enable-cache: true
 
       - name: Install locked Python workspace
-        run: uv sync --frozen
+        run: uv sync --frozen --all-packages
 
       - name: Run release agents in audit mode
         run: |
