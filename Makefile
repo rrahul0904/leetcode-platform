@@ -58,8 +58,10 @@ release-check: rebuild-question-bank
 
 # Multi-agent source-bank audit. Missing external evidence is reported as BLOCKED
 # while hard contradictions/errors are reported as FAIL. Use the enforce target
-# when every release concern must be green.
+# when every release concern must be green. Sync every workspace package first so
+# the coordinator can invoke the API/database release verifier from a clean clone.
 release-agents:
+	uv sync --frozen --all-packages
 	uv run python scripts/source_bank_release_agents.py \
 		--work "$(SOURCE_BANK_AGENT_WORK)" \
 		$(if $(SOURCE_ARCHIVE_DIR),--source-archive-dir "$(SOURCE_ARCHIVE_DIR)",) \
@@ -69,6 +71,7 @@ release-agents:
 		$(if $(RUN_SUBMIT_PROOF),--run-submit-proof "$(RUN_SUBMIT_PROOF)",)
 
 release-agents-enforce:
+	uv sync --frozen --all-packages
 	uv run python scripts/source_bank_release_agents.py \
 		--work "$(SOURCE_BANK_AGENT_WORK)" \
 		$(if $(SOURCE_ARCHIVE_DIR),--source-archive-dir "$(SOURCE_ARCHIVE_DIR)",) \
