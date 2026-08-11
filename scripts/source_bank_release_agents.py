@@ -23,10 +23,17 @@ import shutil
 import subprocess
 import sys
 import zipfile
+from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
-from typing import Mapping, Sequence, cast
+from typing import cast
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS_DIRECTORY = ROOT / "scripts"
+scripts_path = str(SCRIPTS_DIRECTORY)
+if scripts_path not in sys.path:
+    sys.path.insert(0, scripts_path)
 
 try:
     from fingerprint_source_repository import (
@@ -79,7 +86,6 @@ except ModuleNotFoundError:
     )
     from scripts.verify_source_bank_release import verify_release
 
-ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIRECTORY = ROOT / "content" / "imported" / "source-backed"
 DEFAULT_LOCK = SOURCE_DIRECTORY / "source-lock.json"
 DEFAULT_WORK = ROOT / ".work" / "source-bank-release-agents"
@@ -776,6 +782,21 @@ def rights_agent(context: AgentContext) -> AgentResult:
     )
 
 
+def _proof_object(
+    proof: Mapping[str, object],
+    key: str,
+    blockers: list[str],
+) -> dict[str, object]:
+    raw = proof.get(key)
+    if not isinstance(raw, dict):
+        blockers.append(f"run_submit_proof.{key} must be an object")
+        return {}
+    return {
+        str(item_key): item_value
+        for item_key, item_value in cast(dict[object, object], raw).items()
+    }
+
+
 def _validate_run_submit_proof(
     proof_path: Path,
     *,
@@ -796,18 +817,9 @@ def _validate_run_submit_proof(
             "run_submit_proof.package_id is not an approved executable package"
         )
 
-    run = proof.get("run")
-    submit = proof.get("submit")
-    idempotency = proof.get("idempotency")
-    if not isinstance(run, dict):
-        blockers.append("run_submit_proof.run must be an object")
-        run = {}
-    if not isinstance(submit, dict):
-        blockers.append("run_submit_proof.submit must be an object")
-        submit = {}
-    if not isinstance(idempotency, dict):
-        blockers.append("run_submit_proof.idempotency must be an object")
-        idempotency = {}
+    run = _proof_object(proof, "run", blockers)
+    submit = _proof_object(proof, "submit", blockers)
+    idempotency = _proof_object(proof, "idempotency", blockers)
 
     if str(run.get("status") or "") != "COMPLETED":
         blockers.append("Run proof must complete successfully")
