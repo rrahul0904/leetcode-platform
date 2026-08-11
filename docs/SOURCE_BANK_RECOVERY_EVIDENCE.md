@@ -56,6 +56,11 @@ Previously plausible catalog repositories including `kamyu104`, `apsolut-javascr
 
 Additional bounded candidates checked on 2026-08-08 also failed: `tiagogodinho/leetcode-solutions` is far below the target at roughly 21 useful / 13 code files in its strongest scanned tree, and `Jaysenso/leetcode-solutions` was scanned across 194 unique historical trees with a strongest neighborhood around 110 useful / 107 code files. `anusontarangkul/LeetCode-Solutions` was not publicly cloneable during verification and therefore cannot supply release-grade evidence.
 
+A final bounded pass on 2026-08-10/11 checked only newly identified candidates rather than repeating the exhausted repository set:
+
+- `anusontarangkul/leetcode-javascript-solutions`: 114 unique historical trees scanned. Commit `85a0d1aaab2c5b42d6c099932ad4623f1257a54e` reaches the raw-entry boundary exactly at 288 and has MIT license evidence, but contains only 203 useful files and 140 recognized code/JavaScript files. It is therefore a packaging-count collision, not the reviewed source.
+- `kaichii/leetcode-solutions`: 583 unique historical trees scanned. No exact match exists. The closest ranked MIT trees are around 282 raw entries but contain only 6 useful files and 4 recognized JavaScript/code files, so the repository has the wrong content shape despite a superficially plausible repository size.
+
 **Conclusion:** no inspected public Git history proves an exact source identity for this uploaded archive. The lock must remain `unresolved` unless the original archive or equivalent stronger provenance evidence is supplied.
 
 ## Unresolved Competitive Programming archive
@@ -87,6 +92,11 @@ Representative near misses demonstrate why independent boundaries are insufficie
 
 Previously evaluated repositories such as `ashutoshm1771`, `om-ashish-soni`, `esbanarango`, `tmwilliamlin168`, `smv1999`, `kothariji`, `Manwe56`, `prasadgujar`, `luctivud`, `shiningflash`, `satyajitghana`, and `jonh14lk` also fail the reviewed combined fingerprint.
 
+The final bounded pass on 2026-08-10/11 added one accessible new candidate and three search-index candidates that no longer expose public source history:
+
+- `cthbst/Competitive-Programming`: 177 unique historical trees scanned, with no exact 470/224/149 match. The closest ranked tree, commit `d7201ca4641f0d66a8e95c532e434372fe82e189`, has 347 raw entries, 168 useful files, and 150 C++ files; its Git-tree content is about 103 MB and it has no detected license file. This is materially different from the reviewed 470-entry / 224-useful / 149-C++ / ~15.7 MiB archive shape.
+- `PabloMessina/Competitive-Programming`, `Slava/competitive-programming`, and `apsc/competitive-programming` surfaced as search candidates, but each now returns GitHub `404 Not Found` and failed public clone. They cannot provide release-grade evidence and are not counted as fingerprint-rejected sources.
+
 **Conclusion:** no inspected public Git history proves the original Competitive Programming archive. The lock must remain `unresolved` unless the original archive or stronger provenance evidence is supplied.
 
 ## Exact corpus payload recovery
@@ -101,7 +111,7 @@ Therefore the exact reviewed normalized payload cannot be recovered from current
 
 The 20 source-backed Python review packages reproduce the reviewed Python fingerprints from `withaarzoo/LeetCode-Solutions` at the pinned source revision. That pinned revision does not contain compatible license evidence for Rigor hosting/redistribution, so these packages remain `rights_review_required` and quarantined outside the canonical publication tree.
 
-They must not be promoted merely to satisfy a Run -> Submit release gate. A source-backed executable Python vertical slice requires explicit compatible rights evidence/approval or an independently authored/licensed replacement package with transparent provenance and publication metadata.
+They must not be promoted merely to satisfy a Run -> Submit release gate. The release assessor enforces this boundary: a candidate cannot become `runnable` unless its rights disposition is `hostable_licensed` and `publication_approved` is explicitly true, in addition to executable/test/editorial requirements. A source-backed executable Python vertical slice therefore requires explicit compatible rights evidence/approval or an independently authored/licensed replacement package with transparent provenance and publication metadata.
 
 ## Release consequence
 
