@@ -1,0 +1,107 @@
+name: Temporary source candidate scan
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  javascript-candidates:
+    name: JS candidate ${{ matrix.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        repository:
+          - kaichii/leetcode-solutions
+          - anusontarangkul/leetcode-javascript-solutions
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Scan historical trees
+        id: scan
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          repo='${{ matrix.repository }}'
+          slug=${repo//\//-}
+          mkdir -p candidate-results
+          python scripts/fingerprint_source_repository.py \
+            --repository "https://github.com/${repo}.git" \
+            --target-entries 288 \
+            --target-useful-files 222 \
+            --target-code-files 210 \
+            --target-language javascript \
+            --before-date 2026-08-02 \
+            --limit 12 \
+            --output "candidate-results/${slug}.json" \
+            2>&1 | tee "candidate-results/${slug}.log"
+      - name: Record scan status
+        if: always()
+        run: |
+          repo='${{ matrix.repository }}'
+          slug=${repo//\//-}
+          printf '%s\n' '${{ steps.scan.outcome }}' > "candidate-results/${slug}.status"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: js-${{ strategy.job-index }}
+          path: candidate-results/
+          retention-days: 7
+
+  competitive-programming-candidates:
+    name: CP candidate ${{ matrix.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        repository:
+          - PabloMessina/Competitive-Programming
+          - Slava/competitive-programming
+          - apsc/competitive-programming
+          - cthbst/competitive-programming
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Scan historical trees
+        id: scan
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          repo='${{ matrix.repository }}'
+          slug=${repo//\//-}
+          mkdir -p candidate-results
+          python scripts/fingerprint_source_repository.py \
+            --repository "https://github.com/${repo}.git" \
+            --target-entries 470 \
+            --target-useful-files 224 \
+            --target-language cpp \
+            --target-language-count 149 \
+            --before-date 2026-08-02 \
+            --limit 12 \
+            --output "candidate-results/${slug}.json" \
+            2>&1 | tee "candidate-results/${slug}.log"
+      - name: Record scan status
+        if: always()
+        run: |
+          repo='${{ matrix.repository }}'
+          slug=${repo//\//-}
+          printf '%s\n' '${{ steps.scan.outcome }}' > "candidate-results/${slug}.status"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cp-${{ strategy.job-index }}
+          path: candidate-results/
+          retention-days: 7
