@@ -16,6 +16,8 @@ jobs:
     name: Clean bootstrap, execution health, backup, and restore
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      RIGOR_GITHUB_API_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
