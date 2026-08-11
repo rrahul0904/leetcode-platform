@@ -41,8 +41,6 @@ jobs:
           text = compose.read_text()
           marker = '''      RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor\n      PGOPTIONS: "-c rigor.maintenance_bypass=on"\n'''
           replacement = '''      RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor\n      RIGOR_GITHUB_API_TOKEN: ${RIGOR_GITHUB_API_TOKEN:-}\n      PGOPTIONS: "-c rigor.maintenance_bypass=on"\n'''
-          # Only catalog and catalog-init should receive the token; they are the first
-          # two matching maintenance-bypass service blocks after seed.
           first = text.find(marker, text.find('  catalog:\n'))
           if first < 0:
               raise SystemExit('catalog environment marker missing')
@@ -53,22 +51,13 @@ jobs:
               raise SystemExit('catalog-init environment marker missing')
           text = text[:second] + text[second:].replace(marker, replacement, 1)
           compose.write_text(text)
-
-          workflow = Path('.github/workflows/local-docker.yml')
-          text = workflow.read_text()
-          old = '''  local-docker:\n    name: Clean bootstrap, execution health, backup, and restore\n    runs-on: ubuntu-latest\n    timeout-minutes: 45\n'''
-          new = '''  local-docker:\n    name: Clean bootstrap, execution health, backup, and restore\n    runs-on: ubuntu-latest\n    timeout-minutes: 45\n    env:\n      RIGOR_GITHUB_API_TOKEN: ${{ github.token }}\n'''
-          if old not in text:
-              raise SystemExit('local Docker job marker missing')
-          text = text.replace(old, new, 1)
-          workflow.write_text(text)
           PY
 
       - name: Commit repair
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add scripts/collect_external_references.py compose.yaml .github/workflows/local-docker.yml
+          git add scripts/collect_external_references.py compose.yaml
           if git diff --cached --quiet; then
             echo 'No repair required.'
             exit 0
