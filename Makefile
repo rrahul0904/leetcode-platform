@@ -1,8 +1,14 @@
-.PHONY: bootstrap reset-local verify-local stop-local logs-local backup-local restore-local release-local release-check rebuild-question-bank install-question-bank import-question-bank validate-question-bank assess-question-bank materialize-question-bank test-content
+.PHONY: bootstrap reset-local verify-local stop-local logs-local backup-local restore-local release-local release-check rebuild-question-bank install-question-bank import-question-bank validate-question-bank assess-question-bank materialize-question-bank test-content release-agents release-agents-enforce
 
 SOURCE_REVIEW_OUTPUT ?= content/imported/source-backed/materialized/python
 SOURCE_BANK_ARCHIVE ?= content/imported/source-backed/question-bank.zip.b64
 SOURCE_BANK_REBUILD_WORK ?= .work/source-bank-rebuild
+SOURCE_BANK_AGENT_WORK ?= .work/source-bank-release-agents
+SOURCE_ARCHIVE_DIR ?=
+REVIEWED_CORPUS ?=
+RELEASE_DATABASE_URL ?=
+GOVERNANCE_APPROVAL ?=
+RUN_SUBMIT_PROOF ?=
 
 bootstrap:
 	./scripts/start-populated-local
@@ -49,6 +55,28 @@ release-check: rebuild-question-bank
 	$(MAKE) validate-question-bank
 	$(MAKE) assess-question-bank
 	sh scripts/release-local
+
+# Multi-agent source-bank audit. Missing external evidence is reported as BLOCKED
+# while hard contradictions/errors are reported as FAIL. Use the enforce target
+# when every release concern must be green.
+release-agents:
+	uv run python scripts/source_bank_release_agents.py \
+		--work "$(SOURCE_BANK_AGENT_WORK)" \
+		$(if $(SOURCE_ARCHIVE_DIR),--source-archive-dir "$(SOURCE_ARCHIVE_DIR)",) \
+		$(if $(REVIEWED_CORPUS),--reviewed-corpus "$(REVIEWED_CORPUS)",) \
+		$(if $(RELEASE_DATABASE_URL),--database-url "$(RELEASE_DATABASE_URL)",) \
+		$(if $(GOVERNANCE_APPROVAL),--approval-file "$(GOVERNANCE_APPROVAL)",) \
+		$(if $(RUN_SUBMIT_PROOF),--run-submit-proof "$(RUN_SUBMIT_PROOF)",)
+
+release-agents-enforce:
+	uv run python scripts/source_bank_release_agents.py \
+		--work "$(SOURCE_BANK_AGENT_WORK)" \
+		$(if $(SOURCE_ARCHIVE_DIR),--source-archive-dir "$(SOURCE_ARCHIVE_DIR)",) \
+		$(if $(REVIEWED_CORPUS),--reviewed-corpus "$(REVIEWED_CORPUS)",) \
+		$(if $(RELEASE_DATABASE_URL),--database-url "$(RELEASE_DATABASE_URL)",) \
+		$(if $(GOVERNANCE_APPROVAL),--approval-file "$(GOVERNANCE_APPROVAL)",) \
+		$(if $(RUN_SUBMIT_PROOF),--run-submit-proof "$(RUN_SUBMIT_PROOF)",) \
+		--enforce-release
 
 install-question-bank:
 	@test -n "$(BANK)" || (echo "Usage: make install-question-bank BANK=/path/to/rigor_source_backed_question_bank.zip" >&2; exit 2)
