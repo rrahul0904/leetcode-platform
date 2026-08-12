@@ -1,0 +1,66 @@
+name: Python test diagnostics
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-test-diagnostics-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: Pytest with retained report
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install locked Python workspace
+        run: uv sync --frozen --all-packages
+
+      - name: Start integration PostgreSQL
+        run: docker compose up -d --wait postgres
+
+      - name: Upgrade and seed database
+        env:
+          RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
+          RIGOR_SEED_DATABASE_URL: postgresql://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
+          PGOPTIONS: -c rigor.maintenance_bypass=on
+        run: |
+          uv run alembic upgrade head
+          uv run python scripts/seed_database.py
+
+      - name: Run Python tests
+        run: |
+          set -o pipefail
+          uv run pytest -q --tb=short --junitxml=pytest-results.xml 2>&1 | tee pytest-output.txt
+
+      - name: Upload Python test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: python-test-diagnostics
+          path: |
+            pytest-output.txt
+            pytest-results.xml
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Stop integration services
+        if: always()
+        run: docker compose down -v

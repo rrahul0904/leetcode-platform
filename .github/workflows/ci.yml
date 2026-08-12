@@ -225,7 +225,7 @@ jobs:
 
       - name: Verify execution and knowledge schemas
         run: |
-          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260802_0015"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260803_0016"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_outbox') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_payloads') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_public_results') IS NOT NULL")" = "t"
@@ -241,6 +241,7 @@ jobs:
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT NOT rolbypassrls FROM pg_roles WHERE rolname='rigor_execution_worker'")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT NOT rolbypassrls FROM pg_roles WHERE rolname='rigor_execution_reconciler'")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT NOT rolbypassrls FROM pg_roles WHERE rolname='rigor_executor'")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT has_table_privilege('rigor_readonly', 'public.local_execution_queue', 'SELECT')")" = "t"
 
       - name: Downgrade and re-upgrade local execution migration
         env:

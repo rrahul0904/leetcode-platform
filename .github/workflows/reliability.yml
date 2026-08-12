@@ -1,0 +1,152 @@
+name: Reliability evidence
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reliability-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  COMPOSE_FILE: compose.yaml:compose.reliability.yaml
+
+jobs:
+  reliability:
+    name: Browser E2E, resilience, observability, and capacity
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.18.0"
+
+      - name: Prepare trusted build CA
+        run: cp /etc/ssl/certs/ca-certificates.crt infra/certs/local-build-ca.pem
+
+      - name: Validate Compose sources
+        run: |
+          docker compose config --quiet
+          docker compose -f compose.yaml -f compose.observability.yaml --profile observability config --quiet
+
+      - name: Clean populated bootstrap with recovery settings
+        run: |
+          mkdir -p artifacts
+          started=$(date +%s)
+          make bootstrap
+          finished=$(date +%s)
+          printf '%s\n' "$((finished - started))" > artifacts/bootstrap-seconds.txt
+          make verify-local
+
+      - name: Start and verify optional observability profile
+        run: |
+          set -eu
+          compose_observe() {
+            docker compose -f compose.yaml -f compose.reliability.yaml -f compose.observability.yaml --profile observability "$@"
+          }
+          wait_http() {
+            url=$1
+            label=$2
+            attempt=0
+            until curl --fail --silent "$url" >/dev/null 2>&1; do
+              attempt=$((attempt + 1))
+              if [ "$attempt" -ge 60 ]; then
+                echo "$label did not become ready: $url" >&2
+                exit 1
+              fi
+              sleep 2
+            done
+          }
+          compose_observe up -d --wait execution-metrics prometheus otel-collector grafana
+          wait_http http://localhost:9090/-/ready Prometheus
+          wait_http http://localhost:3002/api/health Grafana
+
+          attempt=0
+          until compose_observe exec -T prometheus wget -qO- http://execution-metrics:9108/metrics \
+            | tee artifacts/execution-metrics.prom \
+            | grep -q '^rigor_execution_metrics_up 1$'; do
+            attempt=$((attempt + 1))
+            if [ "$attempt" -ge 30 ]; then
+              echo "Execution metrics did not become available." >&2
+              exit 1
+            fi
+            sleep 2
+          done
+
+          attempt=0
+          until compose_observe exec -T prometheus wget -qO- \
+            'http://localhost:9090/api/v1/query?query=rigor_execution_queue_depth' \
+            | tee artifacts/prometheus-query.json \
+            | grep -q 'rigor_execution_queue_depth'; do
+            attempt=$((attempt + 1))
+            if [ "$attempt" -ge 30 ]; then
+              echo "Prometheus did not ingest execution queue metrics." >&2
+              exit 1
+            fi
+            sleep 2
+          done
+
+      - name: Install isolated browser-test runtime
+        run: |
+          mkdir -p .e2e-runtime
+          npm install --prefix .e2e-runtime --no-save --ignore-scripts playwright@1.55.0 axe-core@4.10.3
+          node .e2e-runtime/node_modules/playwright/cli.js install --with-deps chromium
+
+      - name: Candidate browser journeys and execution failure injection
+        env:
+          NODE_PATH: ${{ github.workspace }}/.e2e-runtime/node_modules
+        run: node tests/e2e/rigor-reliability.cjs
+
+      - name: Measure local capacity and explicit backpressure
+        run: make capacity-local
+
+      - name: Validate generated evidence
+        run: |
+          test -s artifacts/capacity/capacity-summary.json
+          test -s artifacts/capacity/container-stats.txt
+          test -s test-results/rigor-e2e/execution-evidence.json
+          python3 -m json.tool artifacts/capacity/capacity-summary.json >/dev/null
+          python3 -m json.tool test-results/rigor-e2e/execution-evidence.json >/dev/null
+
+      - name: Capture compact diagnostics
+        if: always()
+        run: |
+          mkdir -p artifacts
+          {
+            echo '=== compose ps ==='
+            docker compose -f compose.yaml -f compose.reliability.yaml -f compose.observability.yaml --profile observability ps --all || true
+            echo '=== controller status ==='
+            docker compose exec -T postgres psql -U rigor -d rigor -x -c 'SELECT * FROM local_execution_controller_status' || true
+            echo '=== queue ==='
+            docker compose exec -T postgres psql -U rigor -d rigor -x -c 'SELECT id, visible_at, receive_count, created_at FROM local_execution_queue ORDER BY created_at' || true
+            echo '=== terminal errors ==='
+            docker compose exec -T postgres psql -U rigor -d rigor -x -c "SELECT state, attempt_count, error_category, count(*) FROM execution_requests GROUP BY state, attempt_count, error_category ORDER BY state, attempt_count" || true
+            echo '=== recent application and runner logs ==='
+            docker compose logs --tail=120 api execution-controller python-runner sql-runner execution-postgres || true
+            echo '=== recent observability logs ==='
+            docker compose -f compose.yaml -f compose.reliability.yaml -f compose.observability.yaml --profile observability logs --tail=160 execution-metrics prometheus otel-collector grafana || true
+          } > artifacts/reliability-diagnostics.txt 2>&1
+
+      - name: Upload reliability evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: reliability-evidence
+          path: |
+            artifacts/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Stop complete stack
+        if: always()
+        run: docker compose -f compose.yaml -f compose.reliability.yaml -f compose.observability.yaml --profile observability down --volumes --remove-orphans
