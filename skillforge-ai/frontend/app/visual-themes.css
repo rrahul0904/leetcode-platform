@@ -1,0 +1,34 @@
+/* SkillForge visual theme tokens. Keep layout/components stable while visual direction is evaluated. */
+.sf-app[data-sf-theme="obsidian"]{
+  --sf-bg:#07090B;--sf-s1:#0D1115;--sf-s2:#121820;--sf-s3:#171D24;--sf-line:#242B33;--sf-active:#A3FF12;--sf-text:#F7F8FA;--sf-secondary:#C8CED5;--sf-muted:#727D88;--sf-cyan:#A3FF12;--sf-blue:#A3FF12;--sf-violet:#C0FF6A;--sf-emerald:#59C891;--sf-amber:#E0A84F;--sf-rose:#E36B72;
+  color-scheme:dark;background:#07090B;color:#F7F8FA;
+}
+.sf-app[data-sf-theme="navy"]{
+  --sf-bg:#07111F;--sf-s1:#0B1728;--sf-s2:#102038;--sf-s3:#142742;--sf-line:#21344C;--sf-active:#8FD3FF;--sf-text:#F5F9FF;--sf-secondary:#D3E2F0;--sf-muted:#7E95AA;--sf-cyan:#8FD3FF;--sf-blue:#8FD3FF;--sf-violet:#B5DFFF;--sf-emerald:#68D5B2;--sf-amber:#F0B95F;--sf-rose:#F38288;
+  color-scheme:dark;background:#07111F;color:#F5F9FF;
+}
+.sf-app[data-sf-theme="carbon"]{
+  --sf-bg:#11100E;--sf-s1:#171512;--sf-s2:#1F1C18;--sf-s3:#26221C;--sf-line:#332E27;--sf-active:#F6B73C;--sf-text:#F3EDE2;--sf-secondary:#D9D0C3;--sf-muted:#8D8477;--sf-cyan:#F6B73C;--sf-blue:#F6B73C;--sf-violet:#FFD983;--sf-emerald:#6FC39F;--sf-amber:#E9B65A;--sf-rose:#E07A7A;
+  color-scheme:dark;background:#11100E;color:#F3EDE2;
+}
+
+.sf-app[data-sf-theme]{background:var(--sf-bg)!important;color:var(--sf-text)!important}
+.sf-app[data-sf-theme] .sf-sidebar{background:var(--sf-s1)!important;border-color:var(--sf-line)!important;backdrop-filter:none!important}
+.sf-app[data-sf-theme] .sf-topbar{background:color-mix(in srgb,var(--sf-bg) 92%,transparent)!important;border-color:var(--sf-line)!important}
+.sf-app[data-sf-theme] .sf-brand-mark{background:var(--sf-active)!important;color:var(--sf-bg)!important;box-shadow:none!important}
+.sf-app[data-sf-theme] .sf-brand-copy em,.sf-app[data-sf-theme] .sf-eyebrow{color:var(--sf-active)!important}
+.sf-app[data-sf-theme] .sf-nav-item{color:var(--sf-muted)!important}
+.sf-app[data-sf-theme] .sf-nav-item:hover{background:var(--sf-s2)!important;color:var(--sf-text)!important}
+.sf-app[data-sf-theme] .sf-nav-item.active{background:color-mix(in srgb,var(--sf-active) 9%,var(--sf-s2))!important;color:var(--sf-text)!important;box-shadow:inset 2px 0 0 var(--sf-active)!important}
+.sf-app[data-sf-theme] .sf-card,.sf-app[data-sf-theme] .sf-question-card,.sf-app[data-sf-theme] .sf-table-wrap,.sf-app[data-sf-theme] .sf-search-input,.sf-app[data-sf-theme] .sf-filter-bar select,.sf-app[data-sf-theme] .sf-filter-button,.sf-app[data-sf-theme] .sf-view-toggle button,.sf-app[data-sf-theme] .sf-command-trigger,.sf-app[data-sf-theme] .sf-icon-button,.sf-app[data-sf-theme] .sf-avatar{background:var(--sf-s1)!important;border-color:var(--sf-line)!important;color:var(--sf-text)!important;box-shadow:none!important}
+.sf-app[data-sf-theme] .sf-card:before{display:none!important}
+.sf-app[data-sf-theme] .sf-btn-primary{background:var(--sf-active)!important;color:var(--sf-bg)!important;box-shadow:none!important}
+.sf-app[data-sf-theme] .sf-skill-row i,.sf-app[data-sf-theme] .sf-path-progress i{background:var(--sf-active)!important}
+.sf-app[data-sf-theme] .sf-question-card:hover,.sf-app[data-sf-theme] .sf-question-table tbody tr:hover{background:var(--sf-s2)!important;border-color:color-mix(in srgb,var(--sf-active) 28%,var(--sf-line))!important}
+.sf-app[data-sf-theme] .sf-view-toggle button.active{background:color-mix(in srgb,var(--sf-active) 10%,var(--sf-s2))!important;color:var(--sf-text)!important}
+.sf-app[data-sf-theme] .sf-question-table th{background:var(--sf-s2)!important;color:var(--sf-muted)!important}
+.sf-app[data-sf-theme] .sf-match-score,.sf-app[data-sf-theme] .sf-violet,.sf-app[data-sf-theme] .sf-violet-icon{color:var(--sf-active)!important}
+.sf-app[data-sf-theme] .sf-theme-switcher{display:flex;gap:5px;align-items:center}
+.sf-app[data-sf-theme] .sf-theme-chip{border:1px solid var(--sf-line);background:var(--sf-s1);color:var(--sf-muted);border-radius:8px;padding:6px 8px;font-size:9px}
+.sf-app[data-sf-theme] .sf-theme-chip.active{border-color:var(--sf-active);color:var(--sf-text);box-shadow:inset 0 0 0 1px var(--sf-active)}
+@media(max-width:880px){.sf-app[data-sf-theme] .sf-theme-switcher{display:none}}
