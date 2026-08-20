@@ -1,24 +1,31 @@
 {
   "name": "skillforge-ai-frontend",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint ."
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.57.0",
     "@tanstack/react-query": "^5.85.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "framer-motion": "^12.23.12",
     "lucide-react": "^0.541.0",
     "next": "^16.0.0",
     "next-themes": "^0.4.6",
+    "radix-ui": "^1.4.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-hook-form": "^7.62.0",
+    "recharts": "^3.1.2",
     "sonner": "^2.0.7",
+    "tailwind-merge": "^3.3.1",
     "zod": "^4.1.5",
     "zustand": "^5.0.8"
   },
@@ -27,6 +34,8 @@
     "@types/node": "^22.18.0",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
+    "eslint": "^9.35.0",
+    "eslint-config-next": "^16.0.0",
     "tailwindcss": "^4.1.12",
     "typescript": "^5.9.2"
   }
