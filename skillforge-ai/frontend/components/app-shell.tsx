@@ -33,7 +33,7 @@ export function AppShell({ view, setView, children }: { view: View; setView: (vi
     <aside className={collapsed ? "sf-sidebar collapsed" : "sf-sidebar"}>
       <button className="sf-brand" onClick={() => navigate("dashboard")}><span className="sf-brand-mark">S</span><span className="sf-brand-copy"><b>SkillForge <em>AI</em></b><small>Interview Workstation</small></span></button>
       <nav>{groups.map(group => <div key={group.label} className="sf-nav-group"><div className="sf-nav-label">{group.label}</div>{group.items.map(([id,label,Icon]) => <button key={id} className={view === id ? "sf-nav-item active" : "sf-nav-item"} onClick={() => navigate(id)}><Icon size={17}/><span>{label}</span></button>)}</div>)}</nav>
-      <div className="sf-side-status"><div><span>Corpus</span><StatusBadge status="ready"/></div><div><span>Intelligence</span><StatusBadge status="ai"/></div><small>24,800 indexed · demo environment</small></div>
+      <div className="sf-side-status"><div><span>Corpus schema</span><StatusBadge status="ready"/></div><div><span>AI/search contracts</span><StatusBadge status="ai"/></div><small>24,800 normalized source records · demo subset active</small></div>
       <button className="sf-collapse" onClick={() => setCollapsed(v => !v)}><ChevronsLeft size={16}/><span>Collapse</span></button>
     </aside>
 
@@ -44,7 +44,7 @@ export function AppShell({ view, setView, children }: { view: View; setView: (vi
         <button className="sf-mobile-menu" onClick={() => setMobileOpen(true)}><Menu size={18}/></button>
         <button className="sf-command-trigger" onClick={() => setCommandOpen(true)}><Search size={16}/><span>Search questions, topics, commands…</span><kbd>⌘K</kbd></button>
         <div className="sf-topbar-right">
-          <span className="sf-sync"><span/>Vector index ready</span>
+          <span className="sf-sync"><span/>Environment-aware retrieval</span>
           <button className="sf-avatar">RS</button>
         </div>
       </header>
