@@ -1,0 +1,30 @@
+{
+  "banks": [
+    {"bank":"supporting_source_registry","bytes":3200,"file":"00_supporting_source_registry.json","problems":0,"sha256":"05774015a874f8efe4b23ef60ab501bdb8e49549cf958c2a742a8d286141c759","solutions":0},
+    {"bank":"ai_architect","bytes":3481204,"file":"ai_architect.json","problems":1000,"sha256":"1006a81683b76e2799fae6493f08d25f228e959b63c00353a967caacb9391338","solutions":1000},
+    {"bank":"claude_system_design","bytes":4193510,"file":"claude_system_design.json","problems":1000,"sha256":"b2b4b0ee5a08f77ca09f348a8ad2a97a807416d1f8ef0208d27726c94de72013","solutions":1000},
+    {"bank":"cloud_aws","bytes":2388271,"file":"cloud_aws.json","problems":700,"sha256":"64c1d88b7d2ea6059b37cc545f53836399f5e40963b20adf974678cc8154ab80","solutions":700},
+    {"bank":"cloud_azure","bytes":2234511,"file":"cloud_azure.json","problems":650,"sha256":"26086cbd1179d4c2a8048f11a39fd68913ab02c0f9b5684f758a13c18e1e65b5","solutions":650},
+    {"bank":"cloud_gcp","bytes":2201171,"file":"cloud_gcp.json","problems":650,"sha256":"fe3ec1a3e5ce57243179708bf1d4916864e6ab6790eb381da9affad89b8ac09b","solutions":650},
+    {"bank":"codex_system_design","bytes":4437556,"file":"codex_system_design.json","problems":1000,"sha256":"e7f290d220ec0af119d67ef6ec05351a161696fff0c3e8fe3c4f522de3622f80","solutions":1000},
+    {"bank":"de_airflow","bytes":3683854,"file":"de_airflow.json","problems":1000,"sha256":"260aed2663f5ddf0942fad740e6fde6735ff3fdcae4609d1b2b09ea7775dc4ea","solutions":1000},
+    {"bank":"de_bigquery","bytes":3832655,"file":"de_bigquery.json","problems":1000,"sha256":"10fbf82b78853e9ab8a9bdf9a1dacc4f37edc394059b6d361167d9c8c76e9cec","solutions":1000},
+    {"bank":"de_databricks","bytes":3919221,"file":"de_databricks.json","problems":1000,"sha256":"007433812c14a97b622a536c5cd716dcfdcd14e1f91eb444f9ea5c5b6fd06b2a","solutions":1000},
+    {"bank":"de_snowflake","bytes":3938206,"file":"de_snowflake.json","problems":1000,"sha256":"29bbf2c7c4f006b25683880ad8d7bf7b6251c6ec384e473390804605e118cf96","solutions":1000},
+    {"bank":"de_spark","bytes":3599080,"file":"de_spark.json","problems":1000,"sha256":"12b02c0bebb841b48116e770f253279e1ad5075d8a762e8ad0af6ae67869baaa","solutions":1000},
+    {"bank":"de_sql","bytes":3774300,"file":"de_sql.json","problems":1000,"sha256":"30d393efed93ac1923110cda4c60cec4bc8dd370b3ec628e8fab82f82bdbc633","solutions":1000},
+    {"bank":"enterprise_scenarios_1800","bytes":11587195,"file":"enterprise_scenarios_1800.json","problems":1800,"sha256":"360dfc9041647af5b28cf68bcc951ffe04eaa363159fd33f05bec564f230a27d","solutions":1800},
+    {"bank":"pyspark_coding","bytes":2426306,"file":"pyspark_coding.json","problems":1000,"sha256":"e252fd0bd991c0e0dd6ccca856d320f633ffa4537d083e20e7e8976a6d6ba2dc","solutions":1000},
+    {"bank":"pyspark_scenarios","bytes":3101789,"file":"pyspark_scenarios.json","problems":1000,"sha256":"318ff1217b005d99d26034b23f772ee0f2d872ea3172f0df60013ee6bd1fab18","solutions":1000},
+    {"bank":"python","bytes":5562544,"file":"python.json","problems":2000,"sha256":"155ed9899dc699e4e0158f2fce53ab42da8384a03bd49146c28874d3d8f61c19","solutions":2000},
+    {"bank":"snowflake_advanced_architect","bytes":3653830,"file":"snowflake_advanced_architect.json","problems":1000,"sha256":"e1ae8055998a0561f22871ce4416886eeaa8abc8d0233bd4100f19414eda115b","solutions":1000},
+    {"bank":"snowflake_core","bytes":3528360,"file":"snowflake_core.json","problems":1000,"sha256":"d9ed4e0c9b25c0d442e3ce4845f39360c636935bf4c0b96eb65bcab549aefd9d","solutions":1000},
+    {"bank":"snowflake_data_engineer","bytes":3551128,"file":"snowflake_data_engineer.json","problems":1000,"sha256":"0f4369cd588d4b90cf59cf353ab61f3c848882663e365a00b43370eabb77ea30","solutions":1000},
+    {"bank":"sql_leetcode","bytes":8655558,"file":"sql_leetcode.json","problems":3000,"sha256":"6dcdd15d05aa1099c1249178fe6a67cadc91649c743dc4c43f0a80d7de6fe5e2","solutions":3000},
+    {"bank":"sql_scenarios","bytes":3710750,"file":"sql_scenarios.json","problems":1000,"sha256":"55f0869ba18c999b3830473fc81fb419b4911949f1a3b95d36ddee9c4be2f6da","solutions":1000},
+    {"bank":"system_design","bytes":5144563,"file":"system_design.json","problems":1000,"sha256":"0e94b768434e45e75013c8d4cb017f085cd79d45813f4e0baa7524f81c51e728","solutions":1000}
+  ],
+  "total_banks": 22,
+  "total_problems": 24800,
+  "total_solutions": 24800
+}
