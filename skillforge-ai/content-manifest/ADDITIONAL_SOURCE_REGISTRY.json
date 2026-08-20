@@ -1,0 +1,97 @@
+{
+  "policy_version": "2026-08-20",
+  "states": {
+    "HOSTABLE_LICENSED": "License evidence is present and content may be imported subject to attribution and compatibility review.",
+    "EXTERNAL_REFERENCE_ONLY": "Retain identifiers, titles, URLs, company/topic observations and derived metadata; do not copy protected statements or solutions.",
+    "RIGHTS_REVIEW_REQUIRED": "Keep extracted content in quarantine/review until publishing rights are confirmed.",
+    "REJECTED_PROPRIETARY": "Do not ingest into the candidate-facing catalog."
+  },
+  "sources": [
+    {
+      "archive": "LeetCode-Problem-Solution-main.zip",
+      "kind": ["problem_metadata", "solution_code", "blind75_discovery"],
+      "observed_scale": "~353 numbered problem folders; 462 code files across 7 languages",
+      "rights_state": "RIGHTS_REVIEW_REQUIRED",
+      "use": "Parser fixtures, metadata discovery and canonical identity matching; no candidate publication without rights approval."
+    },
+    {
+      "archive": "LeetCode-Solutions-main.zip",
+      "kind": ["solution_variants", "editorials", "multi_language_code"],
+      "observed_scale": "~406 problems; 2,021 code files; 408 Markdown files",
+      "rights_state": "RIGHTS_REVIEW_REQUIRED",
+      "use": "Strong multi-language adapter source; quarantine because the inspected package did not include a usable license."
+    },
+    {
+      "archive": "LeetCode-Solutions-master.zip",
+      "kind": ["solution_code", "topic_metadata", "complexity_metadata"],
+      "observed_scale": "210 code files",
+      "rights_state": "HOSTABLE_LICENSED",
+      "license": "MIT (per inspected source inventory)",
+      "use": "Licensed solution-variant enrichment with source attribution and review."
+    },
+    {
+      "archive": "LeetCode-Solutions-master (1).zip",
+      "kind": ["cpp_solutions", "topic_metadata"],
+      "observed_scale": "108 C++ files",
+      "rights_state": "HOSTABLE_LICENSED",
+      "license": "MIT (per inspected source inventory)",
+      "use": "C++ solution variants and pattern metadata with attribution."
+    },
+    {
+      "archive": "LeetCode-Questions-CompanyWise-master.zip",
+      "kind": ["company_observations", "time_window_metadata"],
+      "observed_scale": "537 CSVs; 20,453 rows",
+      "rights_state": "EXTERNAL_REFERENCE_ONLY",
+      "use": "Company-style interview signals and recency observations; do not copy protected problem statements."
+    },
+    {
+      "archive": "leetcode-company-wise-problems-main.zip",
+      "kind": ["company_observations", "frequency", "topics", "recency"],
+      "observed_scale": "2,350 CSVs; 32,922 rows",
+      "rights_state": "EXTERNAL_REFERENCE_ONLY",
+      "use": "Company normalization, frequency/recency signals and external problem identity."
+    },
+    {
+      "archive": "leetcode-company-wise-problems-main (1).zip",
+      "kind": ["duplicate_package"],
+      "observed_scale": "Exact duplicate of leetcode-company-wise-problems-main.zip",
+      "rights_state": "EXTERNAL_REFERENCE_ONLY",
+      "use": "Skip during ingestion after byte/hash duplicate detection."
+    },
+    {
+      "archive": "leetcode-companywise-interview-questions-master.zip",
+      "kind": ["company_observations", "frequency", "acceptance", "external_urls"],
+      "observed_scale": "1,648 CSVs; 39,353 rows",
+      "rights_state": "EXTERNAL_REFERENCE_ONLY",
+      "use": "External metadata only; inspected source notes premium-account scraping, so no statement/solution ingestion."
+    },
+    {
+      "archive": "Competitive-Programming-master.zip",
+      "kind": ["algorithms", "cpp_patterns", "notes"],
+      "observed_scale": "224 files; 149 C++ files",
+      "rights_state": "RIGHTS_REVIEW_REQUIRED",
+      "use": "Coverage/pattern discovery and parser fixtures; quarantine code and ignore bundled copyrighted PDFs/binaries."
+    },
+    {
+      "archive": "awesome-leetcode-resources-main.zip",
+      "kind": ["dsa_patterns", "multi_language_examples"],
+      "observed_scale": "8 patterns across 7 languages",
+      "rights_state": "EXTERNAL_REFERENCE_ONLY",
+      "license": "GPL-3.0 boundary (per inspected source inventory)",
+      "use": "Link externally or independently re-author concepts rather than mixing GPL implementation code into the proprietary application bundle."
+    },
+    {
+      "archive": "system-design-notes-main.zip",
+      "kind": ["system_design_topics", "diagrams", "coverage_map"],
+      "observed_scale": "29 Markdown files; 392 PNGs",
+      "rights_state": "RIGHTS_REVIEW_REQUIRED",
+      "use": "Use as a coverage map for independently authored system-design material; do not republish notes/diagrams without rights clearance."
+    }
+  ],
+  "company_observation_inventory": {
+    "raw_observations": 92728,
+    "approximate_canonical_problem_keys": 3407,
+    "raw_company_labels": ">1300",
+    "requirement": "Normalize company names and merge observations onto deterministic canonical problem identities."
+  }
+}
