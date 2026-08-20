@@ -1,0 +1,51 @@
+:root{
+  color-scheme:dark;
+  --sf-bg:#0A0B0D;
+  --sf-s1:#0D0F12;
+  --sf-s2:#111418;
+  --sf-s3:#171A20;
+  --sf-line:#282D34;
+  --sf-active:#6F8CFF;
+  --sf-text:#F3F0E8;
+  --sf-secondary:#B9BEC7;
+  --sf-muted:#737A84;
+  --sf-cyan:#6F8CFF;
+  --sf-blue:#6F8CFF;
+  --sf-violet:#8FA3FF;
+  --sf-emerald:#50B88A;
+  --sf-amber:#D8A44A;
+  --sf-rose:#D86E75;
+}
+
+html,body{background:#0A0B0D;color:var(--sf-text)}
+body{background:#0A0B0D!important}
+.sf-sidebar{background:#0D0F12!important;backdrop-filter:none!important}
+.sf-topbar{background:rgba(10,11,13,.96)!important;backdrop-filter:blur(10px)!important}
+.sf-brand-mark{background:#F3F0E8!important;color:#0A0B0D!important;box-shadow:none!important;border-radius:10px!important}
+.sf-brand-copy em{color:#A8B7FF!important}
+.sf-nav-item:hover{background:#15181D!important;color:#F3F0E8!important}
+.sf-nav-item.active{background:#171A20!important;color:#F3F0E8!important;box-shadow:inset 2px 0 0 #6F8CFF!important}
+.sf-side-status,.sf-command-trigger,.sf-icon-button,.sf-avatar,.sf-mobile-menu{background:#111418!important}
+.sf-eyebrow{color:#A8B7FF!important}
+.sf-card{background:#111418!important;box-shadow:0 10px 34px rgba(0,0,0,.28)!important}
+.sf-card:before{display:none!important}
+.sf-glow-cyan,.sf-glow-violet,.sf-glow-emerald{box-shadow:0 10px 34px rgba(0,0,0,.28)!important}
+.sf-hero-card,.sf-coach-card,.sf-semantic-hero{background:#111418!important}
+.sf-btn{background:#15191E!important;color:#ECE9E1!important}
+.sf-btn:hover{border-color:#434A55!important}
+.sf-btn-primary{background:#6F8CFF!important;color:#0A0C11!important;box-shadow:none!important}
+.sf-readiness-ring{background:conic-gradient(#6F8CFF 0 72%,#20252B 72%)!important}
+.sf-readiness-ring:after{background:#111418!important}
+.sf-skill-row i,.sf-path-progress i{background:#6F8CFF!important}
+.sf-question-card,.sf-search-input,.sf-filter-bar select,.sf-filter-button,.sf-view-toggle button,.sf-table-wrap{background:#111418!important}
+.sf-question-card:hover{border-color:#454C57!important;box-shadow:0 10px 26px rgba(0,0,0,.24)!important}
+.sf-view-toggle button.active{background:#1A1E26!important;color:#F3F0E8!important}
+.sf-question-table th{background:#14171B!important}
+.sf-question-table tbody tr:hover{background:#15191E!important}
+.sf-match-score,.sf-violet,.sf-violet-icon{color:#A8B7FF!important}
+.sf-chip-row button,.sf-semantic-prompts button{background:#171A20!important;border-color:#2A3038!important;color:#C9CFD8!important}
+.sf-sync{background:#122019!important;border-color:#274538!important;color:#8ED1B0!important}
+.sf-workspace-page .sf-card,.sf-editor-shell,.sf-run-result,.sf-code-editor{background:#0D0F12!important}
+.sf-command{background:#111418!important;border-color:#30353D!important}
+.sf-command button:hover{background:#171A20!important}
+::selection{background:#36457F;color:#fff}
