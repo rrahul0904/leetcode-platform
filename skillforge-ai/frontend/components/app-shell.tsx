@@ -5,7 +5,6 @@ import { BarChart3, Bookmark, BrainCircuit, ChevronsLeft, Code2, Database, Flask
 import { StatusBadge } from "./primitives";
 
 export type View = "dashboard"|"questions"|"python"|"sql"|"quiz"|"scenarios"|"search"|"progress"|"admin"|"bookmarks"|"paths";
-type VisualTheme = "obsidian" | "navy" | "carbon";
 
 const groups = [
   { label: "Learn", items: [["dashboard","Command Center",Home],["questions","Question Bank",Layers3],["paths","Learning Paths",Trophy],["bookmarks","Bookmarks",Bookmark]] },
@@ -14,21 +13,10 @@ const groups = [
   { label: "Operate", items: [["admin","Content Operations",ShieldCheck]] },
 ] as const;
 
-const themeLabels: { id: VisualTheme; label: string }[] = [
-  { id: "obsidian", label: "Obsidian" },
-  { id: "navy", label: "Navy" },
-  { id: "carbon", label: "Carbon" },
-];
-
 export function AppShell({ view, setView, children }: { view: View; setView: (view: View) => void; children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
-  const [visualTheme, setVisualTheme] = useState<VisualTheme>(() => {
-    if (typeof window === "undefined") return "obsidian";
-    const saved = window.localStorage.getItem("skillforge-visual-theme");
-    return saved === "navy" || saved === "carbon" || saved === "obsidian" ? saved : "obsidian";
-  });
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -39,13 +27,9 @@ export function AppShell({ view, setView, children }: { view: View; setView: (vi
     return () => window.removeEventListener("keydown", keydown);
   }, []);
 
-  useEffect(() => {
-    window.localStorage.setItem("skillforge-visual-theme", visualTheme);
-  }, [visualTheme]);
-
   const navigate = (next: View) => { setView(next); setMobileOpen(false); setCommandOpen(false); };
 
-  return <div className="sf-app" data-sf-theme={visualTheme}>
+  return <div className="sf-app" data-sf-theme="monochrome">
     <aside className={collapsed ? "sf-sidebar collapsed" : "sf-sidebar"}>
       <button className="sf-brand" onClick={() => navigate("dashboard")}><span className="sf-brand-mark">S</span><span className="sf-brand-copy"><b>SkillForge <em>AI</em></b><small>Interview Workstation</small></span></button>
       <nav>{groups.map(group => <div key={group.label} className="sf-nav-group"><div className="sf-nav-label">{group.label}</div>{group.items.map(([id,label,Icon]) => <button key={id} className={view === id ? "sf-nav-item active" : "sf-nav-item"} onClick={() => navigate(id)}><Icon size={17}/><span>{label}</span></button>)}</div>)}</nav>
@@ -61,7 +45,6 @@ export function AppShell({ view, setView, children }: { view: View; setView: (vi
         <button className="sf-command-trigger" onClick={() => setCommandOpen(true)}><Search size={16}/><span>Search questions, topics, commands…</span><kbd>⌘K</kbd></button>
         <div className="sf-topbar-right">
           <span className="sf-sync"><span/>Vector index ready</span>
-          <div className="sf-theme-switcher" aria-label="Visual theme selector">{themeLabels.map(theme => <button key={theme.id} className={visualTheme === theme.id ? "sf-theme-chip active" : "sf-theme-chip"} onClick={() => setVisualTheme(theme.id)}>{theme.label}</button>)}</div>
           <button className="sf-avatar">RS</button>
         </div>
       </header>
