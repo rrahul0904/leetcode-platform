@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  --bg: #071018;
+  --panel: rgba(15, 27, 39, .84);
+  --panel-2: rgba(21, 38, 52, .76);
+  --line: rgba(151, 177, 199, .16);
+  --muted: #8ba0b3;
+  --text: #edf6fb;
+  --cyan: #45e0d0;
+  --blue: #6aa8ff;
+  --green: #6de89a;
+  --amber: #f6c56c;
+  --red: #ff7d86;
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { margin:0; color:var(--text); background:
+  radial-gradient(circle at 15% -10%, rgba(69,224,208,.16), transparent 35%),
+  radial-gradient(circle at 100% 0%, rgba(106,168,255,.13), transparent 28%),
+  linear-gradient(180deg, #071018 0%, #08131d 100%); min-height:100vh; }
+button, input, select, textarea { font: inherit; }
+button { cursor:pointer; }
+::selection { background: rgba(69,224,208,.28); }
+.sf-scroll::-webkit-scrollbar { width: 8px; height:8px; }
+.sf-scroll::-webkit-scrollbar-thumb { background:#2d4658; border-radius:99px; }
+.markdownish h3 { font-size: 1rem; margin: 1rem 0 .45rem; color:#fff; }
+.markdownish pre, .codebox { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background:#040a0f; border:1px solid var(--line); border-radius:12px; padding:14px; overflow:auto; }
