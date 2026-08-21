@@ -5,7 +5,9 @@ on:
       - 'skillforge-ai/**'
       - '.github/workflows/skillforge-ci.yml'
   push:
-    branches: ['feature/skillforge-ai-supabase-demo']
+    branches:
+      - 'feature/skillforge-ai-supabase-demo'
+      - 'feature/skillforge-interactive-demo'
     paths:
       - 'skillforge-ai/**'
       - '.github/workflows/skillforge-ci.yml'
