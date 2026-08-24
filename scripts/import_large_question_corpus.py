@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
-"""Stream a governed large question corpus into the native knowledge bank.
+"""Stream a governed large question corpus into Rigor's native knowledge bank.
 
-The importer is deliberately fail-closed:
+This importer is intentionally fail-closed. It verifies the physical file before
+completion, never treats a manifest as a substitute for source bytes, processes
+records in bounded chunks, keeps global duplicate tracking on disk, checkpoints
+restart state, and never auto-publishes or auto-creates runnable runtime links.
 
-* a manifest never substitutes for a physical source file;
-* the physical file SHA/row count are verified before completion;
-* rows are processed in bounded chunks;
-* duplicate IDs/fingerprints/concept identities are tracked on disk, not in a
-  million-element Python set;
-* imports never auto-publish or auto-create runnable runtime links;
-* checkpoint state is persisted after each committed chunk.
-
-Parquet support uses ``pyarrow`` when installed. JSONL support is stdlib-only and
-is used by unit tests and emergency operator workflows.
+Parquet support uses ``pyarrow`` when it is installed in the operator
+environment. JSONL support is stdlib-only and is also used by the unit tests.
 """
 
 from __future__ import annotations
@@ -26,7 +21,7 @@ import re
 import sqlite3
 import tempfile
 from collections.abc import Iterator, Mapping, Sequence
-from contextlib import AbstractContextManager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
@@ -67,16 +62,20 @@ REQUIRED_COLUMNS = (
     "tags",
     "content_fingerprint",
 )
-
-CLASSIFICATIONS = {
-    "canonical_candidate",
-    "legitimate_variant",
-    "near_concept_duplicate",
-    "reference_only",
-    "runnable_candidate",
-    "review_required",
-    "rejected_quarantined",
-}
+SAFE_REFERENCE_FIELDS = (
+    "question_id",
+    "subject",
+    "platform",
+    "topic",
+    "subtopic",
+    "difficulty",
+    "level",
+    "question_type",
+    "seniority",
+    "industry",
+    "tags",
+    "content_fingerprint",
+)
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 JsonObject = dict[str, object]
 
@@ -85,8 +84,15 @@ class LargeCorpusError(ValueError):
     pass
 
 
-class DuplicateTracker(AbstractContextManager["DuplicateTracker"]):
-    """Disk-backed uniqueness tracker so validation memory stays bounded."""
+@dataclass(frozen=True)
+class PreparedRow:
+    row_number: int
+    row: JsonObject
+    classification: str
+
+
+class DuplicateTracker:
+    """Disk-backed uniqueness/family tracker so million-row validation is bounded."""
 
     def __init__(self) -> None:
         handle = tempfile.NamedTemporaryFile(prefix="rigor-corpus-", suffix=".sqlite3", delete=False)
@@ -103,7 +109,20 @@ class DuplicateTracker(AbstractContextManager["DuplicateTracker"]):
             """
         )
 
+    def __enter__(self) -> DuplicateTracker:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: object,
+    ) -> None:
+        del exc_type, exc_value, traceback
+        self.close()
+
     def _insert_unique(self, table: str, value: str) -> bool:
+        # table is chosen only by the three fixed methods below.
         cursor = self.connection.execute(
             f"INSERT OR IGNORE INTO {table} (value) VALUES (?)",  # noqa: S608
             (value,),
@@ -125,9 +144,13 @@ class DuplicateTracker(AbstractContextManager["DuplicateTracker"]):
         finally:
             self.path.unlink(missing_ok=True)
 
-    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
-        del exc_type, exc, traceback
-        self.close()
+
+def canonical_json(value: object) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def stable_hash(value: object) -> str:
+    return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
 
 
 def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
@@ -138,19 +161,9 @@ def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
     return digest.hexdigest()
 
 
-def canonical_json(value: object) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-
-
-def stable_hash(value: object) -> str:
-    return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
-
-
 def required_text(row: Mapping[str, object], field: str) -> str:
     value = row.get(field)
-    if value is None:
-        raise LargeCorpusError(f"{field} is required")
-    normalized = str(value).strip()
+    normalized = "" if value is None else str(value).strip()
     if not normalized:
         raise LargeCorpusError(f"{field} is required")
     return normalized
@@ -167,27 +180,24 @@ def optional_text(row: Mapping[str, object], field: str) -> str | None:
 def string_list(value: object) -> list[str]:
     if value is None:
         return []
-    if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip()]
-    if isinstance(value, tuple):
+    if isinstance(value, (list, tuple)):
         return [str(item).strip() for item in value if str(item).strip()]
     if isinstance(value, str):
-        text_value = value.strip()
-        if not text_value:
+        stripped = value.strip()
+        if not stripped:
             return []
-        if text_value.startswith("["):
+        if stripped.startswith("["):
             try:
-                decoded: object = json.loads(text_value)
+                decoded: object = json.loads(stripped)
             except json.JSONDecodeError:
                 decoded = None
             if isinstance(decoded, list):
                 return [str(item).strip() for item in decoded if str(item).strip()]
-        return [item.strip() for item in text_value.split("|") if item.strip()]
+        return [item.strip() for item in stripped.split("|") if item.strip()]
     return [str(value).strip()]
 
 
 def normalized_difficulty(value: object) -> str | None:
-    normalized = str(value or "").strip().casefold()
     aliases = {
         "easy": "easy",
         "medium": "medium",
@@ -197,21 +207,21 @@ def normalized_difficulty(value: object) -> str | None:
         "intermediate": "medium",
         "advanced": "hard",
     }
-    return aliases.get(normalized)
+    return aliases.get(str(value or "").strip().casefold())
 
 
 def concept_identity(row: Mapping[str, object]) -> str:
-    """A conservative deterministic family key, not a semantic-uniqueness claim."""
-
-    dimensions = {
-        "subject": str(row.get("subject") or "").strip().casefold(),
-        "platform": str(row.get("platform") or "").strip().casefold(),
-        "topic": str(row.get("topic") or "").strip().casefold(),
-        "subtopic": str(row.get("subtopic") or "").strip().casefold(),
-        "question_type": str(row.get("question_type") or "").strip().casefold(),
-        "expected_approach": str(row.get("expected_approach") or "").strip().casefold(),
-    }
-    return stable_hash(dimensions)
+    """Conservative family key; this is not a semantic-uniqueness claim."""
+    return stable_hash(
+        {
+            "subject": str(row.get("subject") or "").strip().casefold(),
+            "platform": str(row.get("platform") or "").strip().casefold(),
+            "topic": str(row.get("topic") or "").strip().casefold(),
+            "subtopic": str(row.get("subtopic") or "").strip().casefold(),
+            "question_type": str(row.get("question_type") or "").strip().casefold(),
+            "expected_approach": str(row.get("expected_approach") or "").strip().casefold(),
+        }
+    )
 
 
 def validate_row(row: Mapping[str, object]) -> None:
@@ -225,19 +235,16 @@ def validate_row(row: Mapping[str, object]) -> None:
         raise LargeCorpusError("content_fingerprint must be a lowercase SHA-256 hex digest")
 
 
-def classify_row(
-    row: Mapping[str, object],
+def canonical_classification(
     *,
     disposition: SourceDisposition,
     concept_is_new: bool,
 ) -> str:
-    del row
     if disposition is SourceDisposition.REJECTED_PROPRIETARY:
         return "rejected_quarantined"
     if disposition is SourceDisposition.EXTERNAL_REFERENCE_ONLY:
         return "reference_only"
-    if disposition is SourceDisposition.RIGHTS_REVIEW_REQUIRED:
-        return "review_required"
+    # Rights review is tracked independently. It must not destroy family identity.
     return "canonical_candidate" if concept_is_new else "legitimate_variant"
 
 
@@ -261,10 +268,10 @@ def source_language(row: Mapping[str, object]) -> str:
     return "text"
 
 
-def iter_jsonl(path: Path, *, start_row: int = 1) -> Iterator[tuple[int, JsonObject]]:
+def iter_jsonl(path: Path) -> Iterator[tuple[int, JsonObject]]:
     with path.open("r", encoding="utf-8") as stream:
         for row_number, line in enumerate(stream, 1):
-            if row_number < start_row or not line.strip():
+            if not line.strip():
                 continue
             try:
                 value: object = json.loads(line)
@@ -280,7 +287,7 @@ def _parquet_file(path: Path) -> Any:
         module = importlib.import_module("pyarrow.parquet")
     except ModuleNotFoundError as exc:
         raise LargeCorpusError(
-            "Parquet import requires pyarrow. Install pyarrow in the operator environment."
+            "Parquet import requires pyarrow in the operator environment"
         ) from exc
     parquet_file = getattr(module, "ParquetFile", None)
     if parquet_file is None:
@@ -293,14 +300,9 @@ def parquet_row_count(path: Path) -> int:
     return int(parquet_file.metadata.num_rows)
 
 
-def iter_parquet(
-    path: Path,
-    *,
-    start_row: int = 1,
-    batch_size: int = 250,
-) -> Iterator[tuple[int, JsonObject]]:
+def iter_parquet(path: Path, *, batch_size: int) -> Iterator[tuple[int, JsonObject]]:
     parquet_file = _parquet_file(path)
-    columns = set(str(name) for name in parquet_file.schema.names)
+    columns = {str(name) for name in parquet_file.schema.names}
     missing = sorted(set(REQUIRED_COLUMNS) - columns)
     if missing:
         raise LargeCorpusError(f"Parquet schema is missing: {', '.join(missing)}")
@@ -311,39 +313,27 @@ def iter_parquet(
             raise LargeCorpusError("Parquet batch did not decode to records")
         for item in records:
             row_number += 1
-            if row_number < start_row:
-                continue
             if not isinstance(item, dict):
                 raise LargeCorpusError(f"{path}:{row_number}: expected an object")
             yield row_number, cast(JsonObject, item)
 
 
-def iter_rows(
-    path: Path,
-    *,
-    start_row: int = 1,
-    batch_size: int = 250,
-) -> Iterator[tuple[int, JsonObject]]:
+def iter_rows(path: Path, *, batch_size: int) -> Iterator[tuple[int, JsonObject]]:
     suffix = path.suffix.casefold()
     if suffix in {".jsonl", ".ndjson"}:
-        yield from iter_jsonl(path, start_row=start_row)
-        return
-    if suffix == ".parquet":
-        yield from iter_parquet(path, start_row=start_row, batch_size=batch_size)
-        return
-    raise LargeCorpusError(f"Unsupported corpus format: {suffix or '<none>'}")
+        yield from iter_jsonl(path)
+    elif suffix == ".parquet":
+        yield from iter_parquet(path, batch_size=batch_size)
+    else:
+        raise LargeCorpusError(f"Unsupported corpus format: {suffix or '<none>'}")
 
 
 def physical_row_count(path: Path) -> int:
     if path.suffix.casefold() == ".parquet":
         return parquet_row_count(path)
     if path.suffix.casefold() in {".jsonl", ".ndjson"}:
-        count = 0
         with path.open("rb") as stream:
-            for line in stream:
-                if line.strip():
-                    count += 1
-        return count
+            return sum(1 for line in stream if line.strip())
     raise LargeCorpusError(f"Unsupported corpus format: {path.suffix}")
 
 
@@ -392,15 +382,81 @@ def verify_physical_source(
                 f"SHA mismatch for {path.name}: expected {expected_sha}, got {actual_sha}"
             )
         rows_value = entry.get("rows", entry.get("footer_rows_verified"))
-        if isinstance(rows_value, int):
-            expected_rows = rows_value
-        elif rows_value is not None:
+        if rows_value is not None:
             expected_rows = int(str(rows_value))
-        if expected_rows is not None and expected_rows != actual_rows:
-            raise LargeCorpusError(
-                f"row-count mismatch for {path.name}: expected {expected_rows}, got {actual_rows}"
-            )
+            if expected_rows != actual_rows:
+                raise LargeCorpusError(
+                    f"row-count mismatch for {path.name}: "
+                    f"expected {expected_rows}, got {actual_rows}"
+                )
     return actual_sha, actual_rows, expected_rows
+
+
+def initial_counters(physical_rows: int) -> dict[str, int]:
+    return {
+        "physical_source_rows": physical_rows,
+        "parsed": 0,
+        "validated": 0,
+        "rejected": 0,
+        "duplicate_ids": 0,
+        "duplicate_fingerprints": 0,
+        "canonical": 0,
+        "variants": 0,
+        "near_duplicates": 0,
+        "review_required": 0,
+        "reference_only": 0,
+        "runnable_candidates": 0,
+        "published": 0,
+        "runtime_verified": 0,
+    }
+
+
+def prepare_stream(
+    path: Path,
+    *,
+    batch_size: int,
+    disposition: SourceDisposition,
+    counters: dict[str, int],
+    failures: list[dict[str, object]],
+) -> Iterator[PreparedRow]:
+    with DuplicateTracker() as tracker:
+        for row_number, row in iter_rows(path, batch_size=batch_size):
+            counters["parsed"] += 1
+            try:
+                validate_row(row)
+                question_id = required_text(row, "question_id")
+                fingerprint = required_text(row, "content_fingerprint").casefold()
+                if not tracker.add_id(question_id):
+                    counters["duplicate_ids"] += 1
+                    counters["rejected"] += 1
+                    continue
+                if not tracker.add_fingerprint(fingerprint):
+                    counters["duplicate_fingerprints"] += 1
+                    counters["rejected"] += 1
+                    continue
+                concept_is_new = tracker.add_concept(concept_identity(row))
+                classification = canonical_classification(
+                    disposition=disposition,
+                    concept_is_new=concept_is_new,
+                )
+                counters["validated"] += 1
+            except LargeCorpusError as exc:
+                counters["rejected"] += 1
+                if len(failures) < 100:
+                    failures.append({"row": row_number, "error": str(exc)})
+                continue
+
+            if disposition is SourceDisposition.RIGHTS_REVIEW_REQUIRED:
+                counters["review_required"] += 1
+            if classification == "canonical_candidate":
+                counters["canonical"] += 1
+            elif classification == "legitimate_variant":
+                counters["variants"] += 1
+            elif classification == "reference_only":
+                counters["reference_only"] += 1
+            elif classification == "rejected_quarantined":
+                counters["rejected"] += 1
+            yield PreparedRow(row_number=row_number, row=row, classification=classification)
 
 
 def _uuid(value: object) -> UUID:
@@ -507,12 +563,9 @@ def ensure_batch(
                     physical_rows=EXCLUDED.physical_rows,
                     status=CASE
                       WHEN knowledge_corpus_import_batches.status='completed'
-                      THEN 'completed'
-                      ELSE 'running'
-                    END,
+                      THEN 'completed' ELSE 'running' END,
                     started_at=COALESCE(
-                      knowledge_corpus_import_batches.started_at,
-                      CURRENT_TIMESTAMP
+                      knowledge_corpus_import_batches.started_at, CURRENT_TIMESTAMP
                     ),
                     updated_at=CURRENT_TIMESTAMP
                 RETURNING id, checkpoint_row, status
@@ -535,13 +588,16 @@ def ensure_batch(
     return _uuid(row["id"]), int(row["checkpoint_row"]), str(row["status"])
 
 
-def _problem_title(row: Mapping[str, object]) -> str:
+def problem_title(row: Mapping[str, object], disposition: SourceDisposition) -> str:
+    if disposition is SourceDisposition.EXTERNAL_REFERENCE_ONLY:
+        topic = required_text(row, "topic")
+        return f"{topic}: {required_text(row, 'question_id')}"[:500]
     statement = required_text(row, "question_statement")
     first_line = statement.splitlines()[0].strip()
-    return first_line[:300] if first_line else required_text(row, "question_id")
+    return (first_line or required_text(row, "question_id"))[:500]
 
 
-def _topics(row: Mapping[str, object]) -> list[tuple[str, str]]:
+def topic_pairs(row: Mapping[str, object]) -> list[tuple[str, str]]:
     values = [
         (required_text(row, "topic"), "topic"),
         (str(row.get("subtopic") or "").strip(), "subtopic"),
@@ -549,34 +605,49 @@ def _topics(row: Mapping[str, object]) -> list[tuple[str, str]]:
     seen: set[str] = set()
     result: list[tuple[str, str]] = []
     for name, category in values:
-        slug = slugify(name)
-        if not slug or slug in seen:
-            continue
-        seen.add(slug)
-        result.append((name, category))
+        topic_slug = slugify(name)
+        if topic_slug and topic_slug not in seen:
+            seen.add(topic_slug)
+            result.append((name, category))
     return result
 
 
 def import_row(
     connection: Connection,
     *,
-    row: Mapping[str, object],
-    row_number: int,
+    prepared: PreparedRow,
     batch_db_id: UUID,
     source_file_id: UUID,
     source_filename: str,
     source_sha256: str,
     corpus_version: str,
-    classification: str,
     disposition: SourceDisposition,
-) -> UUID:
-    if classification not in CLASSIFICATIONS:
-        raise LargeCorpusError(f"invalid classification: {classification}")
+) -> None:
+    row = prepared.row
+    if prepared.classification == "rejected_quarantined":
+        return
     question_id = required_text(row, "question_id")
     fingerprint = required_text(row, "content_fingerprint").casefold()
     canonical_key = f"large:{corpus_version}:{question_id}"
-    slug = f"large-{slugify(corpus_version)}-{slugify(question_id)}"
+    problem_slug = f"large-{slugify(corpus_version)}-{slugify(question_id)}"[:500]
     publication_status, review_status = publication_state(disposition)
+    may_store_body = disposition is not SourceDisposition.EXTERNAL_REFERENCE_ONLY
+    description = required_text(row, "question_statement") if may_store_body else None
+    input_format = optional_text(row, "input_output_or_schema") if may_store_body else None
+    constraints = string_list(row.get("constraints")) if may_store_body else []
+    source_metadata = {
+        "source_kind": "large_corpus",
+        "corpus_version": corpus_version,
+        "source_file": source_filename,
+        "source_row": prepared.row_number,
+        "source_sha256": source_sha256,
+        "content_fingerprint": fingerprint,
+    }
+    original_metadata = {
+        field: row.get(field)
+        for field in (REQUIRED_COLUMNS if may_store_body else SAFE_REFERENCE_FIELDS)
+        if field != "solution"
+    }
     problem_id = _uuid(
         connection.execute(
             text(
@@ -587,9 +658,9 @@ def import_row(
                     review_status, primary_language, source_metadata
                 ) VALUES (
                     :canonical_key, :external_id, :title, :slug,
-                    left(:description, 500), :description, :input_format,
-                    CAST(:constraints AS jsonb), :difficulty, :publication_status,
-                    :review_status, :primary_language,
+                    left(COALESCE(:description, :title), 500), :description,
+                    :input_format, CAST(:constraints AS jsonb), :difficulty,
+                    :publication_status, :review_status, :primary_language,
                     CAST(:source_metadata AS jsonb)
                 )
                 ON CONFLICT (canonical_key) DO UPDATE
@@ -607,25 +678,16 @@ def import_row(
             {
                 "canonical_key": canonical_key,
                 "external_id": question_id,
-                "title": _problem_title(row),
-                "slug": slug,
-                "description": required_text(row, "question_statement"),
-                "input_format": optional_text(row, "input_output_or_schema"),
-                "constraints": json.dumps(string_list(row.get("constraints"))),
+                "title": problem_title(row, disposition),
+                "slug": problem_slug,
+                "description": description,
+                "input_format": input_format,
+                "constraints": json.dumps(constraints),
                 "difficulty": normalized_difficulty(row.get("difficulty")),
                 "publication_status": publication_status,
                 "review_status": review_status,
                 "primary_language": source_language(row),
-                "source_metadata": canonical_json(
-                    {
-                        "source_kind": "large_corpus",
-                        "corpus_version": corpus_version,
-                        "source_file": source_filename,
-                        "source_row": row_number,
-                        "source_sha256": source_sha256,
-                        "content_fingerprint": fingerprint,
-                    }
-                ),
+                "source_metadata": canonical_json(source_metadata),
             },
         ).scalar_one()
     )
@@ -652,7 +714,6 @@ def import_row(
             "disposition": disposition.value,
         },
     )
-    metadata = {field: row.get(field) for field in REQUIRED_COLUMNS if field != "solution"}
     connection.execute(
         text(
             """
@@ -685,19 +746,19 @@ def import_row(
             "problem_id": problem_id,
             "batch_id": batch_db_id,
             "source_question_id": question_id,
-            "source_row_number": row_number,
+            "source_row_number": prepared.row_number,
             "corpus_version": corpus_version,
             "fingerprint": fingerprint,
-            "classification": classification,
+            "classification": prepared.classification,
             "platform": optional_text(row, "platform"),
             "subtopic": optional_text(row, "subtopic"),
             "seniority": optional_text(row, "seniority"),
             "industry": optional_text(row, "industry"),
-            "business_context": optional_text(row, "business_context"),
-            "metadata": canonical_json(metadata),
+            "business_context": optional_text(row, "business_context") if may_store_body else None,
+            "metadata": canonical_json(original_metadata),
         },
     )
-    for topic_name, category in _topics(row):
+    for topic_name, category in topic_pairs(row):
         topic_slug = slugify(topic_name)
         topic_id = _uuid(
             connection.execute(
@@ -706,8 +767,7 @@ def import_row(
                     INSERT INTO knowledge_topics (slug, name, category)
                     VALUES (:slug, :name, :category)
                     ON CONFLICT (slug) DO UPDATE
-                    SET name=EXCLUDED.name,
-                        updated_at=CURRENT_TIMESTAMP
+                    SET name=EXCLUDED.name, updated_at=CURRENT_TIMESTAMP
                     RETURNING id
                     """
                 ),
@@ -725,8 +785,10 @@ def import_row(
             {"problem_id": problem_id, "topic_id": topic_id},
         )
 
-    # Store the supplied solution for review, but never mark it executable here.
-    # Runnable status requires an independently verified authored runtime package.
+    if not may_store_body:
+        return
+    # The supplied solution is review content only. It is never executable here;
+    # verified runnable status comes only from knowledge_problem_runtime_links.
     solution_text = required_text(row, "solution")
     solution_hash = hashlib.sha256(solution_text.encode("utf-8")).hexdigest()
     approach_id = _uuid(
@@ -784,10 +846,9 @@ def import_row(
             "review_status": review_status,
         },
     )
-    return problem_id
 
 
-def _update_batch(
+def update_batch(
     connection: Connection,
     batch_db_id: UUID,
     *,
@@ -819,6 +880,40 @@ def _update_batch(
     )
 
 
+def validate_source(
+    source_path: Path,
+    *,
+    manifest: Mapping[str, object] | None,
+    disposition: SourceDisposition,
+    chunk_size: int,
+) -> dict[str, object]:
+    source_sha, physical_rows, expected_rows = verify_physical_source(
+        source_path, manifest=manifest
+    )
+    counters = initial_counters(physical_rows)
+    failures: list[dict[str, object]] = []
+    for _prepared in prepare_stream(
+        source_path,
+        batch_size=chunk_size,
+        disposition=disposition,
+        counters=counters,
+        failures=failures,
+    ):
+        pass
+    if counters["parsed"] != physical_rows:
+        raise LargeCorpusError(
+            f"streamed {counters['parsed']} rows but physical metadata reports {physical_rows}"
+        )
+    return {
+        "status": "validated",
+        "source_sha256": source_sha,
+        "physical_rows": physical_rows,
+        "expected_rows": expected_rows,
+        "counters": counters,
+        "failures": failures,
+    }
+
+
 def process_source(
     engine: Engine,
     *,
@@ -830,30 +925,12 @@ def process_source(
     batch_id: str,
     disposition: SourceDisposition,
     chunk_size: int,
-    dry_run: bool,
 ) -> dict[str, object]:
     source_sha, physical_rows, expected_rows = verify_physical_source(
-        source_path,
-        manifest=manifest,
+        source_path, manifest=manifest
     )
-    counters: dict[str, int] = {
-        "physical_source_rows": physical_rows,
-        "parsed": 0,
-        "validated": 0,
-        "rejected": 0,
-        "duplicate_ids": 0,
-        "duplicate_fingerprints": 0,
-        "canonical": 0,
-        "variants": 0,
-        "near_duplicates": 0,
-        "review_required": 0,
-        "reference_only": 0,
-        "runnable_candidates": 0,
-        "published": 0,
-        "runtime_verified": 0,
-    }
+    counters = initial_counters(physical_rows)
     failures: list[dict[str, object]] = []
-
     with engine.begin() as connection:
         batch_db_id, checkpoint, existing_status = ensure_batch(
             connection,
@@ -866,20 +943,6 @@ def process_source(
             expected_rows=expected_rows,
             physical_rows=physical_rows,
         )
-        if existing_status == "completed" and checkpoint == physical_rows and not dry_run:
-            existing = connection.execute(
-                text(
-                    "SELECT counters FROM knowledge_corpus_import_batches WHERE id=:id"
-                ),
-                {"id": batch_db_id},
-            ).scalar_one()
-            return {
-                "status": "already_imported",
-                "batch_id": str(batch_db_id),
-                "source_sha256": source_sha,
-                "physical_rows": physical_rows,
-                "counters": existing,
-            }
         source_file_id = ensure_source_file(
             connection,
             source_name=f"{corpus_name}:{corpus_version}:{source_path.name}",
@@ -889,104 +952,73 @@ def process_source(
             disposition=disposition,
             corpus_version=corpus_version,
         )
+        if existing_status == "completed" and checkpoint == physical_rows:
+            existing = connection.execute(
+                text("SELECT counters FROM knowledge_corpus_import_batches WHERE id=:id"),
+                {"id": batch_db_id},
+            ).scalar_one()
+            return {
+                "status": "already_imported",
+                "batch_id": str(batch_db_id),
+                "source_sha256": source_sha,
+                "physical_rows": physical_rows,
+                "counters": existing,
+            }
 
-    start_row = checkpoint + 1 if checkpoint > 0 and not dry_run else 1
-    processed_since_commit = 0
-    last_row = checkpoint
-    with DuplicateTracker() as tracker:
-        for row_number, row in iter_rows(
-            source_path,
-            start_row=1,
-            batch_size=chunk_size,
-        ):
-            counters["parsed"] += 1
-            try:
-                validate_row(row)
-                question_id = required_text(row, "question_id")
-                fingerprint = required_text(row, "content_fingerprint").casefold()
-                if not tracker.add_id(question_id):
-                    counters["duplicate_ids"] += 1
-                    counters["rejected"] += 1
+    pending: list[PreparedRow] = []
+    last_physical_row = checkpoint
+    rows_since_checkpoint = 0
+
+    def flush(rows: list[PreparedRow], checkpoint_row: int, final: bool = False) -> None:
+        with engine.begin() as connection:
+            for prepared in rows:
+                if prepared.row_number <= checkpoint:
                     continue
-                if not tracker.add_fingerprint(fingerprint):
-                    counters["duplicate_fingerprints"] += 1
-                    counters["rejected"] += 1
-                    continue
-                concept_is_new = tracker.add_concept(concept_identity(row))
-                classification = classify_row(
-                    row,
-                    disposition=disposition,
-                    concept_is_new=concept_is_new,
-                )
-                counters["validated"] += 1
-            except LargeCorpusError as exc:
-                counters["rejected"] += 1
-                if len(failures) < 100:
-                    failures.append({"row": row_number, "error": str(exc)})
-                continue
-
-            if classification == "canonical_candidate":
-                counters["canonical"] += 1
-            elif classification == "legitimate_variant":
-                counters["variants"] += 1
-            elif classification == "near_concept_duplicate":
-                counters["near_duplicates"] += 1
-            elif classification == "review_required":
-                counters["review_required"] += 1
-            elif classification == "reference_only":
-                counters["reference_only"] += 1
-            elif classification == "runnable_candidate":
-                counters["runnable_candidates"] += 1
-
-            if row_number < start_row:
-                continue
-            if dry_run:
-                last_row = row_number
-                continue
-
-            with engine.begin() as connection:
                 import_row(
                     connection,
-                    row=row,
-                    row_number=row_number,
+                    prepared=prepared,
                     batch_db_id=batch_db_id,
                     source_file_id=source_file_id,
                     source_filename=source_path.name,
                     source_sha256=source_sha,
                     corpus_version=corpus_version,
-                    classification=classification,
                     disposition=disposition,
                 )
-                last_row = row_number
-                processed_since_commit += 1
-                if processed_since_commit >= chunk_size:
-                    _update_batch(
-                        connection,
-                        batch_db_id,
-                        checkpoint_row=last_row,
-                        status="running",
-                        counters=counters,
-                        failures=failures,
-                    )
-                    processed_since_commit = 0
-
-    if counters["parsed"] != physical_rows:
-        raise LargeCorpusError(
-            f"streamed {counters['parsed']} physical rows but file reports {physical_rows}"
-        )
-    terminal_status = "validated" if dry_run else "completed"
-    if not dry_run:
-        with engine.begin() as connection:
-            _update_batch(
+            update_batch(
                 connection,
                 batch_db_id,
-                checkpoint_row=physical_rows,
-                status="completed",
+                checkpoint_row=checkpoint_row,
+                status="completed" if final else "running",
                 counters=counters,
                 failures=failures,
             )
+
+    for prepared in prepare_stream(
+        source_path,
+        batch_size=chunk_size,
+        disposition=disposition,
+        counters=counters,
+        failures=failures,
+    ):
+        last_physical_row = prepared.row_number
+        rows_since_checkpoint += 1
+        if prepared.row_number > checkpoint and prepared.classification != "rejected_quarantined":
+            pending.append(prepared)
+        if rows_since_checkpoint >= chunk_size:
+            flush(pending, last_physical_row)
+            pending = []
+            rows_since_checkpoint = 0
+
+    # Rejected/duplicate physical rows are not yielded by prepare_stream. The
+    # authoritative completion checkpoint is therefore the verified physical row
+    # count after the full stream has been consumed.
+    if counters["parsed"] != physical_rows:
+        raise LargeCorpusError(
+            f"streamed {counters['parsed']} rows but physical metadata reports {physical_rows}"
+        )
+    flush(pending, physical_rows, final=True)
     return {
-        "status": terminal_status,
+        "status": "completed",
         "batch_id": str(batch_db_id),
         "source_sha256": source_sha,
         "physical_rows": physical_rows,
@@ -996,12 +1028,12 @@ def process_source(
     }
 
 
-def _disposition(value: str) -> SourceDisposition:
+def parse_disposition(value: str) -> SourceDisposition:
     try:
         return SourceDisposition(value)
     except ValueError as exc:
         allowed = ", ".join(item.value for item in SourceDisposition)
-        raise LargeCorpusError(f"Unsupported disposition {value!r}; expected one of {allowed}") from exc
+        raise LargeCorpusError(f"Unsupported disposition {value!r}; expected {allowed}") from exc
 
 
 def main() -> int:
@@ -1018,30 +1050,38 @@ def main() -> int:
         default=SourceDisposition.RIGHTS_REVIEW_REQUIRED.value,
         choices=[item.value for item in SourceDisposition],
     )
-    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--validate-only", action="store_true")
     args = parser.parse_args()
     if args.chunk_size < 10 or args.chunk_size > 5_000:
         raise SystemExit("--chunk-size must be between 10 and 5000")
-
     manifest, manifest_sha = load_manifest(args.manifest)
-    settings = get_settings()
-    database_url = args.database_url or settings.database_url
-    engine = create_database_engine(settings, database_url)
-    try:
-        result = process_source(
-            engine,
-            source_path=args.source,
+    disposition = parse_disposition(args.disposition)
+
+    if args.validate_only:
+        result = validate_source(
+            args.source,
             manifest=manifest,
-            manifest_sha256=manifest_sha,
-            corpus_name=args.corpus_name,
-            corpus_version=args.corpus_version,
-            batch_id=args.batch_id or args.source.stem,
-            disposition=_disposition(args.disposition),
+            disposition=disposition,
             chunk_size=args.chunk_size,
-            dry_run=args.dry_run,
         )
-    finally:
-        engine.dispose()
+    else:
+        settings = get_settings()
+        database_url = args.database_url or settings.operational_database_url or settings.database_url
+        engine = create_database_engine(settings, database_url)
+        try:
+            result = process_source(
+                engine,
+                source_path=args.source,
+                manifest=manifest,
+                manifest_sha256=manifest_sha,
+                corpus_name=args.corpus_name,
+                corpus_version=args.corpus_version,
+                batch_id=args.batch_id or args.source.stem,
+                disposition=disposition,
+                chunk_size=args.chunk_size,
+            )
+        finally:
+            engine.dispose()
     print(json.dumps(result, indent=2, sort_keys=True, default=str))
     return 0
 
