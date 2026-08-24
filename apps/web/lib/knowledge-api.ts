@@ -1,6 +1,12 @@
 const apiUrl = process.env.NEXT_PUBLIC_RIGOR_API_URL ?? "http://localhost:8002";
 
-export type Availability = "runnable" | "hosted" | "in_review" | "reference_only";
+export type Availability = "runnable" | "published" | "reference_only";
+export type CanonicalClassification =
+  | "canonical_candidate"
+  | "legitimate_variant"
+  | "near_concept_duplicate"
+  | "reference_only"
+  | "runnable_candidate";
 
 export type KnowledgeStats = {
   problems: number;
@@ -18,8 +24,7 @@ export type KnowledgeStats = {
 export type KnowledgeCatalogStats = {
   problems: number;
   runnable_problems: number;
-  hosted_problems: number;
-  in_review_problems: number;
+  published_problems: number;
   reference_only_problems: number;
   statement_backed_problems: number;
   python_solutions: number;
@@ -29,6 +34,7 @@ export type KnowledgeCatalogStats = {
   topics: number;
   system_design_articles: number;
   source_files: number;
+  runtime_verified_links: number;
 };
 
 export type ProblemSummary = {
@@ -48,6 +54,13 @@ export type ProblemSummary = {
   languages: string[];
   topics: string[];
   companies: string[];
+  platform: string | null;
+  subtopic: string | null;
+  seniority: string | null;
+  industry: string | null;
+  canonical_classification: string | null;
+  practice_question_slug: string | null;
+  practice_runtime: "python" | "postgresql" | null;
 };
 
 export type ProblemDetail = ProblemSummary & {
@@ -147,6 +160,11 @@ export function getKnowledgeProblems(
     language?: string;
     company?: string;
     topic?: string;
+    platform?: string;
+    subtopic?: string;
+    seniority?: string;
+    industry?: string;
+    canonicalClassification?: CanonicalClassification | "";
     availability?: Availability | "";
     sort?: string;
     page?: number;
@@ -165,6 +183,11 @@ export function getKnowledgeProblems(
     language: filters.language,
     company: filters.company,
     topic: filters.topic,
+    platform: filters.platform,
+    subtopic: filters.subtopic,
+    seniority: filters.seniority,
+    industry: filters.industry,
+    canonical_classification: filters.canonicalClassification,
     availability: filters.availability,
   })) {
     if (value) parameters.set(key, value);
