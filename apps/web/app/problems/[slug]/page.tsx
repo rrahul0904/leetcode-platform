@@ -1,4 +1,5 @@
 import { PersistentKnowledgeProblemWorkspace } from "@/components/persistent-knowledge-problem-workspace";
+import { VerifiedPracticeLaunch } from "@/components/verified-practice-launch";
 
 export default async function KnowledgeProblemPage({
   params,
@@ -6,5 +7,10 @@ export default async function KnowledgeProblemPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  return <PersistentKnowledgeProblemWorkspace slug={slug} />;
+  return (
+    <>
+      <VerifiedPracticeLaunch slug={slug} />
+      <PersistentKnowledgeProblemWorkspace slug={slug} />
+    </>
+  );
 }
