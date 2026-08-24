@@ -100,7 +100,7 @@ def upgrade() -> None:
           CONSTRAINT uq_knowledge_serving_source_identity
             UNIQUE (corpus_version, source_question_id),
           CONSTRAINT uq_knowledge_serving_fingerprint
-            UNIQUE (content_fingerprint)
+            UNIQUE (corpus_version, content_fingerprint)
         )
         """
     )
