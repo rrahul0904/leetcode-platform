@@ -62,6 +62,39 @@ def upgrade() -> None:
           (corpus_name, corpus_version, status, updated_at DESC)
         """
     )
+    op.execute(
+        """
+        CREATE OR REPLACE FUNCTION enforce_knowledge_corpus_batch_identity()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+          IF NEW.source_filename IS DISTINCT FROM OLD.source_filename
+             OR NEW.source_sha256 IS DISTINCT FROM OLD.source_sha256
+             OR NEW.manifest_sha256 IS DISTINCT FROM OLD.manifest_sha256
+             OR NEW.expected_rows IS DISTINCT FROM OLD.expected_rows
+             OR NEW.physical_rows IS DISTINCT FROM OLD.physical_rows THEN
+            RAISE EXCEPTION
+              'knowledge corpus batch source identity is immutable for %/%/%',
+              OLD.corpus_name, OLD.corpus_version, OLD.batch_id;
+          END IF;
+
+          IF NEW.checkpoint_row < OLD.checkpoint_row THEN
+            NEW.checkpoint_row := OLD.checkpoint_row;
+          END IF;
+
+          RETURN NEW;
+        END
+        $$
+        """
+    )
+    op.execute(
+        """
+        CREATE TRIGGER trg_knowledge_corpus_batch_identity
+        BEFORE UPDATE ON knowledge_corpus_import_batches
+        FOR EACH ROW EXECUTE FUNCTION enforce_knowledge_corpus_batch_identity()
+        """
+    )
 
     op.execute(
         """
@@ -172,4 +205,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute("DROP TABLE IF EXISTS knowledge_problem_runtime_links")
     op.execute("DROP TABLE IF EXISTS knowledge_problem_serving_metadata")
+    op.execute("DROP TRIGGER IF EXISTS trg_knowledge_corpus_batch_identity ON knowledge_corpus_import_batches")
+    op.execute("DROP FUNCTION IF EXISTS enforce_knowledge_corpus_batch_identity()")
     op.execute("DROP TABLE IF EXISTS knowledge_corpus_import_batches")
