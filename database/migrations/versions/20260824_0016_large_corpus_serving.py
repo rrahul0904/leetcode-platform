@@ -192,6 +192,52 @@ def upgrade() -> None:
         """
     )
 
+    # A browser may create low-trust interaction evidence, but it must never be
+    # able to manufacture Run/Submit/solve/fail outcomes. Trusted execution
+    # projection explicitly enables the transaction-local session flag before
+    # inserting those durable events.
+    op.execute("DROP POLICY IF EXISTS knowledge_activity_owner ON knowledge_activity_events")
+    op.execute(
+        """
+        CREATE POLICY knowledge_activity_owner_read
+        ON knowledge_activity_events
+        FOR SELECT
+        USING (
+          candidate_id=NULLIF(current_setting('rigor.user_id', true), '')::uuid
+          OR (session_user='rigor_migrator'
+              AND current_setting('rigor.maintenance_bypass', true)='on')
+        )
+        """
+    )
+    op.execute(
+        """
+        CREATE POLICY knowledge_activity_owner_insert
+        ON knowledge_activity_events
+        FOR INSERT
+        WITH CHECK (
+          (session_user='rigor_migrator'
+           AND current_setting('rigor.maintenance_bypass', true)='on')
+          OR (
+            candidate_id=NULLIF(current_setting('rigor.user_id', true), '')::uuid
+            AND (
+              event_type IN (
+                'problem_viewed', 'session_started', 'draft_saved',
+                'bookmark_changed', 'revision_changed', 'notes_saved',
+                'session_time_recorded'
+              )
+              OR (
+                current_setting('rigor.trusted_evidence', true)='on'
+                AND event_type IN (
+                  'public_tests_run', 'submission_completed',
+                  'problem_solved', 'problem_failed'
+                )
+              )
+            )
+          )
+        )
+        """
+    )
+
     # Candidate-serving roles may read these facts. Only migration/admin paths
     # should mutate import identities or runtime verification state.
     op.execute("GRANT SELECT ON knowledge_corpus_import_batches TO rigor_app")
@@ -203,6 +249,24 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute("DROP POLICY IF EXISTS knowledge_activity_owner_insert ON knowledge_activity_events")
+    op.execute("DROP POLICY IF EXISTS knowledge_activity_owner_read ON knowledge_activity_events")
+    op.execute(
+        """
+        CREATE POLICY knowledge_activity_owner
+        ON knowledge_activity_events
+        USING (
+          candidate_id=NULLIF(current_setting('rigor.user_id', true), '')::uuid
+          OR (session_user='rigor_migrator'
+              AND current_setting('rigor.maintenance_bypass', true)='on')
+        )
+        WITH CHECK (
+          candidate_id=NULLIF(current_setting('rigor.user_id', true), '')::uuid
+          OR (session_user='rigor_migrator'
+              AND current_setting('rigor.maintenance_bypass', true)='on')
+        )
+        """
+    )
     op.execute("DROP TABLE IF EXISTS knowledge_problem_runtime_links")
     op.execute("DROP TABLE IF EXISTS knowledge_problem_serving_metadata")
     op.execute("DROP TRIGGER IF EXISTS trg_knowledge_corpus_batch_identity ON knowledge_corpus_import_batches")
