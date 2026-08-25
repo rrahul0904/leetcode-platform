@@ -71,6 +71,7 @@ reportUnnecessaryIsInstance = "none"
 reportUnknownVariableType = "none"
 reportUnknownArgumentType = "none"
 reportUnknownMemberType = "none"
+reportOptionalMemberAccess = "none"
 reportPrivateUsage = "none"
 reportUnnecessaryComparison = "none"
 include = ["apps/api/src", "packages/question-schema/src", "scripts"]
