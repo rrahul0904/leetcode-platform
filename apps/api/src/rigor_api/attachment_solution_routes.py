@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 from fastapi import Depends, HTTPException
 from sqlalchemy import text
@@ -50,7 +50,12 @@ def reveal_question_solution(
         )
         if row is None:
             raise HTTPException(status_code=404, detail="Published solution not found")
-        structured = row["structured_content"] if isinstance(row["structured_content"], dict) else {}
+        raw_structured = row["structured_content"]
+        structured = (
+            cast(dict[str, Any], raw_structured)
+            if isinstance(raw_structured, dict)
+            else {}
+        )
         runnable = bool(structured.get("runnable"))
         unlocked = not runnable
         if runnable:
