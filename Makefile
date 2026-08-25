@@ -1,4 +1,4 @@
-.PHONY: bootstrap reset-local verify-local stop-local logs-local backup-local restore-local release-local install-question-bank import-question-bank validate-question-bank test-content
+.PHONY: bootstrap reset-local verify-local stop-local logs-local backup-local restore-local release-local install-question-bank import-question-bank validate-question-bank test-content build-attachment-question-bank validate-attachment-question-bank sync-attachment-question-bank publish-attachment-question-bank
 
 bootstrap:
 	./scripts/start-populated-local
@@ -38,6 +38,31 @@ validate-question-bank:
 
 import-question-bank:
 	docker compose exec -T api python /app/scripts/import_source_backed_question_bank.py \
+		--database-url postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
+
+build-attachment-question-bank:
+	@test -n "$(INPUT)" || (echo "Usage: make build-attachment-question-bank INPUT=/path/to/serving_feed_deduplicated.jsonl [OUTPUT=/path/to/output-dir]" >&2; exit 2)
+	uv run python scripts/build_attachment_practice_bank.py \
+		--input "$(INPUT)" \
+		--output-dir "$(if $(OUTPUT),$(OUTPUT),data/question_upload/attachment-v1)"
+
+validate-attachment-question-bank:
+	@test -n "$(BANK)" || (echo "Usage: make validate-attachment-question-bank BANK=/path/to/question_bank_with_solutions_explanations.jsonl" >&2; exit 2)
+	uv run python scripts/sync_attachment_question_bank.py --mode validate --input "$(BANK)"
+
+sync-attachment-question-bank:
+	@test -n "$(BANK)" || (echo "Usage: make sync-attachment-question-bank BANK=/path/to/question_bank_with_solutions_explanations.jsonl" >&2; exit 2)
+	docker compose exec -T api python /app/scripts/sync_attachment_question_bank.py \
+		--mode sync \
+		--input "$(BANK)" \
+		--database-url postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
+
+publish-attachment-question-bank:
+	@test -n "$(BANK)" || (echo "Usage: make publish-attachment-question-bank BANK=/path/to/question_bank_with_solutions_explanations.jsonl" >&2; exit 2)
+	docker compose exec -T api python /app/scripts/sync_attachment_question_bank.py \
+		--mode sync \
+		--publish-all \
+		--input "$(BANK)" \
 		--database-url postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
 
 test-content:
