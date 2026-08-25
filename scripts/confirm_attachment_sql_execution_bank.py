@@ -20,7 +20,8 @@ from typing import Any
 
 
 def family_fingerprint(ddl: str, query: str) -> str:
-    return hashlib.sha256((ddl.strip() + "\n" + query.strip()).encode("utf-8")).hexdigest()
+    payload = ddl.strip() + "\n" + query.strip()
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def partition_column(query: str) -> str | None:
@@ -38,10 +39,14 @@ def hidden_seed(column: str) -> str:
         (6, 3, 6, "2024-01-02", 2, "new-c"),
     ]
     values = ",\n".join(
-        "(" + ",".join(
-            str(value) if isinstance(value, int) else "'" + value.replace("'", "''") + "'"
+        "("
+        + ",".join(
+            str(value)
+            if isinstance(value, int)
+            else "'" + value.replace("'", "''") + "'"
             for value in row
-        ) + ")"
+        )
+        + ")"
         for row in rows
     )
     return (
@@ -80,7 +85,12 @@ def main() -> int:
         if not line.strip():
             continue
         row = json.loads(line)
-        if row.get("subject") != "SQL" or row.get("execution_validation_status") != "postgres_confirmation_pending":
+        pending_sql = (
+            row.get("subject") == "SQL"
+            and row.get("execution_validation_status")
+            == "postgres_confirmation_pending"
+        )
+        if not pending_sql:
             output_rows.append(row)
             continue
         mode = row.get("mode_specification")
@@ -118,6 +128,10 @@ def main() -> int:
             {
                 "schema_sql": ddl,
                 "seed_sql": public_seed,
+                "starter_code": str(
+                    mode.get("starter_sql")
+                    or "-- Write your PostgreSQL 18 query here.\n"
+                ),
                 "statement_timeout_ms": 5000,
                 "tests": [
                     {
@@ -138,7 +152,9 @@ def main() -> int:
                     },
                 ],
                 "postgres_family_fingerprint": fingerprint,
-                "postgres_validation": config.get("validator", "postgresql-family-confirmation-v1"),
+                "postgres_validation": config.get(
+                    "validator", "postgresql-family-confirmation-v1"
+                ),
             }
         )
         row["mode_specification"] = mode
@@ -151,14 +167,19 @@ def main() -> int:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8") as stream:
         for row in output_rows:
-            stream.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n")
+            stream.write(
+                json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n"
+            )
     report = {
         "input_rows": len(output_rows),
         "postgres_confirmed_sql_promoted": promoted,
         "sql_pending_skipped": skipped,
         "confirmed_family_counts": family_counts,
         "output_sha256": hashlib.sha256(args.output.read_bytes()).hexdigest(),
-        "policy": "SQL becomes runnable only after explicit PostgreSQL family confirmation plus distinct public/hidden fixture evaluation.",
+        "policy": (
+            "SQL becomes runnable only after explicit PostgreSQL family confirmation "
+            "plus distinct public/hidden fixture evaluation."
+        ),
     }
     args.report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2))
