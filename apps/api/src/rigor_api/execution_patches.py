@@ -41,5 +41,10 @@ current_harness = LocalFunctionalPythonRunner._HARNESS
 if _OLD not in current_harness:
     raise RuntimeError("Python runner harness changed; attachment execution patch must be reviewed")
 
-# setattr avoids narrowing the class attribute to its original Literal type in Pyright.
-setattr(LocalFunctionalPythonRunner, "_HARNESS", current_harness.replace(_OLD, _NEW))
+# Use the metaclass setter so strict type checking does not narrow the class
+# attribute to its original Literal value while the runtime patch remains explicit.
+type.__setattr__(
+    LocalFunctionalPythonRunner,
+    "_HARNESS",
+    current_harness.replace(_OLD, _NEW),
+)
