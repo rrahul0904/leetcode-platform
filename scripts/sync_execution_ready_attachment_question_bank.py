@@ -82,8 +82,6 @@ def question_structured_content(row: dict[str, Any], track_slug: str) -> dict[st
             "runnable": is_runnable,
             "execution_validation_status": row.get("execution_validation_status"),
             "execution_bank_version": 2,
-            # PublishedCatalogRepository expects these to be arrays. Keep them
-            # source-derived or empty rather than inventing curriculum content.
             "learning_objectives": [expected_approach] if expected_approach else [],
             "prerequisites": [],
             "candidate_instructions": [requirements] if requirements else [],
@@ -127,26 +125,36 @@ def upsert_one(connection, row: dict[str, Any], *, source_revision: str, publish
     )
     if result[0] == "unseeded_track":
         return result
-    version_id = connection.execute(
-        text(
-            """
-            SELECT v.id
-            FROM questions q JOIN question_versions v ON v.question_id=q.id
-            WHERE q.external_id=:external_id AND v.version=:version
-            """
-        ),
-        {"external_id": str(row["canonical_id"]), "version": base.VERSION},
-    ).scalar_one_or_none()
-    if version_id is None:
+    identity = (
+        connection.execute(
+            text(
+                """
+                SELECT q.id AS question_id, v.id AS version_id, t.slug AS track_slug
+                FROM questions q
+                JOIN question_versions v ON v.question_id=q.id
+                JOIN question_tracks t ON t.id=q.primary_track_id
+                WHERE q.external_id=:external_id AND v.version=:version
+                """
+            ),
+            {"external_id": str(row["canonical_id"]), "version": base.VERSION},
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if identity is None:
         return result
+    question_id = identity["question_id"]
+    version_id = identity["version_id"]
     connection.execute(
         text("DELETE FROM question_skills WHERE question_version_id=:version_id"),
         {"version_id": version_id},
     )
+    skill_slugs: list[str] = []
     for value in _skill_values(row):
         slug = _skill_slug(value)
         if not slug:
             continue
+        skill_slugs.append(slug)
         skill_id = connection.execute(
             text(
                 """
@@ -167,6 +175,40 @@ def upsert_one(connection, row: dict[str, Any], *, source_revision: str, publish
                 """
             ),
             {"version_id": version_id, "skill_id": skill_id},
+        )
+
+    # Candidate progress is competency-based, so execution-ready imports must
+    # map each question into the seeded competency taxonomy as well as skills.
+    primary_slug = str(identity["track_slug"])
+    competency_slugs = list(dict.fromkeys([primary_slug, *skill_slugs]))
+    competency_rows = (
+        connection.execute(
+            text("SELECT id, slug FROM competencies WHERE slug = ANY(:slugs)"),
+            {"slugs": competency_slugs},
+        )
+        .mappings()
+        .all()
+    )
+    connection.execute(
+        text("DELETE FROM question_competencies WHERE question_id=:question_id"),
+        {"question_id": question_id},
+    )
+    for competency in competency_rows:
+        is_primary = str(competency["slug"]) == primary_slug
+        connection.execute(
+            text(
+                """
+                INSERT INTO question_competencies (
+                    question_id, competency_id, is_primary, confidence
+                ) VALUES (:question_id, :competency_id, :is_primary, :confidence)
+                """
+            ),
+            {
+                "question_id": question_id,
+                "competency_id": competency["id"],
+                "is_primary": is_primary,
+                "confidence": 1.0 if is_primary else 0.7,
+            },
         )
     return result
 
