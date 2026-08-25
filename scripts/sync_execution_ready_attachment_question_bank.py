@@ -35,6 +35,26 @@ def _tests_are_governed(row: dict[str, Any]) -> bool:
     return public > 0 and hidden > 0
 
 
+def _list_value(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return []
+        if stripped.startswith("["):
+            try:
+                decoded = json.loads(stripped)
+            except json.JSONDecodeError:
+                decoded = None
+            if isinstance(decoded, list):
+                return [str(item).strip() for item in decoded if str(item).strip()]
+        return [item.strip() for item in re.split(r"[|\n]", stripped) if item.strip()]
+    return [str(value).strip()]
+
+
 def validate_row(row: dict[str, Any]) -> list[str]:
     runnable = bool(row.get("runnable"))
     row["runnable"] = False
@@ -54,12 +74,20 @@ def question_structured_content(row: dict[str, Any], track_slug: str) -> dict[st
         and str(row.get("execution_validation_status")) == "reference_validated"
         and _tests_are_governed(row)
     )
+    expected_approach = str(row.get("expected_approach") or "").strip()
+    requirements = str(row.get("requirements") or "").strip()
     content.update(
         {
             "mode_specification": row.get("mode_specification"),
             "runnable": is_runnable,
             "execution_validation_status": row.get("execution_validation_status"),
             "execution_bank_version": 2,
+            # PublishedCatalogRepository expects these to be arrays. Keep them
+            # source-derived or empty rather than inventing curriculum content.
+            "learning_objectives": [expected_approach] if expected_approach else [],
+            "prerequisites": [],
+            "candidate_instructions": [requirements] if requirements else [],
+            "constraints": _list_value(row.get("constraints")),
         }
     )
     return content
