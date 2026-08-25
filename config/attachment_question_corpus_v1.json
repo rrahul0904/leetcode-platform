@@ -1,0 +1,49 @@
+{
+  "corpus": "attachment_question_corpus_v1",
+  "source_of_truth": "uploaded attachments",
+  "staged_records": 33300,
+  "source_backed_solved_records": 28590,
+  "candidate_serving_deduplicated_records": 11979,
+  "pending_solution_records": 4710,
+  "serving_duplicates_suppressed": 16611,
+  "tiers": {
+    "A_curated_explained": {
+      "solved_records": 4500,
+      "serving_records": 3868
+    },
+    "A_enterprise_code_backed": {
+      "solved_records": 1090,
+      "serving_records": 1090
+    },
+    "B_structured_generated": {
+      "solved_records": 23000,
+      "serving_records": 7021
+    }
+  },
+  "pending": {
+    "curated_sql_question_only": 3000,
+    "curated_pyspark_question_only": 1000,
+    "enterprise_scenarios_without_explicit_solution": 710
+  },
+  "reservoirs": {
+    "technical_question_bank_1m": {
+      "rows": 1000000,
+      "role": "expansion_reservoir",
+      "promote_wholesale": false,
+      "reason": "The supplied independent audit reports only 14-25 unique solution texts per subject despite unique question statements."
+    },
+    "technical_question_bank_100k": {
+      "rows": 100000,
+      "role": "superseded_reservoir",
+      "promote_wholesale": false
+    }
+  },
+  "rules": [
+    "Never count byte-identical duplicate uploads twice.",
+    "Never synthesize a missing solution when an uploaded source does not provide one.",
+    "Prefer A-tier source-backed content during candidate selection.",
+    "Deduplicate by substantive question/context/schema/options fingerprint before serving.",
+    "Retain suppressed source records in staging with provenance.",
+    "Add executable/public/hidden tests before enabling Run/Submit grading for imported coding questions."
+  ]
+}
