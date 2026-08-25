@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AuthGate } from "./auth-gate";
 
@@ -24,6 +24,11 @@ vi.mock("@/lib/auth", () => ({
 
 let pathname = "/";
 
+afterEach(() => {
+  cleanup();
+  router.replace.mockClear();
+});
+
 describe("AuthGate", () => {
   it("returns a candidate with a stale admin destination to candidate home", () => {
     pathname = "/admin/questions";
@@ -38,7 +43,6 @@ describe("AuthGate", () => {
 
   it("opens the app for a new candidate without forcing onboarding", () => {
     pathname = "/";
-    router.replace.mockClear();
     render(
       <AuthGate>
         <div>Candidate home</div>
@@ -50,7 +54,6 @@ describe("AuthGate", () => {
 
   it("keeps a candidate inside the hosted practice workspace", () => {
     pathname = "/practice/py-0001-bounded-cache";
-    router.replace.mockClear();
     render(
       <AuthGate>
         <div>Practice workspace</div>
@@ -62,7 +65,6 @@ describe("AuthGate", () => {
 
   it("allows the candidate workspace entry route", () => {
     pathname = "/workspace";
-    router.replace.mockClear();
     render(
       <AuthGate>
         <div>Workspace entry</div>
