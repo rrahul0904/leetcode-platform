@@ -1,4 +1,4 @@
-.PHONY: bootstrap reset-local verify-local stop-local logs-local backup-local restore-local release-local install-question-bank import-question-bank validate-question-bank test-content build-attachment-question-bank validate-attachment-question-bank sync-attachment-question-bank publish-attachment-question-bank
+.PHONY: bootstrap reset-local verify-local stop-local logs-local backup-local restore-local release-local install-question-bank import-question-bank validate-question-bank test-content build-attachment-question-bank validate-attachment-question-bank sync-attachment-question-bank publish-attachment-question-bank build-attachment-execution-bank validate-attachment-execution-bank sync-attachment-execution-bank verify-attachment-question-bank-db promote-large-question-corpus
 
 bootstrap:
 	./scripts/start-populated-local
@@ -64,6 +64,39 @@ publish-attachment-question-bank:
 		--publish-all \
 		--input "$(BANK)" \
 		--database-url postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
+
+build-attachment-execution-bank:
+	@test -n "$(BANK)" || (echo "Usage: make build-attachment-execution-bank BANK=/path/to/question_bank_with_solutions_explanations.jsonl [OUTPUT=/path/to/output-dir]" >&2; exit 2)
+	@mkdir -p "$(if $(OUTPUT),$(OUTPUT),data/question_upload/attachment-v2)"
+	uv run python scripts/build_attachment_execution_bank.py \
+		--input "$(BANK)" \
+		--output "$(if $(OUTPUT),$(OUTPUT),data/question_upload/attachment-v2)/question_bank_execution_candidates.jsonl" \
+		--report "$(if $(OUTPUT),$(OUTPUT),data/question_upload/attachment-v2)/execution_readiness_report.json"
+
+validate-attachment-execution-bank:
+	@test -n "$(BANK)" || (echo "Usage: make validate-attachment-execution-bank BANK=/path/to/question_bank_execution_candidates.jsonl" >&2; exit 2)
+	uv run python scripts/sync_execution_ready_attachment_question_bank.py --mode validate --input "$(BANK)"
+
+sync-attachment-execution-bank:
+	@test -n "$(BANK)" || (echo "Usage: make sync-attachment-execution-bank BANK=/path/to/question_bank_execution_candidates.jsonl" >&2; exit 2)
+	docker compose exec -T api python /app/scripts/sync_execution_ready_attachment_question_bank.py \
+		--mode sync \
+		--publish-all \
+		--source-revision attachment-question-bank-v2-execution \
+		--input "$(BANK)" \
+		--database-url postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor
+
+verify-attachment-question-bank-db:
+	docker compose exec -T api python /app/scripts/verify_attachment_question_bank_db.py \
+		--database-url postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@postgres:5432/rigor \
+		--expected "$(if $(EXPECTED),$(EXPECTED),11979)" \
+		--version attachment-v2-execution
+
+promote-large-question-corpus:
+	@test -n "$(INPUT)" || (echo "Usage: make promote-large-question-corpus INPUT=/path/to/corpus.parquet OUTPUT=/path/to/promoted.jsonl REPORT=/path/to/report.json" >&2; exit 2)
+	@test -n "$(OUTPUT)" || (echo "OUTPUT is required" >&2; exit 2)
+	@test -n "$(REPORT)" || (echo "REPORT is required" >&2; exit 2)
+	uv run python scripts/promote_large_question_corpus.py --input "$(INPUT)" --output "$(OUTPUT)" --report "$(REPORT)"
 
 test-content:
 	uv run python scripts/validate_content.py
