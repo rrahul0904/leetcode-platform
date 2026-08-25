@@ -1,0 +1,16 @@
+{
+  "python": {
+    "source_rows": 1368,
+    "reference_validated_runnable": 824
+  },
+  "sql": {
+    "source_rows": 940,
+    "local_precheck_candidates": 20,
+    "runnable_before_postgresql_confirmation": 0
+  },
+  "pyspark": {
+    "source_rows": 19,
+    "fixture_only": 19,
+    "runnable": 0
+  }
+}
