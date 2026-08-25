@@ -78,7 +78,9 @@ def database_checks(engine: Engine) -> tuple[list[ReadinessCheck], int]:
                     name="required_tables",
                     status="not_ready" if missing else "ready",
                     detail=(
-                        f"missing={','.join(missing)}" if missing else f"count={len(REQUIRED_TABLES)}"
+                        f"missing={','.join(missing)}"
+                        if missing
+                        else f"count={len(REQUIRED_TABLES)}"
                     ),
                 )
             )
@@ -107,7 +109,7 @@ def dependency_check(name: str, url: str) -> ReadinessCheck:
 
 def readiness_report(engine: Engine, settings: Settings) -> ReadinessResponse:
     checks, content_count = database_checks(engine)
-    checks.append(dependency_check("valkey", settings.redis_url))
+    checks.append(dependency_check("valkey", settings.valkey_url))
     checks.append(
         ReadinessCheck(
             name="content",
