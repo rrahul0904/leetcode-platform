@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from typing import Annotated, Any, cast
 
-from fastapi import Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 
 from .auth import require_permissions
 from .database import DatabaseEngine, principal_transaction
-from .practice import candidate_id, router
+from .practice import candidate_id
 from .schemas import AuthenticatedPrincipal
+
+router = APIRouter(prefix="/api/v1", tags=["practice"])
 
 CandidateReadPrincipal = Annotated[
     AuthenticatedPrincipal,
@@ -16,7 +18,7 @@ CandidateReadPrincipal = Annotated[
 ]
 
 
-@router.get("/questions/{slug}/solution", tags=["practice"])
+@router.get("/questions/{slug}/solution")
 def reveal_question_solution(
     slug: str,
     principal: CandidateReadPrincipal,
