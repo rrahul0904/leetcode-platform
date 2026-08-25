@@ -10,8 +10,12 @@ import {
   SolutionRevealError,
 } from "@/lib/solution-api";
 
+function hasDisplayValue(value: unknown): boolean {
+  return value != null && value !== "";
+}
+
 function renderValue(value: unknown) {
-  if (value == null || value === "") return null;
+  if (!hasDisplayValue(value)) return null;
   if (typeof value === "string") return <p>{value}</p>;
   return <pre>{JSON.stringify(value, null, 2)}</pre>;
 }
@@ -95,37 +99,41 @@ export function SolutionReview({ slug }: { slug: string }) {
         <span className="eyebrow">EXPLANATION</span>
         {renderValue(item.explanation)}
       </section>
-      {item.expected_approach && (
+      {hasDisplayValue(item.expected_approach) ? (
         <section className="panel section-block">
           <span className="eyebrow">EXPECTED APPROACH</span>
           {renderValue(item.expected_approach)}
         </section>
-      )}
-      {(item.time_complexity || item.space_complexity) && (
+      ) : null}
+      {hasDisplayValue(item.time_complexity) || hasDisplayValue(item.space_complexity) ? (
         <section className="panel section-block">
           <span className="eyebrow">COMPLEXITY</span>
-          {item.time_complexity && <p>Time: {item.time_complexity}</p>}
-          {item.space_complexity && <p>Space: {item.space_complexity}</p>}
+          {hasDisplayValue(item.time_complexity) ? (
+            <div>Time: {renderValue(item.time_complexity)}</div>
+          ) : null}
+          {hasDisplayValue(item.space_complexity) ? (
+            <div>Space: {renderValue(item.space_complexity)}</div>
+          ) : null}
         </section>
-      )}
-      {item.trade_off_analysis && (
+      ) : null}
+      {hasDisplayValue(item.trade_off_analysis) ? (
         <section className="panel section-block">
           <span className="eyebrow">TRADE-OFFS</span>
           {renderValue(item.trade_off_analysis)}
         </section>
-      )}
-      {item.common_mistakes && (
+      ) : null}
+      {hasDisplayValue(item.common_mistakes) ? (
         <section className="panel section-block">
           <span className="eyebrow">COMMON MISTAKES</span>
           {renderValue(item.common_mistakes)}
         </section>
-      )}
-      {item.best_practices && (
+      ) : null}
+      {hasDisplayValue(item.best_practices) ? (
         <section className="panel section-block">
           <span className="eyebrow">BEST PRACTICES</span>
           {renderValue(item.best_practices)}
         </section>
-      )}
+      ) : null}
     </div>
   );
 }
