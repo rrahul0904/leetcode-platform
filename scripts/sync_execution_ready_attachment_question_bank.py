@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import text
+from sqlalchemy import Connection, text
 
 import scripts.sync_attachment_question_bank as base
 
@@ -24,14 +24,23 @@ _original_upsert = base.upsert_one
 
 
 def _tests_are_governed(row: dict[str, Any]) -> bool:
-    mode = row.get("mode_specification")
-    if not isinstance(mode, dict):
+    raw_mode = row.get("mode_specification")
+    if not isinstance(raw_mode, dict):
         return False
+    mode = cast(dict[str, Any], raw_mode)
     tests = mode.get("tests")
     if not isinstance(tests, list):
         return False
-    public = sum(isinstance(test, dict) and test.get("visibility") == "public" for test in tests)
-    hidden = sum(isinstance(test, dict) and test.get("visibility") == "hidden" for test in tests)
+    public = 0
+    hidden = 0
+    for raw_test in tests:
+        if not isinstance(raw_test, dict):
+            continue
+        test = cast(dict[str, Any], raw_test)
+        if test.get("visibility") == "public":
+            public += 1
+        elif test.get("visibility") == "hidden":
+            hidden += 1
     return public > 0 and hidden > 0
 
 
@@ -116,7 +125,13 @@ def _skill_slug(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", value.casefold()).strip("-")[:100]
 
 
-def upsert_one(connection, row: dict[str, Any], *, source_revision: str, publish: bool):
+def upsert_one(
+    connection: Connection,
+    row: dict[str, Any],
+    *,
+    source_revision: str,
+    publish: bool,
+) -> tuple[str, bool]:
     result = _original_upsert(
         connection,
         row,
@@ -177,8 +192,6 @@ def upsert_one(connection, row: dict[str, Any], *, source_revision: str, publish
             {"version_id": version_id, "skill_id": skill_id},
         )
 
-    # Candidate progress is competency-based, so execution-ready imports must
-    # map each question into the seeded competency taxonomy as well as skills.
     primary_slug = str(identity["track_slug"])
     competency_slugs = list(dict.fromkeys([primary_slug, *skill_slugs]))
     competency_rows = (
