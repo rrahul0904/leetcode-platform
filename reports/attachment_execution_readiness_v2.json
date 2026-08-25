@@ -1,0 +1,25 @@
+{
+  "serving_records": 11979,
+  "runnable_total": 844,
+  "runnable_by_subject": {
+    "Python Coding": 824,
+    "SQL": 20
+  },
+  "python": {
+    "source_rows": 1368,
+    "reference_validated_with_public_and_hidden_tests": 824
+  },
+  "sql": {
+    "source_rows": 940,
+    "locally_prechecked": 20,
+    "unique_postgresql_confirmed_families": 4,
+    "reference_validated_with_distinct_public_and_hidden_datasets": 20
+  },
+  "pyspark": {
+    "source_rows": 19,
+    "fixture_only": 19,
+    "runnable": 0,
+    "reason": "No concrete source-grounded Spark fixtures/runtime are present in the attachment corpus/application execution plane."
+  },
+  "policy": "Execution readiness is fail-closed. Source solution text alone never enables Run/Submit."
+}
