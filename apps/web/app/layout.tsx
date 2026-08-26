@@ -1,3 +1,4 @@
+import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
@@ -27,15 +28,18 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+  const application = (
+    <QueryProvider>
+      <AuthProvider>
+        <AuthGate>{children}</AuthGate>
+      </AuthProvider>
+    </QueryProvider>
+  );
+  const clerkEnabled = process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE === "clerk";
+
   return (
     <html lang="en">
-      <body>
-        <QueryProvider>
-          <AuthProvider>
-            <AuthGate>{children}</AuthGate>
-          </AuthProvider>
-        </QueryProvider>
-      </body>
+      <body>{clerkEnabled ? <ClerkProvider>{application}</ClerkProvider> : application}</body>
     </html>
   );
 }
