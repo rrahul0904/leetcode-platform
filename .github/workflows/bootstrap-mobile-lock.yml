@@ -33,10 +33,28 @@ jobs:
       - name: Install locked workspace
         run: pnpm install --frozen-lockfile
       - name: Typecheck imported mobile app
-        run: pnpm --filter @rigor/mobile typecheck
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          pnpm --filter @rigor/mobile typecheck 2>&1 | tee mobile-typecheck.log
+          status=${PIPESTATUS[0]}
+          exit "$status"
+      - name: Upload mobile typecheck evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: mobile-typecheck-evidence
+          path: |
+            mobile-typecheck.log
+            pnpm-lock.yaml
+          if-no-files-found: error
+          retention-days: 7
       - name: Remove one-time bootstrap workflow
+        if: success()
         run: rm .github/workflows/bootstrap-mobile-lock.yml
       - name: Commit generated lockfile
+        if: success()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
