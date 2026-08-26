@@ -8,9 +8,9 @@ from datetime import UTC, datetime
 
 import pytest
 
+from rigor_api.execution_sqs import AwsCredentials, StaticCredentialProvider
 from rigor_api.identity_webhooks import WebhookVerificationError, verify_svix_webhook
 from rigor_api.object_storage import S3Presigner
-from rigor_api.execution_sqs import AwsCredentials, StaticCredentialProvider
 
 
 def _signed_headers(body: bytes, secret: str, message_id: str, timestamp: int) -> dict[str, str]:
@@ -50,8 +50,14 @@ def test_clerk_svix_signature_verification_and_replay_window() -> None:
 
 
 def test_s3_presigner_is_short_lived_and_never_exposes_secret() -> None:
-    provider = StaticCredentialProvider(AwsCredentials("AKIATEST", "top-secret", "session-token"))
-    signer = S3Presigner(region="us-east-1", bucket="skillforge-private", credential_provider=provider)
+    provider = StaticCredentialProvider(
+        AwsCredentials("AKIATEST", "top-secret", "session-token")
+    )
+    signer = S3Presigner(
+        region="us-east-1",
+        bucket="skillforge-private",
+        credential_provider=provider,
+    )
     url = signer.presign(
         method="PUT",
         storage_key="candidates/abc/resume.pdf",
