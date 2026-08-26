@@ -3,17 +3,19 @@ export interface ApiClientConfiguration {
   getAccessToken?: () => Promise<string | null>;
   fetchImplementation?: typeof fetch;
   defaultHeaders?: Readonly<Record<string, string>>;
+  onUnauthorized?: () => void | Promise<void>;
 }
 
-export interface ApiRequestOptions extends Omit<RequestInit, "headers"> {
+export interface ApiRequestOptions extends Omit<RequestInit, "headers" | "signal"> {
   headers?: Readonly<Record<string, string>>;
   requireAuthentication?: boolean;
+  signal?: AbortSignal | null | undefined;
 }
 
 export class ApiClientError extends Error {
   readonly status: number;
-  readonly code?: string;
-  readonly details?: unknown;
+  readonly code: string | undefined;
+  readonly details: unknown | undefined;
 
   constructor(message: string, status: number, code?: string, details?: unknown) {
     super(message);
@@ -23,6 +25,9 @@ export class ApiClientError extends Error {
     this.details = details;
   }
 }
+
+// Compatibility alias retained for native clients that imported the original name.
+export { ApiClientError as ApiError };
 
 export interface ApiClient {
   request<T>(path: string, options?: ApiRequestOptions): Promise<T>;
@@ -89,6 +94,7 @@ export function createApiClient(configuration: ApiClientConfiguration): ApiClien
       if (token) {
         headers.set("authorization", `Bearer ${token}`);
       } else if (options.requireAuthentication) {
+        await configuration.onUnauthorized?.();
         throw new ApiClientError("Authentication is required.", 401, "AUTH_REQUIRED");
       }
 
@@ -98,6 +104,9 @@ export function createApiClient(configuration: ApiClientConfiguration): ApiClien
       );
 
       if (!response.ok) {
+        if (response.status === 401) {
+          await configuration.onUnauthorized?.();
+        }
         throw await readError(response);
       }
       if (response.status === 204) {
