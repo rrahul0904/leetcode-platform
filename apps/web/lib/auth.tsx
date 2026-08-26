@@ -196,24 +196,33 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   const [principal, setPrincipal] = useState<Principal | null>(null);
 
   useEffect(() => {
-    if (!clerk.isLoaded) {
-      setStatus("restoring");
-      return;
-    }
-    if (!clerk.isSignedIn) {
-      setPrincipal(null);
-      setStatus("anonymous");
-      return;
-    }
-    void loadPrincipal()
-      .then((restored) => {
-        setPrincipal(restored);
-        setStatus("authenticated");
-      })
-      .catch(() => {
+    let cancelled = false;
+
+    async function synchronizeSession() {
+      if (!clerk.isLoaded) return;
+      if (!clerk.isSignedIn) {
+        await Promise.resolve();
+        if (cancelled) return;
         setPrincipal(null);
         setStatus("anonymous");
-      });
+        return;
+      }
+      try {
+        const restored = await loadPrincipal();
+        if (cancelled) return;
+        setPrincipal(restored);
+        setStatus("authenticated");
+      } catch {
+        if (cancelled) return;
+        setPrincipal(null);
+        setStatus("anonymous");
+      }
+    }
+
+    void synchronizeSession();
+    return () => {
+      cancelled = true;
+    };
   }, [clerk.isLoaded, clerk.isSignedIn, clerk.sessionId]);
 
   const signIn = useCallback(async (_identity?: string, returnTo = "/") => {
