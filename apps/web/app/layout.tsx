@@ -21,9 +21,9 @@ import "./curriculum-experience.css";
 import "./editorial-experience.css";
 
 export const metadata: Metadata = {
-  title: "Rigor — Interview Systems Lab",
+  title: "SkillForge AI — Technical Interview Platform",
   description:
-    "Independent, evidence-driven technical interview preparation for senior through principal engineers.",
+    "AI-powered technical interview preparation for data engineering, software engineering, system design, and senior engineering roles.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
