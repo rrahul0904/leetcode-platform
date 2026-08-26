@@ -15,7 +15,9 @@ from . import attachment_progress_patch as attachment_progress_patch
 from . import execution_patches as execution_patches
 from . import submissions as legacy_submissions
 from .attachment_solution_routes import router as attachment_solution_router
+from .auth import authenticated_principal
 from .execution_routes import router as execution_router
+from .principal_auth import database_authoritative_principal
 from .saas_routes import router as saas_router
 
 _LEGACY_SYNCHRONOUS_ENDPOINTS = {
@@ -45,6 +47,7 @@ app.description = (
     "Production API for SkillForge AI technical learning, interview preparation, "
     "durable execution, identity, and candidate progress."
 )
+app.dependency_overrides[authenticated_principal] = database_authoritative_principal
 app.include_router(execution_router)
 app.include_router(attachment_solution_router)
 app.include_router(saas_router)
