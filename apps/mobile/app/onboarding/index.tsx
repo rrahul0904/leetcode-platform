@@ -46,6 +46,8 @@ export default function OnboardingScreen() {
     );
   }
 
+  const editorProps = profile.data ? { initial: profile.data } : {};
+
   return (
     <Screen>
       <Eyebrow>{profile.data ? "EDIT CANDIDATE PROFILE" : "FIRST-LOGIN ONBOARDING"}</Eyebrow>
@@ -63,7 +65,7 @@ export default function OnboardingScreen() {
         </Text>
       ) : null}
       <CandidateProfileEditor
-        initial={profile.data}
+        {...editorProps}
         saving={save.isPending}
         onSave={async (input) => {
           await save.mutateAsync(input);
