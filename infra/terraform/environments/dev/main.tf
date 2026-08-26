@@ -31,12 +31,12 @@ module "application" {
   vpc_id               = module.network.vpc_id
   public_subnet_ids    = module.network.public_subnet_ids
   private_subnet_ids   = module.network.private_subnet_ids
-  api_image             = var.api_image
-  worker_image          = var.worker_image
-  execution_queue_arn   = module.execution_queue.queue_arn
-  background_queue_arn  = module.background_queue.queue_arn
-  upload_bucket_arn     = module.storage.upload_bucket_arn
-  export_bucket_arn     = module.storage.export_bucket_arn
+  api_image            = var.api_image
+  worker_image         = var.worker_image
+  execution_queue_arn  = module.execution_queue.queue_arn
+  background_queue_arn = module.background_queue.queue_arn
+  upload_bucket_arn    = module.storage.upload_bucket_arn
+  export_bucket_arn    = module.storage.export_bucket_arn
 
   api_desired_count    = 1
   worker_desired_count = 1
