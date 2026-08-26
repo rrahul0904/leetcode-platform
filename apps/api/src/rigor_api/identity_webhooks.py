@@ -38,9 +38,9 @@ def verify_svix_webhook(
         secret_bytes = base64.b64decode(encoded_secret, validate=True)
     except ValueError as exc:
         raise WebhookVerificationError("Webhook secret is invalid.") from exc
-    signed = f"{message_id}.{timestamp}.".encode("utf-8") + body
+    signed = f"{message_id}.{timestamp}.".encode() + body
     expected = base64.b64encode(hmac.new(secret_bytes, signed, hashlib.sha256).digest()).decode()
-    candidates = []
+    candidates: list[str] = []
     for token in signatures.split():
         if "," in token:
             version, signature = token.split(",", 1)
@@ -57,14 +57,21 @@ def verify_svix_webhook(
     return payload
 
 
+def _email_priority(item: dict[str, Any], primary_id: object) -> bool:
+    return item.get("id") != primary_id
+
+
 def _primary_email(data: dict[str, Any]) -> tuple[str, bool]:
     addresses = data.get("email_addresses")
     primary_id = data.get("primary_email_address_id")
     if not isinstance(addresses, list):
         return ("", False)
+    typed_addresses: list[dict[str, Any]] = [
+        item for item in addresses if isinstance(item, dict)
+    ]
     ordered = sorted(
-        (item for item in addresses if isinstance(item, dict)),
-        key=lambda item: item.get("id") != primary_id,
+        typed_addresses,
+        key=lambda item: _email_priority(item, primary_id),
     )
     for item in ordered:
         email = item.get("email_address")
@@ -209,7 +216,13 @@ def process_clerk_event(
                 {"subject": subject, "session_id": str(session_id) if session_id else None},
             )
             connection.execute(
-                text("UPDATE users SET last_login_at=CURRENT_TIMESTAMP WHERE identity_subject=:subject"),
+                text(
+                    """
+                    UPDATE users
+                    SET last_login_at=CURRENT_TIMESTAMP
+                    WHERE identity_subject=:subject
+                    """
+                ),
                 {"subject": subject},
             )
     else:
