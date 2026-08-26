@@ -24,10 +24,10 @@ resource "aws_cloudfront_distribution" "this" {
   }
 
   default_cache_behavior {
-    target_origin_id       = "skillforge-api"
-    viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
-    cached_methods         = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id         = "skillforge-api"
+    viewer_protocol_policy   = "redirect-to-https"
+    allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods           = ["GET", "HEAD", "OPTIONS"]
     cache_policy_id          = "413f1605-5159-4f69-8c4e-e23b5f2d6b21"
     origin_request_policy_id = "216adef6-5c7f-47e4-b989-5492eafa07d3"
   }
