@@ -9,6 +9,7 @@ import type {
   CatalogQuestionPage,
   CompetencyReadiness,
   ExecutionAccepted,
+  ExecutionResult,
   ExecutionView,
   NextAction,
   PracticeHint,
@@ -41,6 +42,55 @@ function jsonBody(value: unknown): string {
 
 function sleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function fallbackIdempotencyKey(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function legacyExecutionState(execution: ExecutionView): ExecutionResult["state"] {
+  if (execution.status === "QUEUED" || execution.status === "DISPATCHING") {
+    return "QUEUED";
+  }
+  if (execution.status === "RUNNING") return "RUNNING";
+  if (execution.status === "CANCELLED") return "CANCELLED";
+  if (execution.status === "TIMEOUT") return "TIMED_OUT";
+  if (execution.status === "FAILED") return "ERROR";
+  if (!execution.result) return "ERROR";
+
+  const publicPassed = execution.result.public_results.every((test) => test.passed);
+  const hiddenPassed = execution.result.hidden_passed === execution.result.hidden_total;
+  return publicPassed && hiddenPassed ? "PASSED" : "FAILED";
+}
+
+function toLegacyExecutionResult(execution: ExecutionView): ExecutionResult {
+  const result = execution.result;
+  return {
+    execution_request_id: execution.execution_id,
+    submission_id: execution.submission_id,
+    state: legacyExecutionState(execution),
+    public_results: (result?.public_results ?? []).map((test) => ({
+      test_id: test.test_id,
+      name: test.name,
+      passed: test.passed,
+      expected: test.expected ?? null,
+      actual: test.actual ?? null,
+      duration_ms: null,
+    })),
+    hidden_total: result?.hidden_total ?? 0,
+    hidden_passed: result?.hidden_passed ?? 0,
+    runtime_ms: execution.runtime_ms,
+    memory_kb:
+      execution.memory_peak_bytes === null
+        ? null
+        : Math.ceil(execution.memory_peak_bytes / 1024),
+    error_category: execution.error,
+    candidate_message: result?.candidate_message ?? execution.error,
+    quality_signals: {
+      durable_execution_status: execution.status,
+      durable_execution_attempt: execution.attempt,
+    },
+  };
 }
 
 export function getPrincipal(signal?: AbortSignal) {
@@ -129,12 +179,12 @@ export function savePracticeDraft(
   );
 }
 
-export function runPracticeCode(
+async function queueRun(
   slug: string,
   sessionId: string,
   sourceCode: string,
   idempotencyKey: string,
-) {
+): Promise<ExecutionAccepted> {
   return apiClient.request<ExecutionAccepted>(
     `/api/v1/questions/${encodeURIComponent(slug)}/run`,
     {
@@ -145,12 +195,12 @@ export function runPracticeCode(
   );
 }
 
-export function submitPracticeCode(
+async function queueSubmission(
   slug: string,
   sessionId: string,
   sourceCode: string,
   idempotencyKey: string,
-) {
+): Promise<ExecutionAccepted> {
   return apiClient.request<ExecutionAccepted>(
     `/api/v1/questions/${encodeURIComponent(slug)}/submissions`,
     {
@@ -188,6 +238,16 @@ export async function waitForExecution(
   throw new Error("Execution status did not reach a terminal state in time.");
 }
 
+export async function runPracticeCode(
+  slug: string,
+  sessionId: string,
+  sourceCode: string,
+  idempotencyKey = fallbackIdempotencyKey("mobile-run"),
+): Promise<ExecutionResult> {
+  const accepted = await queueRun(slug, sessionId, sourceCode, idempotencyKey);
+  return toLegacyExecutionResult(await waitForExecution(accepted.execution_id));
+}
+
 export function getSubmission(submissionId: string, signal?: AbortSignal) {
   return apiClient.request<CandidateSubmission>(
     `/api/v1/submissions/${encodeURIComponent(submissionId)}`,
@@ -213,6 +273,21 @@ export async function waitForSubmission(
   throw lastError instanceof Error
     ? lastError
     : new Error("Submission finalization was not observable in time.");
+}
+
+export async function submitPracticeCode(
+  slug: string,
+  sessionId: string,
+  sourceCode: string,
+  idempotencyKey: string,
+): Promise<CandidateSubmission> {
+  const accepted = await queueSubmission(slug, sessionId, sourceCode, idempotencyKey);
+  const execution = await waitForExecution(accepted.execution_id);
+  const submissionId = execution.submission_id ?? accepted.submission_id;
+  if (!submissionId) {
+    throw new Error("Durable submission completed without a submission identifier.");
+  }
+  return waitForSubmission(submissionId);
 }
 
 export function revealHint(sessionId: string) {
