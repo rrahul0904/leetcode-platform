@@ -46,7 +46,7 @@ class BackgroundWorkerSettings:
     visibility_seconds: int = 60
 
     @classmethod
-    def discover(cls) -> "BackgroundWorkerSettings":
+    def discover(cls) -> BackgroundWorkerSettings:
         queue_url = os.getenv("RIGOR_BACKGROUND_QUEUE_URL", "")
         region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or ""
         if not queue_url:
@@ -70,7 +70,7 @@ class BackgroundWorker:
         self.queue = queue
 
     @classmethod
-    def discover(cls) -> "BackgroundWorker":
+    def discover(cls) -> BackgroundWorker:
         settings = BackgroundWorkerSettings.discover()
         queue = SqsJsonClient(queue_url=settings.queue_url, region=settings.aws_region)
         return cls(settings, queue)
