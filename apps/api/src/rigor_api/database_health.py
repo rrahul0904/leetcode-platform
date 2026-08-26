@@ -13,8 +13,14 @@ from .execution_routes import (
 )
 from .schemas import ReadinessCheck, ReadinessResponse
 
-EXPECTED_MIGRATION_VERSION = "20260824_0016"
+EXPECTED_MIGRATION_VERSION = "20260826_0017"
 REQUIRED_TABLES = (
+    "users",
+    "user_roles",
+    "user_preferences",
+    "candidate_profiles",
+    "organizations",
+    "organization_memberships",
     "practice_sessions",
     "submissions",
     "execution_requests",
@@ -43,8 +49,17 @@ REQUIRED_TABLES = (
     "knowledge_activity_events",
     "local_execution_queue",
     "local_execution_controller_status",
+    "identity_webhook_events",
+    "login_events",
+    "candidate_files",
+    "generated_reports",
+    "data_export_requests",
+    "deletion_requests",
+    "plans",
+    "subscriptions",
+    "entitlements",
 )
-EXECUTION_ADAPTERS = {"LOCAL_FUNCTIONAL", "LOCAL_DOCKER", "KUBERNETES_JOB"}
+EXECUTION_ADAPTERS = {"LOCAL_FUNCTIONAL", "LOCAL_DOCKER", "KUBERNETES_JOB", "SQS_FARGATE"}
 AI_ADAPTERS = {"DETERMINISTIC", "OPENAI", "ANTHROPIC"}
 
 
@@ -148,6 +163,21 @@ def readiness_report(engine: Engine, settings: Settings) -> ReadinessResponse:
             ),
         )
     )
+    if settings.environment.strip().lower() in {"staging", "production"}:
+        checks.append(
+            ReadinessCheck(
+                name="identity_provider",
+                status="ready" if settings.oidc_jwks_url and not settings.local_oidc_enabled else "not_ready",
+                detail="external_oidc" if settings.oidc_jwks_url else "jwks_missing",
+            )
+        )
+        checks.append(
+            ReadinessCheck(
+                name="private_storage",
+                status="ready" if settings.s3_upload_bucket else "not_ready",
+                detail=settings.s3_upload_bucket or "bucket_missing",
+            )
+        )
     return ReadinessResponse(
         status="ready" if all(check.status == "ready" for check in checks) else "not_ready",
         checks=checks,
