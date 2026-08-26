@@ -80,6 +80,12 @@ export function createApiClient(configuration: ApiClientConfiguration): ApiClien
         ? await configuration.getAccessToken()
         : null;
       const headers = new Headers(configuration.defaultHeaders);
+      const {
+        headers: _requestHeaders,
+        requireAuthentication,
+        signal,
+        ...requestInit
+      } = options;
 
       for (const [name, value] of Object.entries(options.headers ?? {})) {
         headers.set(name, value);
@@ -93,14 +99,18 @@ export function createApiClient(configuration: ApiClientConfiguration): ApiClien
       }
       if (token) {
         headers.set("authorization", `Bearer ${token}`);
-      } else if (options.requireAuthentication) {
+      } else if (requireAuthentication) {
         await configuration.onUnauthorized?.();
         throw new ApiClientError("Authentication is required.", 401, "AUTH_REQUIRED");
       }
 
+      const init: RequestInit = { ...requestInit, headers };
+      if (signal !== undefined) {
+        init.signal = signal;
+      }
       const response = await fetchImplementation(
         `${baseUrl}/${path.replace(/^\/+/, "")}`,
-        { ...options, headers },
+        init,
       );
 
       if (!response.ok) {
