@@ -1,0 +1,70 @@
+name: Python test evidence
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "feature/**"
+      - "agent/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-test-evidence-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest-evidence:
+    name: Pytest evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install locked Python workspace
+        run: uv sync --frozen --all-packages
+      - name: Start PostgreSQL 18 + pgvector
+        run: docker compose up -d --wait postgres
+      - name: Migrate integration database
+        env:
+          RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
+        run: uv run alembic upgrade head
+      - name: Seed deterministic taxonomy
+        env:
+          RIGOR_SEED_DATABASE_URL: postgresql://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
+          PGOPTIONS: -c rigor.maintenance_bypass=on
+        run: uv run python scripts/seed_database.py
+      - name: Run full Python test suite with retained output
+        id: pytest
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          uv run pytest -q 2>&1 | tee pytest-evidence.log
+          status=${PIPESTATUS[0]}
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
+      - name: Upload Pytest evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: pytest-evidence
+          path: pytest-evidence.log
+          if-no-files-found: error
+          retention-days: 7
+      - name: Show PostgreSQL logs on failure
+        if: failure()
+        run: docker compose logs postgres
+      - name: Stop services
+        if: always()
+        run: docker compose down -v
