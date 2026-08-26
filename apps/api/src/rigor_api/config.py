@@ -95,9 +95,12 @@ class Settings(BaseSettings):
                 f"{adapter} candidate execution is forbidden in staging and production. "
                 "Configure the isolated SQS-backed execution plane instead."
             )
-        if environment in {"production", "staging"} and not self.local_oidc_enabled:
-            if not self.oidc_jwks_url or not self.oidc_issuer:
-                raise ValueError("A production OIDC issuer and JWKS URL are required.")
+        if (
+            environment in {"production", "staging"}
+            and not self.local_oidc_enabled
+            and (not self.oidc_jwks_url or not self.oidc_issuer)
+        ):
+            raise ValueError("A production OIDC issuer and JWKS URL are required.")
         return self
 
 
