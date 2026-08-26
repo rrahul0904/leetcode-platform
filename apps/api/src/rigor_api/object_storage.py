@@ -31,7 +31,7 @@ class S3Presigner:
     credential_provider: AwsCredentialProvider
 
     @classmethod
-    def from_environment(cls, *, region: str, bucket: str) -> "S3Presigner":
+    def from_environment(cls, *, region: str, bucket: str) -> S3Presigner:
         if not bucket or "." in bucket or "/" in bucket:
             raise ObjectStorageConfigurationError("A DNS-safe private S3 bucket name is required.")
         return cls(
