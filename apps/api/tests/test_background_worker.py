@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from rigor_api.background_worker import BackgroundJobError, parse_background_job
+from rigor_api.background_worker import (
+    BackgroundJobError,
+    parse_background_job,
+)
 
 
 def test_background_job_parser_accepts_explicit_job_contract() -> None:
