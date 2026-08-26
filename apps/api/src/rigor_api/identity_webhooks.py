@@ -86,6 +86,22 @@ def _display_name(data: dict[str, Any], email: str) -> str:
     return (email or "SkillForge Candidate")[:160]
 
 
+def _set_candidate_rls_context(connection: Connection, user_id: object) -> None:
+    """Scope webhook-created candidate rows through the same RLS boundary as the API.
+
+    Clerk webhooks are trusted identity events, but they still run as the ordinary
+    application database role. FORCE RLS therefore remains active; the webhook may
+    initialize owner-scoped rows only after setting the transaction-local user id.
+    """
+
+    connection.execute(
+        text("SELECT set_config('rigor.user_id', :user_id, true)"),
+        {"user_id": str(user_id)},
+    )
+    connection.execute(text("SELECT set_config('rigor.organization_id', '', true)"))
+    connection.execute(text("SELECT set_config('rigor.maintenance_bypass', 'off', true)"))
+
+
 def process_clerk_event(
     connection: Connection,
     *,
@@ -152,6 +168,7 @@ def process_clerk_event(
             ),
             {"user_id": user_id},
         )
+        _set_candidate_rls_context(connection, user_id)
         connection.execute(
             text(
                 """
