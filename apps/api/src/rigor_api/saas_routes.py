@@ -68,7 +68,11 @@ def me(
                 """
                 SELECT u.id, u.identity_subject, u.auth_provider, u.email,
                        u.email_verified, u.display_name, u.status,
-                       COALESCE(array_agg(ur.role_slug) FILTER (WHERE ur.role_slug IS NOT NULL), '{}') roles
+                       COALESCE(
+                           array_agg(ur.role_slug)
+                           FILTER (WHERE ur.role_slug IS NOT NULL),
+                           '{}'
+                       ) roles
                 FROM users u LEFT JOIN user_roles ur ON ur.user_id=u.id
                 WHERE u.identity_subject=:subject
                 GROUP BY u.id
@@ -165,7 +169,10 @@ def presign_upload(
             bucket=settings.s3_upload_bucket,
         ).presign(method="PUT", storage_key=storage_key, expires_seconds=300)
     except ObjectStorageConfigurationError as exc:
-        raise HTTPException(status_code=503, detail="Private file storage is misconfigured") from exc
+        raise HTTPException(
+            status_code=503,
+            detail="Private file storage is misconfigured",
+        ) from exc
     return PresignUploadResponse(
         file_id=file_id,
         upload_url=url,
