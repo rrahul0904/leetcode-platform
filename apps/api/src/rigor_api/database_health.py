@@ -164,10 +164,11 @@ def readiness_report(engine: Engine, settings: Settings) -> ReadinessResponse:
         )
     )
     if settings.environment.strip().lower() in {"staging", "production"}:
+        identity_ready = bool(settings.oidc_jwks_url) and not settings.local_oidc_enabled
         checks.append(
             ReadinessCheck(
                 name="identity_provider",
-                status="ready" if settings.oidc_jwks_url and not settings.local_oidc_enabled else "not_ready",
+                status="ready" if identity_ready else "not_ready",
                 detail="external_oidc" if settings.oidc_jwks_url else "jwks_missing",
             )
         )
