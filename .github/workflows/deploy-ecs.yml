@@ -1,0 +1,108 @@
+name: Deploy SkillForge ECS
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: GitHub deployment environment
+        required: true
+        default: production
+        type: choice
+        options: [development, production]
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+  ECS_API_SERVICE: ${{ vars.ECS_API_SERVICE }}
+  ECS_WORKER_SERVICE: ${{ vars.ECS_WORKER_SERVICE }}
+  ECR_API_REPOSITORY: ${{ vars.ECR_API_REPOSITORY }}
+  ECR_WORKER_REPOSITORY: ${{ vars.ECR_WORKER_REPOSITORY }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push API image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt \
+            -t "$REGISTRY/$ECR_API_REPOSITORY:$IMAGE_TAG" \
+            -f infra/docker/api.Dockerfile .
+          docker push "$REGISTRY/$ECR_API_REPOSITORY:$IMAGE_TAG"
+          echo "API_IMAGE=$REGISTRY/$ECR_API_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_ENV"
+
+      - name: Build and push worker image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt \
+            -t "$REGISTRY/$ECR_WORKER_REPOSITORY:$IMAGE_TAG" \
+            -f services/execution-controller/Dockerfile .
+          docker push "$REGISTRY/$ECR_WORKER_REPOSITORY:$IMAGE_TAG"
+          echo "WORKER_IMAGE=$REGISTRY/$ECR_WORKER_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_ENV"
+
+      - name: Read current task definitions
+        run: |
+          aws ecs describe-task-definition --task-definition "$ECS_API_SERVICE" --query taskDefinition > api-task.json
+          aws ecs describe-task-definition --task-definition "$ECS_WORKER_SERVICE" --query taskDefinition > worker-task.json
+          for file in api-task.json worker-task.json; do
+            jq 'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)' "$file" > "$file.clean"
+            mv "$file.clean" "$file"
+          done
+
+      - name: Render API task definition
+        id: api-task
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: api-task.json
+          container-name: api
+          image: ${{ env.API_IMAGE }}
+
+      - name: Deploy API
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.api-task.outputs.task-definition }}
+          service: ${{ env.ECS_API_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Render worker task definition
+        id: worker-task
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: worker-task.json
+          container-name: worker
+          image: ${{ env.WORKER_IMAGE }}
+
+      - name: Deploy worker
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.worker-task.outputs.task-definition }}
+          service: ${{ env.ECS_WORKER_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Smoke check service state
+        run: |
+          test "$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_API_SERVICE" --query 'services[0].runningCount' --output text)" -ge 1
+          test "$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_WORKER_SERVICE" --query 'services[0].runningCount' --output text)" -ge 1

@@ -1,0 +1,11 @@
+aws_region          = "us-east-1"
+name                = "skillforge-prod"
+availability_zones  = ["us-east-1a", "us-east-1b"]
+route53_zone_id     = "Z1234567890"
+api_domain          = "api.example.com"
+api_image           = "123456789012.dkr.ecr.us-east-1.amazonaws.com/skillforge-api:REPLACE_WITH_DIGESTED_TAG"
+worker_image        = "123456789012.dkr.ecr.us-east-1.amazonaws.com/skillforge-worker:REPLACE_WITH_DIGESTED_TAG"
+valkey_auth_token   = "REPLACE_THROUGH_SECURE_TF_VAR"
+clerk_issuer        = "https://your-clerk-domain"
+clerk_jwks_url      = "https://your-clerk-domain/.well-known/jwks.json"
+jwt_audience        = "skillforge-api"
