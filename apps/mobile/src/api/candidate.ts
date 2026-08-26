@@ -8,7 +8,8 @@ import type {
   CandidateSubmission,
   CatalogQuestionPage,
   CompetencyReadiness,
-  ExecutionResult,
+  ExecutionAccepted,
+  ExecutionView,
   NextAction,
   PracticeHint,
   PracticeSession,
@@ -27,6 +28,21 @@ export interface QuestionFilters {
   pageSize?: number;
 }
 
+const TERMINAL_EXECUTION_STATUSES = new Set<ExecutionView["status"]>([
+  "COMPLETED",
+  "FAILED",
+  "TIMEOUT",
+  "CANCELLED",
+]);
+
+function jsonBody(value: unknown): string {
+  return JSON.stringify(value);
+}
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 export function getPrincipal(signal?: AbortSignal) {
   return apiClient.request<AuthenticatedPrincipal>("/api/v1/auth/me", { signal });
 }
@@ -38,7 +54,7 @@ export function getProfile(signal?: AbortSignal) {
 export function putProfile(profile: CandidateProfileInput) {
   return apiClient.request<CandidateProfile>("/api/v1/profile", {
     method: "PUT",
-    body: profile,
+    body: jsonBody(profile),
   });
 }
 
@@ -88,7 +104,7 @@ export function getPracticeSessions(signal?: AbortSignal) {
 export function createPracticeSession(questionSlug: string) {
   return apiClient.request<PracticeSession>("/api/v1/practice-sessions", {
     method: "POST",
-    body: { question_slug: questionSlug, runtime: "python3.13" },
+    body: jsonBody({ question_slug: questionSlug, runtime: "python3.13" }),
   });
 }
 
@@ -108,17 +124,23 @@ export function savePracticeDraft(
     `/api/v1/practice-sessions/${encodeURIComponent(sessionId)}`,
     {
       method: "PATCH",
-      body: { draft_code: draftCode, elapsed_seconds: elapsedSeconds },
+      body: jsonBody({ draft_code: draftCode, elapsed_seconds: elapsedSeconds }),
     },
   );
 }
 
-export function runPracticeCode(slug: string, sessionId: string, sourceCode: string) {
-  return apiClient.request<ExecutionResult>(
+export function runPracticeCode(
+  slug: string,
+  sessionId: string,
+  sourceCode: string,
+  idempotencyKey: string,
+) {
+  return apiClient.request<ExecutionAccepted>(
     `/api/v1/questions/${encodeURIComponent(slug)}/run`,
     {
       method: "POST",
-      body: { session_id: sessionId, source_code: sourceCode },
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: jsonBody({ session_id: sessionId, source_code: sourceCode }),
     },
   );
 }
@@ -129,18 +151,68 @@ export function submitPracticeCode(
   sourceCode: string,
   idempotencyKey: string,
 ) {
-  return apiClient.request<CandidateSubmission>(
+  return apiClient.request<ExecutionAccepted>(
     `/api/v1/questions/${encodeURIComponent(slug)}/submissions`,
     {
       method: "POST",
-      idempotencyKey,
-      body: {
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: jsonBody({
         session_id: sessionId,
         source_code: sourceCode,
         runtime: "python3.13",
-      },
+      }),
     },
   );
+}
+
+export function getExecution(executionId: string, signal?: AbortSignal) {
+  return apiClient.request<ExecutionView>(
+    `/api/v1/executions/${encodeURIComponent(executionId)}`,
+    { signal },
+  );
+}
+
+export async function waitForExecution(
+  executionId: string,
+  options: { maxAttempts?: number; pollIntervalMs?: number } = {},
+): Promise<ExecutionView> {
+  const maxAttempts = options.maxAttempts ?? 120;
+  const pollIntervalMs = options.pollIntervalMs ?? 500;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const execution = await getExecution(executionId);
+    if (TERMINAL_EXECUTION_STATUSES.has(execution.status)) {
+      return execution;
+    }
+    await sleep(pollIntervalMs);
+  }
+  throw new Error("Execution status did not reach a terminal state in time.");
+}
+
+export function getSubmission(submissionId: string, signal?: AbortSignal) {
+  return apiClient.request<CandidateSubmission>(
+    `/api/v1/submissions/${encodeURIComponent(submissionId)}`,
+    { signal },
+  );
+}
+
+export async function waitForSubmission(
+  submissionId: string,
+  options: { maxAttempts?: number; pollIntervalMs?: number } = {},
+): Promise<CandidateSubmission> {
+  const maxAttempts = options.maxAttempts ?? 10;
+  const pollIntervalMs = options.pollIntervalMs ?? 250;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      return await getSubmission(submissionId);
+    } catch (error) {
+      lastError = error;
+      await sleep(pollIntervalMs);
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Submission finalization was not observable in time.");
 }
 
 export function revealHint(sessionId: string) {
