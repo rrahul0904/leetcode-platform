@@ -8,8 +8,8 @@ from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import Engine, text
 
 from .auth import (
-    AuthenticationError,
     ROLE_PERMISSIONS,
+    AuthenticationError,
     TokenValidator,
     bearer_scheme,
     token_validator,
@@ -54,7 +54,9 @@ def _local_principal(request: Request, claims: dict[str, object]) -> Authenticat
             ),
             roles=roles,
             permissions=_permissions(roles),
-            authentication_provider=str(claims.get("auth_provider") or claims.get("iss") or "local"),
+            authentication_provider=str(
+                claims.get("auth_provider") or claims.get("iss") or "local"
+            ),
             token_issued_at=_issued_at(claims),
             correlation_id=request.state.correlation_id,
         )
