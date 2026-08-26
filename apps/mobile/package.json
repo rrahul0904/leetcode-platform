@@ -1,0 +1,40 @@
+{
+  "name": "@rigor/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "build": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@rigor/api-client": "workspace:*",
+    "@rigor/design-tokens": "workspace:*",
+    "@rigor/query": "workspace:*",
+    "@tanstack/react-query": "5.101.3",
+    "expo": "~57.0.1",
+    "expo-auth-session": "~57.0.5",
+    "expo-crypto": "~57.0.1",
+    "expo-linking": "~57.0.3",
+    "expo-network": "~57.0.1",
+    "expo-router": "~57.0.7",
+    "expo-secure-store": "~57.0.1",
+    "expo-sqlite": "~57.0.1",
+    "expo-status-bar": "~57.0.1",
+    "expo-web-browser": "~57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-webview": "13.16.1",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "typescript": "5.9.3"
+  }
+}

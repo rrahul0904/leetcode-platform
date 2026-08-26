@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
+  BookOpenCheck,
   Building2,
   Clock3,
   ShieldCheck,
@@ -34,6 +35,8 @@ export function QuestionDetail({ slug }: { slug: string }) {
       </div>
     );
   const item = question.data;
+  const classStyle = item.starter_code?.trimStart().startsWith("class ") ?? false;
+  const canPractice = Boolean(item.starter_code) && !classStyle;
   return (
     <div className="page-content">
       <Link className="back-link" href="/question-bank">
@@ -56,15 +59,23 @@ export function QuestionDetail({ slug }: { slug: string }) {
               <span key={skill}>{skill}</span>
             ))}
           </div>
-          {item.starter_code?.trimStart().startsWith("def ") && (
-            <Link className="button button--primary" href={`/practice/${slug}`}>
-              Start practice <ArrowRight size={16} />
+          <div className="detail-actions">
+            {canPractice && (
+              <Link className="button button--primary" href={`/practice/${slug}`}>
+                Start practice <ArrowRight size={16} />
+              </Link>
+            )}
+            <Link
+              className="button button--secondary"
+              href={`/question-bank/${slug}/solution`}
+            >
+              <BookOpenCheck size={16} /> Review solution
             </Link>
-          )}
-          {item.starter_code?.trimStart().startsWith("class ") && (
+          </div>
+          {classStyle && (
             <p className="boundary-note">
-              Class-style execution is not enabled in the current Python
-              runner milestone. The prompt remains available for guided study.
+              Class-style execution is not enabled in the current Python runner
+              milestone. The prompt remains available for guided study.
             </p>
           )}
         </div>

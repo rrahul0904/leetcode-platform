@@ -15,9 +15,14 @@ import {
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import {
+  ControlledCodeEditor,
+  type WorkspaceLanguage,
+} from "@/components/controlled-code-editor";
 import { ErrorState, LoadingState } from "@/components/page-ui";
 import {
   cancelExecution,
+  createRuntimePracticeSession,
   getCompletedSubmission,
   getExecution,
   isTerminalExecution,
@@ -25,10 +30,10 @@ import {
   queueSubmitExecution,
   type AsyncExecutionView,
   type ExecutionAccepted,
+  type SubmissionRuntime,
 } from "@/lib/async-execution";
 import {
   autosavePracticeSession,
-  createPracticeSession,
   getPublishedQuestion,
   revealPracticeHint,
   type CandidateSubmission,
@@ -38,6 +43,17 @@ import {
 function formatTime(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   return `${String(minutes).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+export function runtimeForTrack(track: string): SubmissionRuntime {
+  const normalized = track.trim().toLowerCase();
+  return normalized.includes("sql") || normalized.includes("database")
+    ? "postgresql18"
+    : "python3.13";
+}
+
+function languageForRuntime(runtime: SubmissionRuntime): WorkspaceLanguage {
+  return runtime === "postgresql18" ? "sql" : "python";
 }
 
 function ResultPanel({
@@ -61,8 +77,12 @@ function ResultPanel({
     return (
       <div className="workspace-empty">
         <LoaderCircle className="spin" size={18} />
-        <strong>{execution.status === "QUEUED" ? "Execution queued" : "Running securely"}</strong>
-        <span>Your editor stays responsive while the isolated worker handles this request.</span>
+        <strong>
+          {execution.status === "QUEUED" ? "Execution queued" : "Running securely"}
+        </strong>
+        <span>
+          Your editor stays responsive while the isolated worker handles this request.
+        </span>
       </div>
     );
   }
@@ -113,6 +133,13 @@ function ResultPanel({
           </article>
         ))}
       </div>
+      {(result?.stdout || result?.stderr) && (
+        <div className="execution-console">
+          <span>CONSOLE</span>
+          {result.stdout && <pre>{result.stdout}</pre>}
+          {result.stderr && <pre className="is-error">{result.stderr}</pre>}
+        </div>
+      )}
       {submission && (
         <div className="evaluation-score">
           <span>DETERMINISTIC EVALUATION</span>
@@ -142,6 +169,8 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
     queryKey: ["published-question", slug],
     queryFn: ({ signal }) => getPublishedQuestion(slug, signal),
   });
+  const runtime = runtimeForTrack(question.data?.track ?? "");
+  const language = languageForRuntime(runtime);
   const [session, setSession] = useState<PracticeSession | null>(null);
   const [source, setSource] = useState("");
   const [elapsed, setElapsed] = useState(0);
@@ -190,7 +219,7 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
   }
 
   const sessionMutation = useMutation({
-    mutationFn: () => createPracticeSession(slug),
+    mutationFn: () => createRuntimePracticeSession(slug, runtime),
     onSuccess: (created) => {
       setSession(created);
       setSource(created.draft_code);
@@ -239,12 +268,14 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
       const key =
         submitIdempotencyKey.current ?? `candidate-submit-${crypto.randomUUID()}`;
       submitIdempotencyKey.current = key;
-      return queueSubmitExecution(slug, session!.id, source, key);
+      return queueSubmitExecution(slug, session!.id, source, runtime, key);
     },
     onSuccess: (accepted) => {
       submitIdempotencyKey.current = null;
       rememberExecution(accepted, "submit");
-      setNotice(accepted.duplicate ? "Submission already queued" : "Submission queued");
+      setNotice(
+        accepted.duplicate ? "Submission already queued" : "Submission queued",
+      );
     },
     onError: () => setNotice("Submission could not be queued; retry is safe"),
   });
@@ -254,7 +285,11 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
     onMutate: () => setNotice("Cancelling execution…"),
     onSuccess: (cancelled) => {
       setLastExecution(cancelled);
-      setNotice(cancelled.status === "CANCELLED" ? "Execution cancelled" : "Execution already finished");
+      setNotice(
+        cancelled.status === "CANCELLED"
+          ? "Execution cancelled"
+          : "Execution already finished",
+      );
       window.localStorage.removeItem(storageKey);
       setActiveExecutionId(null);
       setActiveKind(null);
@@ -278,8 +313,6 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
     const current = executionQuery.data;
     if (!current) return;
 
-    // React Query is the external execution-state source. Schedule the UI
-    // synchronization outside the effect body so React does not cascade renders.
     queueMicrotask(() => {
       setLastExecution(current);
       if (!isTerminalExecution(current.status)) {
@@ -308,7 +341,9 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
             void queryClient.invalidateQueries({ queryKey: ["candidate-readiness"] });
             void queryClient.invalidateQueries({ queryKey: ["submissions"] });
           })
-          .catch(() => setNotice("Execution finished; submission summary is still syncing"));
+          .catch(() =>
+            setNotice("Execution finished; submission summary is still syncing"),
+          );
       }
     });
   }, [activeKind, executionQuery.data, queryClient, storageKey]);
@@ -352,6 +387,14 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
   const execution = executionQuery.data ?? lastExecution;
   const busy =
     !session || runMutation.isPending || submitMutation.isPending || Boolean(activeExecutionId);
+  const starterSource = item.starter_code ?? "";
+
+  function updateSource(nextSource: string) {
+    setSource(nextSource);
+    runIdempotencyKey.current = null;
+    submitIdempotencyKey.current = null;
+    setNotice("Unsaved changes");
+  }
 
   return (
     <div className="practice-page">
@@ -407,21 +450,15 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
           {hint && <div className="hint-copy">{hint}</div>}
         </section>
         <section className="editor-pane">
-          <div className="pane-heading">
-            <span>PYTHON 3.13</span>
-            <small>Isolated asynchronous runner</small>
-          </div>
-          <textarea
-            aria-label="Python source code"
-            className="code-editor"
-            spellCheck={false}
-            value={source}
-            onChange={(event) => {
-              setSource(event.target.value);
-              runIdempotencyKey.current = null;
-              submitIdempotencyKey.current = null;
-              setNotice("Unsaved changes");
-            }}
+          <ControlledCodeEditor
+            language={language}
+            source={source}
+            starterSource={starterSource}
+            disabled={Boolean(submission)}
+            saveState={notice}
+            onChange={updateSource}
+            onRun={() => runMutation.mutate()}
+            onSubmit={() => submitMutation.mutate()}
           />
           <div className="workspace-actions">
             <button

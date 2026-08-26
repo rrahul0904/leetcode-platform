@@ -152,15 +152,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         )}
         <header className="candidate-global-header">
           <Link className="candidate-brand" href="/">
-            <span>R</span>
-            <strong>RIGOR</strong>
+            <span>S</span>
+            <strong>SKILLFORGE AI</strong>
           </Link>
           <nav
             aria-label="Primary navigation"
             className={mobileNavOpen ? "candidate-global-nav is-open" : "candidate-global-nav"}
           >
             <div className="candidate-global-nav__mobile-heading">
-              <span>EXPLORE RIGOR</span>
+              <span>EXPLORE SKILLFORGE</span>
               <button
                 aria-label="Close navigation"
                 onClick={() => setMobileNavOpen(false)}
@@ -206,7 +206,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main id="main-content" className="candidate-content">
           {children}
           <footer className="candidate-footer">
-            <span>RIGOR · INTERVIEW SYSTEMS LAB</span>
+            <span>SKILLFORGE AI · TECHNICAL INTERVIEW PLATFORM</span>
             <span>DATABASE-BACKED CONTENT · ISOLATED EXECUTION</span>
           </footer>
         </main>
@@ -247,10 +247,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
       <aside className={`sidebar ${mobileNavOpen ? "sidebar--open" : ""}`}>
         <Link className="brand" href="/" onClick={() => setMobileNavOpen(false)}>
-          <span className="brand__mark">R</span>
+          <span className="brand__mark">S</span>
           <span>
-            <strong>RIGOR</strong>
-            <small>INTERVIEW SYSTEMS LAB</small>
+            <strong>SKILLFORGE AI</strong>
+            <small>TECHNICAL INTERVIEW PLATFORM</small>
           </span>
         </Link>
         <button
@@ -266,7 +266,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {renderManagementNav(managementNavigation)}
         </nav>
         <div className="sidebar-note">
-          <span>RIGOR KNOWLEDGE BANK</span>
+          <span>SKILLFORGE KNOWLEDGE BANK</span>
           <strong>{isAdministrator ? "Content administration" : "Governed review"}</strong>
           <p>Imported sources remain connected to canonical problems and governed review.</p>
         </div>
@@ -294,7 +294,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
         {children}
         <footer className="site-footer">
-          <span>Independent preparation platform. No employer affiliation.</span>
+          <span>SkillForge AI · Independent technical interview preparation.</span>
           <span>Content states and readiness claims are evidence-gated.</span>
         </footer>
       </main>

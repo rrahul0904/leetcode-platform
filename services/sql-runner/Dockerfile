@@ -6,12 +6,14 @@ FROM ${PYTHON_IMAGE}
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONIOENCODING=utf-8 \
-    HOME=/workspace \
-    TMPDIR=/workspace/tmp
+    HOME=/workspace
 
-RUN apt-get update \
+RUN mkdir -p /workspace/tmp \
+    && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
+
+ENV TMPDIR=/workspace/tmp
 
 WORKDIR /opt/rigor
 RUN --mount=type=secret,id=build_ca,required=true \
@@ -20,8 +22,7 @@ RUN --mount=type=secret,id=build_ca,required=true \
 COPY services/sql-runner/runner.py /opt/rigor/runner.py
 COPY services/sql-runner/server.py /opt/rigor/server.py
 
-RUN mkdir -p /workspace/tmp \
-    && chown -R 65532:65532 /workspace \
+RUN chown -R 65532:65532 /workspace \
     && chmod 0555 /opt/rigor/runner.py /opt/rigor/server.py
 
 USER 65532:65532

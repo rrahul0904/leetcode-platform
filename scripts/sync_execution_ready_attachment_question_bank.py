@@ -1,0 +1,235 @@
+#!/usr/bin/env python3
+"""Sync execution-enriched attachment questions using the governed V1 importer.
+
+Python questions are marked runnable only when the execution-bank builder has
+validated at least one public and one hidden reference test. SQL candidates
+remain non-runnable until PostgreSQL confirmation changes their validation
+status from ``postgres_confirmation_pending`` to ``reference_validated``.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from typing import Any, cast
+
+from sqlalchemy import Connection, text
+
+import scripts.sync_attachment_question_bank as base
+
+base.VERSION = "attachment-v2-execution"
+_original_validate = base.validate_row
+_original_structured = base.question_structured_content
+_original_upsert = base.upsert_one
+
+
+def _tests_are_governed(row: dict[str, Any]) -> bool:
+    raw_mode = row.get("mode_specification")
+    if not isinstance(raw_mode, dict):
+        return False
+    mode = cast(dict[str, Any], raw_mode)
+    tests = mode.get("tests")
+    if not isinstance(tests, list):
+        return False
+    public = 0
+    hidden = 0
+    for raw_test in tests:
+        if not isinstance(raw_test, dict):
+            continue
+        test = cast(dict[str, Any], raw_test)
+        if test.get("visibility") == "public":
+            public += 1
+        elif test.get("visibility") == "hidden":
+            hidden += 1
+    return public > 0 and hidden > 0
+
+
+def _list_value(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return []
+        if stripped.startswith("["):
+            try:
+                decoded = json.loads(stripped)
+            except json.JSONDecodeError:
+                decoded = None
+            if isinstance(decoded, list):
+                return [str(item).strip() for item in decoded if str(item).strip()]
+        return [item.strip() for item in re.split(r"[|\n]", stripped) if item.strip()]
+    return [str(value).strip()]
+
+
+def validate_row(row: dict[str, Any]) -> list[str]:
+    runnable = bool(row.get("runnable"))
+    row["runnable"] = False
+    findings = _original_validate(row)
+    row["runnable"] = runnable
+    if runnable and not _tests_are_governed(row):
+        findings.append("runnable question must have at least one public and one hidden test")
+    if runnable and str(row.get("execution_validation_status")) != "reference_validated":
+        findings.append("runnable question has not completed runtime-specific reference validation")
+    return findings
+
+
+def question_structured_content(row: dict[str, Any], track_slug: str) -> dict[str, Any]:
+    content = _original_structured(row, track_slug)
+    is_runnable = (
+        bool(row.get("runnable"))
+        and str(row.get("execution_validation_status")) == "reference_validated"
+        and _tests_are_governed(row)
+    )
+    expected_approach = str(row.get("expected_approach") or "").strip()
+    requirements = str(row.get("requirements") or "").strip()
+    content.update(
+        {
+            "mode_specification": row.get("mode_specification"),
+            "runnable": is_runnable,
+            "execution_validation_status": row.get("execution_validation_status"),
+            "execution_bank_version": 2,
+            "learning_objectives": [expected_approach] if expected_approach else [],
+            "prerequisites": [],
+            "candidate_instructions": [requirements] if requirements else [],
+            "constraints": _list_value(row.get("constraints")),
+        }
+    )
+    return content
+
+
+def _skill_values(row: dict[str, Any]) -> list[str]:
+    values: list[str] = []
+    for key in ("subject", "platform", "topic", "subtopic"):
+        value = str(row.get(key) or "").strip()
+        if value:
+            values.append(value)
+    tags = row.get("tags")
+    if isinstance(tags, list):
+        values.extend(str(tag) for tag in tags)
+    elif isinstance(tags, str) and tags.strip():
+        try:
+            decoded = json.loads(tags)
+            if isinstance(decoded, list):
+                values.extend(str(tag) for tag in decoded)
+            else:
+                values.append(tags)
+        except json.JSONDecodeError:
+            values.extend(re.split(r"[,|]", tags))
+    return list(dict.fromkeys(value.strip() for value in values if value.strip()))
+
+
+def _skill_slug(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", value.casefold()).strip("-")[:100]
+
+
+def upsert_one(
+    connection: Connection,
+    row: dict[str, Any],
+    *,
+    source_revision: str,
+    publish: bool,
+) -> tuple[str, bool]:
+    result = _original_upsert(
+        connection,
+        row,
+        source_revision=source_revision,
+        publish=publish,
+    )
+    if result[0] == "unseeded_track":
+        return result
+    identity = (
+        connection.execute(
+            text(
+                """
+                SELECT q.id AS question_id, v.id AS version_id, t.slug AS track_slug
+                FROM questions q
+                JOIN question_versions v ON v.question_id=q.id
+                JOIN question_tracks t ON t.id=q.primary_track_id
+                WHERE q.external_id=:external_id AND v.version=:version
+                """
+            ),
+            {"external_id": str(row["canonical_id"]), "version": base.VERSION},
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if identity is None:
+        return result
+    question_id = identity["question_id"]
+    version_id = identity["version_id"]
+    connection.execute(
+        text("DELETE FROM question_skills WHERE question_version_id=:version_id"),
+        {"version_id": version_id},
+    )
+    skill_slugs: list[str] = []
+    for value in _skill_values(row):
+        slug = _skill_slug(value)
+        if not slug:
+            continue
+        skill_slugs.append(slug)
+        skill_id = connection.execute(
+            text(
+                """
+                INSERT INTO skills (slug, name, category)
+                VALUES (:slug, :name, 'attachment')
+                ON CONFLICT (slug) DO UPDATE SET name=EXCLUDED.name
+                RETURNING id
+                """
+            ),
+            {"slug": slug, "name": value[:200]},
+        ).scalar_one()
+        connection.execute(
+            text(
+                """
+                INSERT INTO question_skills (question_version_id, skill_id)
+                VALUES (:version_id, :skill_id)
+                ON CONFLICT DO NOTHING
+                """
+            ),
+            {"version_id": version_id, "skill_id": skill_id},
+        )
+
+    primary_slug = str(identity["track_slug"])
+    competency_slugs = list(dict.fromkeys([primary_slug, *skill_slugs]))
+    competency_rows = (
+        connection.execute(
+            text("SELECT id, slug FROM competencies WHERE slug = ANY(:slugs)"),
+            {"slugs": competency_slugs},
+        )
+        .mappings()
+        .all()
+    )
+    connection.execute(
+        text("DELETE FROM question_competencies WHERE question_id=:question_id"),
+        {"question_id": question_id},
+    )
+    for competency in competency_rows:
+        is_primary = str(competency["slug"]) == primary_slug
+        connection.execute(
+            text(
+                """
+                INSERT INTO question_competencies (
+                    question_id, competency_id, is_primary, confidence
+                ) VALUES (:question_id, :competency_id, :is_primary, :confidence)
+                """
+            ),
+            {
+                "question_id": question_id,
+                "competency_id": competency["id"],
+                "is_primary": is_primary,
+                "confidence": 1.0 if is_primary else 0.7,
+            },
+        )
+    return result
+
+
+base.validate_row = validate_row
+base.question_structured_content = question_structured_content
+base.upsert_one = upsert_one
+
+
+if __name__ == "__main__":
+    raise SystemExit(base.main())

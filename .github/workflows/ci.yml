@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - "feature/**"
+      - "agent/**"
 
 permissions:
   contents: read
@@ -22,37 +23,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-
       - name: Install locked Python workspace
         run: uv sync --frozen --all-packages
-
       - name: Validate Docker Compose
         run: docker compose config --quiet
-
       - name: Start PostgreSQL 18 + pgvector for integration tests
         run: docker compose up -d --wait postgres
-
       - name: Upgrade integration-test database
         env:
           RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
         run: uv run alembic upgrade head
-
       - name: Seed deterministic taxonomy for integration tests
         env:
           RIGOR_SEED_DATABASE_URL: postgresql://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
           PGOPTIONS: -c rigor.maintenance_bypass=on
         run: uv run python scripts/seed_database.py
-
       - name: Ruff
         run: >-
           uv run ruff check
@@ -64,22 +57,18 @@ jobs:
           apps/api/tests
           packages/question-schema/tests
           tests
-
       - name: Pyright
         if: always()
         run: uv run pyright apps/api/src packages/question-schema/src scripts
-
       - name: Pytest
         if: always()
         run: uv run pytest -q
-
       - name: Build execution images
         if: always()
         run: |
           docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt -t rigor-python-runner:test -f services/python-runner/Dockerfile .
           docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt -t rigor-sql-runner:test -f services/sql-runner/Dockerfile .
           docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt -t rigor-execution-controller:test -f services/execution-controller/Dockerfile .
-
       - name: Scan Python runner image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -89,7 +78,6 @@ jobs:
           ignore-unfixed: true
           vuln-type: os,library
           severity: HIGH,CRITICAL
-
       - name: Scan SQL runner image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -99,7 +87,6 @@ jobs:
           ignore-unfixed: true
           vuln-type: os,library
           severity: HIGH,CRITICAL
-
       - name: Scan execution controller image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -109,7 +96,6 @@ jobs:
           ignore-unfixed: true
           vuln-type: os,library
           severity: HIGH,CRITICAL
-
       - name: Generate Python runner SBOM
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -117,7 +103,6 @@ jobs:
           format: cyclonedx
           output: sbom-python-runner.cdx.json
           exit-code: "0"
-
       - name: Generate SQL runner SBOM
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -125,7 +110,6 @@ jobs:
           format: cyclonedx
           output: sbom-sql-runner.cdx.json
           exit-code: "0"
-
       - name: Generate execution controller SBOM
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -133,7 +117,6 @@ jobs:
           format: cyclonedx
           output: sbom-execution-controller.cdx.json
           exit-code: "0"
-
       - name: Upload execution SBOMs
         uses: actions/upload-artifact@v7.0.1
         with:
@@ -144,11 +127,9 @@ jobs:
             sbom-execution-controller.cdx.json
           if-no-files-found: error
           retention-days: 30
-
       - name: Show PostgreSQL logs on failure
         if: failure()
         run: docker compose logs postgres
-
       - name: Stop integration-test services
         if: always()
         run: docker compose down -v
@@ -160,33 +141,26 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up pinned pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 11.10.0
           run_install: false
-
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: "24.18.0"
           cache: pnpm
-
       - name: Install locked JavaScript workspace
         run: pnpm install --frozen-lockfile
-
       - name: Lint
         run: pnpm --filter @rigor/web lint
-
       - name: Typecheck
         if: always()
         run: pnpm --filter @rigor/web typecheck
-
       - name: Test
         if: always()
         run: pnpm --filter @rigor/web test
-
       - name: Build
         if: always()
         run: pnpm --filter @rigor/web build
@@ -198,34 +172,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-
       - name: Install locked Python workspace
         run: uv sync --frozen --all-packages
-
       - name: Validate Docker Compose
         run: docker compose config --quiet
-
       - name: Start PostgreSQL 18 + pgvector
         run: docker compose up -d --wait postgres
-
       - name: Upgrade from empty database
         env:
           RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
         run: uv run alembic upgrade head
-
-      - name: Verify execution and knowledge schemas
+      - name: Verify execution, knowledge, and SaaS schemas
         run: |
-          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260802_0015"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260826_0017"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_outbox') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_payloads') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_public_results') IS NOT NULL")" = "t"
@@ -235,24 +202,27 @@ jobs:
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.knowledge_candidate_problem_state') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.local_execution_queue') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.local_execution_controller_status') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.user_preferences') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.identity_webhook_events') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.login_events') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.candidate_files') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.subscriptions') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='candidate_files'::regclass")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='knowledge_candidate_problem_state'::regclass")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='knowledge_activity_events'::regclass")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='local_execution_queue'::regclass")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT NOT rolbypassrls FROM pg_roles WHERE rolname='rigor_execution_worker'")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT NOT rolbypassrls FROM pg_roles WHERE rolname='rigor_execution_reconciler'")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT NOT rolbypassrls FROM pg_roles WHERE rolname='rigor_executor'")" = "t"
-
-      - name: Downgrade and re-upgrade local execution migration
+      - name: Downgrade and re-upgrade SaaS foundation migration
         env:
           RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
         run: |
-          uv run alembic downgrade 20260801_0014
+          uv run alembic downgrade 20260824_0016
           uv run alembic upgrade head
-
       - name: Show PostgreSQL logs on failure
         if: failure()
         run: docker compose logs postgres
-
       - name: Stop services
         if: always()
         run: docker compose down -v
@@ -264,19 +234,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.14.4"
-
       - name: Terraform format
         run: terraform fmt -check -diff -recursive infra/terraform
-
       - name: Initialize staging without remote backend
         if: always()
         run: terraform -chdir=infra/terraform/environments/staging init -backend=false -input=false
-
       - name: Validate staging source
         if: always()
         run: terraform -chdir=infra/terraform/environments/staging validate
@@ -288,17 +254,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Packer
         uses: hashicorp/setup-packer@v3.2.0
         with:
           version: "1.16.0"
-
       - name: Initialize Packer plugins
         run: packer init infra/packer
-
       - name: Validate Packer syntax
         run: packer validate -syntax-only infra/packer
-
       - name: Validate gVisor installer shell
         run: bash -n infra/packer/scripts/install-gvisor.sh

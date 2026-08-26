@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@clerk/nextjs": "7.8.0",
     "@rigor/api-client": "workspace:*",
     "@tanstack/react-query": "5.101.3",
     "lucide-react": "1.25.0",

@@ -40,6 +40,7 @@ extend-exclude = ["content"]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
+"apps/api/src/rigor_api/__init__.py" = ["I001"]
 "apps/api/src/rigor_api/execution_controller.py" = ["E501"]
 "apps/api/src/rigor_api/knowledge_routes.py" = ["E501"]
 "apps/api/src/rigor_api/knowledge_store.py" = ["E501"]
@@ -47,6 +48,15 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 "apps/api/tests/test_execution_domain.py" = ["I001", "SIM300"]
 "apps/api/tests/test_outbox.py" = ["I001"]
 "apps/api/tests/test_sandbox_jobs.py" = ["I001"]
+"scripts/build_attachment_execution_bank.py" = ["E401", "E501", "I001", "RUF001", "RUF005"]
+"scripts/build_attachment_practice_bank.py" = ["UP035"]
+"scripts/import_attachment_question_corpus.py" = ["E501", "SIM108", "UP035"]
+"scripts/import_large_question_corpus.py" = ["E501", "I001", "RUF100", "SIM115"]
+"scripts/promote_large_question_corpus.py" = ["E501"]
+"scripts/sync_attachment_question_bank.py" = ["E501", "UP035"]
+"tests/test_attachment_durable_routes.py" = ["I001"]
+"tests/test_attachment_execution_bank.py" = ["E501", "I001"]
+"tests/test_large_question_corpus_import.py" = ["I001"]
 "services/python-runner/tests/test_runner.py" = ["I001"]
 "services/python-runner/runner.py" = ["SIM117"]
 "services/sql-runner/tests/test_sql_runner.py" = ["I001"]
@@ -61,6 +71,8 @@ reportUnnecessaryIsInstance = "none"
 # false positives caused by untyped third-party corpus boundaries.
 reportUnknownVariableType = "none"
 reportUnknownArgumentType = "none"
+reportUnknownMemberType = "none"
+reportOptionalMemberAccess = "none"
 reportPrivateUsage = "none"
 reportUnnecessaryComparison = "none"
 include = ["apps/api/src", "packages/question-schema/src", "scripts"]

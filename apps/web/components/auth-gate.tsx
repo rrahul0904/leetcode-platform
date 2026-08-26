@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth";
 
 import { AppShell } from "./app-shell";
 
-const publicRoutes = ["/sign-in", "/auth/callback"];
+const publicRoutes = ["/sign-in", "/sign-up", "/auth/callback"];
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -40,7 +40,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isPublic && status === "anonymous")
       router.replace(`/sign-in?returnTo=${encodeURIComponent(pathname)}`);
-    if (pathname === "/sign-in" && status === "authenticated")
+    if (
+      (pathname === "/sign-in" || pathname === "/sign-up") &&
+      status === "authenticated"
+    )
       router.replace("/");
     if (wrongWorkspace) router.replace("/");
   }, [isPublic, pathname, router, status, wrongWorkspace]);

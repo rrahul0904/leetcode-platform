@@ -86,19 +86,17 @@ export function CinematicDashboard() {
 
   return (
     <div className="cinematic-page">
-      <section className="cinematic-hero" aria-labelledby="rigor-hero-title">
+      <section className="cinematic-hero" aria-labelledby="skillforge-hero-title">
         <div className="cinematic-hero__glow" aria-hidden="true" />
         <div className="cinematic-hero__copy">
-          <span className="cinematic-kicker">
-            THE TECHNICAL INTERVIEW SYSTEMS LAB
-          </span>
-          <h1 id="rigor-hero-title">
-            Practise with <em>rigor.</em>
+          <span className="cinematic-kicker">SKILLFORGE AI · TECHNICAL INTERVIEW PLATFORM</span>
+          <h1 id="skillforge-hero-title">
+            Forge the skills that <em>get you hired.</em>
           </h1>
           <p>
-            Build the judgement, speed, and architectural clarity required for
-            elite engineering interviews—through evidence-backed practice, not
-            question memorization.
+            Train for elite data engineering, software engineering, system design,
+            and AI interviews with real coding practice, governed solutions, and
+            evidence-backed readiness.
           </p>
           <div className="cinematic-actions">
             <Link
@@ -122,7 +120,7 @@ export function CinematicDashboard() {
           </div>
         </div>
 
-        <div className="capability-orb" aria-label="Rigor capability map">
+        <div className="capability-orb" aria-label="SkillForge AI capability map">
           <div className="capability-orb__halo" />
           <div className="capability-orb__sphere">
             <span className="orb-grid orb-grid--one" />

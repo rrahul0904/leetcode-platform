@@ -22,10 +22,9 @@ from .execution_api import (
     queue_run,
     queue_submit,
 )
-from .practice import router as practice_router
 from .schemas import AuthenticatedPrincipal, PracticeRunRequest, PracticeSubmitRequest
 
-router = APIRouter(tags=["execution"])
+router = APIRouter(prefix="/api/v1", tags=["execution"])
 TERMINAL_STATUSES = {
     AsyncExecutionStatus.completed,
     AsyncExecutionStatus.failed,
@@ -177,7 +176,6 @@ def queue_run_for_question(
     idempotency_key: IdempotencyHeader,
 ) -> CanonicalExecutionAccepted:
     """Create a durable RUN without executing candidate source in FastAPI."""
-
     accepted = queue_run(request, principal, engine, idempotency_key, slug)
     return _accepted_contract(accepted, engine=engine, principal=principal)
 
@@ -190,7 +188,6 @@ def queue_submit_for_question(
     idempotency_key: IdempotencyHeader,
 ) -> CanonicalExecutionAccepted:
     """Create a durable SUBMIT backed by the same execution service as Run."""
-
     accepted = queue_submit(request, principal, engine, idempotency_key, slug)
     return _accepted_contract(accepted, engine=engine, principal=principal)
 
@@ -217,8 +214,6 @@ def cancel_candidate_execution(
     except HTTPException as exc:
         if exc.status_code != 409:
             raise
-        # Completion may win the cancellation race after the first read. Treat
-        # the now-terminal aggregate as an idempotent cancellation response.
         raced = get_execution(execution_id, principal, engine)
         if raced.status not in TERMINAL_STATUSES:
             raise
@@ -252,9 +247,6 @@ router.add_api_route(
     methods=["POST"],
     response_model=CanonicalExecutionView,
 )
-
-# practice_router.add_api_route applies its own /api/v1 prefix to included routes.
-practice_router.include_router(router)
 
 EXECUTION_ROUTES_REGISTERED = True
 LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED = True

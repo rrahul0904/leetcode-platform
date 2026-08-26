@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth as useClerkSession } from "@clerk/nextjs";
 import type { components } from "@rigor/api-client/schema";
 import {
   createContext,
@@ -28,9 +29,10 @@ const verifierKey = "rigor.auth.pkce-verifier";
 const stateKey = "rigor.auth.state";
 const nonceKey = "rigor.auth.nonce";
 const returnToKey = "rigor.auth.return-to";
+export const authMode = process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE ?? "local";
 export const apiUrl =
-  process.env.NEXT_PUBLIC_RIGOR_API_URL ?? "http://localhost:8002";
-const authMode = process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE ?? "local";
+  process.env.NEXT_PUBLIC_RIGOR_API_URL ??
+  (authMode === "clerk" ? "/api/backend" : "http://localhost:8002");
 const clientId = process.env.NEXT_PUBLIC_RIGOR_OIDC_CLIENT_ID ?? "rigor-web";
 const redirectUri =
   process.env.NEXT_PUBLIC_RIGOR_OIDC_REDIRECT_URI ??
@@ -65,16 +67,19 @@ export function storedAccessToken() {
   return window.localStorage.getItem(accessTokenKey);
 }
 
-async function loadPrincipal(token: string): Promise<Principal> {
+async function loadPrincipal(token?: string): Promise<Principal> {
   const response = await fetch(`${apiUrl}/api/v1/auth/me`, {
-    headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+    headers: {
+      Accept: "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   });
   if (!response.ok)
     throw new Error(`Session validation returned ${response.status}`);
   return (await response.json()) as Principal;
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+function LocalOidcAuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("restoring");
   const [principal, setPrincipal] = useState<Principal | null>(null);
 
@@ -183,6 +188,74 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [completeSignIn, principal, signIn, signOut, status],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+function ClerkAuthProvider({ children }: { children: ReactNode }) {
+  const clerk = useClerkSession();
+  const [status, setStatus] = useState<AuthStatus>("restoring");
+  const [principal, setPrincipal] = useState<Principal | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function synchronizeSession() {
+      if (!clerk.isLoaded) return;
+      if (!clerk.isSignedIn) {
+        await Promise.resolve();
+        if (cancelled) return;
+        setPrincipal(null);
+        setStatus("anonymous");
+        return;
+      }
+      try {
+        const restored = await loadPrincipal();
+        if (cancelled) return;
+        setPrincipal(restored);
+        setStatus("authenticated");
+      } catch {
+        if (cancelled) return;
+        setPrincipal(null);
+        setStatus("anonymous");
+      }
+    }
+
+    void synchronizeSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [clerk.isLoaded, clerk.isSignedIn, clerk.sessionId]);
+
+  const signIn = useCallback(async (_identity?: string, returnTo = "/") => {
+    const safeReturnTo =
+      returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/";
+    window.location.assign(`/sign-in?returnTo=${encodeURIComponent(safeReturnTo)}`);
+  }, []);
+
+  const completeSignIn = useCallback(async () => {
+    throw new Error("Clerk completes its own hosted sign-in flow.");
+  }, []);
+
+  const signOut = useCallback(() => {
+    void clerk.signOut().finally(() => {
+      setPrincipal(null);
+      setStatus("anonymous");
+      window.location.assign("/sign-in");
+    });
+  }, [clerk]);
+
+  const value = useMemo(
+    () => ({ status, principal, signIn, completeSignIn, signOut }),
+    [completeSignIn, principal, signIn, signOut, status],
+  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  return authMode === "clerk" ? (
+    <ClerkAuthProvider>{children}</ClerkAuthProvider>
+  ) : (
+    <LocalOidcAuthProvider>{children}</LocalOidcAuthProvider>
+  );
 }
 
 export function useAuth() {
