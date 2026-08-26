@@ -7,7 +7,6 @@ import json
 from datetime import UTC, datetime
 
 import pytest
-
 from rigor_api.execution_sqs import AwsCredentials, StaticCredentialProvider
 from rigor_api.identity_webhooks import WebhookVerificationError, verify_svix_webhook
 from rigor_api.object_storage import S3Presigner
