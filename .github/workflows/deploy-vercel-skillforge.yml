@@ -3,7 +3,7 @@ name: Deploy SkillForge to Vercel
 on:
   push:
     branches:
-      - agent/vercel-first-skillforge
+      - agent/vercel-clean-skillforge
   workflow_dispatch:
 
 permissions:
@@ -58,8 +58,33 @@ jobs:
       - name: Link existing SkillForge project and pull production environment
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
+      - name: Validate Vercel production environment
+        shell: bash
+        run: |
+          set -a
+          source .vercel/.env.production.local
+          set +a
+
+          missing=0
+          for name in NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY CLERK_SECRET_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required Vercel production variable: $name"
+              missing=1
+            fi
+          done
+          if [ -z "${RIGOR_DATABASE_URL:-}" ] && [ -z "${POSTGRES_URL:-}" ]; then
+            echo "Missing managed PostgreSQL connection: RIGOR_DATABASE_URL or POSTGRES_URL"
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
       - name: Install locked Python workspace
         run: uv sync --frozen --all-packages
+
+      - name: Build production artifact before database changes
+        run: vercel build --prod --token="$VERCEL_TOKEN"
 
       - name: Migrate and seed managed SkillForge PostgreSQL
         shell: bash
@@ -70,10 +95,6 @@ jobs:
 
           if [ -z "${RIGOR_DATABASE_URL:-}" ]; then
             export RIGOR_DATABASE_URL="${POSTGRES_URL:-}"
-          fi
-          if [ -z "${RIGOR_DATABASE_URL:-}" ]; then
-            echo "Managed PostgreSQL connection is missing from the Vercel production environment."
-            exit 1
           fi
 
           case "$RIGOR_DATABASE_URL" in
@@ -89,9 +110,6 @@ jobs:
 
           seed_url="${POSTGRES_URL:-${RIGOR_DATABASE_URL/postgresql+psycopg:/postgresql:}}"
           RIGOR_SEED_DATABASE_URL="$seed_url" uv run python scripts/seed_database.py
-
-      - name: Build production artifact
-        run: vercel build --prod --token="$VERCEL_TOKEN"
 
       - name: Deploy production artifact
         id: deploy
