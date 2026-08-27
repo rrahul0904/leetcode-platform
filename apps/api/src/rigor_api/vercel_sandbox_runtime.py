@@ -26,7 +26,6 @@ from .vercel_sandbox_execution import (
     VercelSandboxError,
     _infrastructure_projection,
     _persist_projection,
-    _positive_limit,
     _worker_id,
     vercel_sandbox_enabled,
 )
@@ -187,6 +186,7 @@ class HardenedVercelSandboxClient(VercelSandboxClient):
 set -euo pipefail
 
 dnf install -y postgresql15 postgresql15-server
+python -m pip --version >/dev/null 2>&1 || python -m ensurepip --upgrade
 python -m pip install --disable-pip-version-check --no-cache-dir 'psycopg[binary]==3.3.4'
 
 id -u skillforge_pg >/dev/null 2>&1 || useradd --system --create-home --home-dir /tmp/skillforge-pg skillforge_pg
