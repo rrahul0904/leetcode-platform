@@ -26,12 +26,13 @@
     }
   },
   "env": {
+    "NEXT_PUBLIC_RIGOR_AUTH_MODE": "clerk",
+    "NEXT_PUBLIC_RIGOR_API_URL": "/api/backend",
     "RIGOR_ENVIRONMENT": "production",
     "RIGOR_LOCAL_OIDC_ENABLED": "false",
     "RIGOR_EXECUTION_ADAPTER": "VERCEL_SANDBOX",
     "RIGOR_CLERK_ISSUER": "https://cosmic-oarfish-9174.clerk.accounts.dev",
-    "RIGOR_CLERK_JWKS_URL": "https://cosmic-oarfish-9174.clerk.accounts.dev/.well-known/jwks.json",
-    "RIGOR_JWT_AUDIENCE": "skillforge-api"
+    "RIGOR_CLERK_JWKS_URL": "https://cosmic-oarfish-9174.clerk.accounts.dev/.well-known/jwks.json"
   },
   "rewrites": [
     {
