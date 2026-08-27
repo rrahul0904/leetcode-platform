@@ -83,7 +83,8 @@ async function reconcileCandidate(token: string) {
   const user = await currentUser();
   if (!user) return false;
   const email = primaryVerifiedEmail(user);
-  const displayName = candidateDisplayName(user) ?? email?.email ?? "SkillForge Candidate";
+  const displayName =
+    candidateDisplayName(user) ?? email?.email ?? "SkillForge Candidate";
   if (!email?.verified) return false;
 
   const response = await fetch(
@@ -112,16 +113,21 @@ function isIdentityBootstrapPath(path: string[]) {
   return path.join("/") === "api/v1/auth/me";
 }
 
-async function proxyRequest(request: Request, context: RouteContext): Promise<Response> {
+async function sessionToken() {
   const { isAuthenticated, getToken } = await auth();
-  if (!isAuthenticated) {
-    return Response.json({ detail: "Authentication required" }, { status: 401 });
-  }
+  if (!isAuthenticated) return null;
 
-  const template = process.env.CLERK_JWT_TEMPLATE?.trim() || "skillforge-api";
-  const token = await getToken({ template });
+  const template = process.env.CLERK_JWT_TEMPLATE?.trim();
+  return template ? getToken({ template }) : getToken();
+}
+
+async function proxyRequest(
+  request: Request,
+  context: RouteContext,
+): Promise<Response> {
+  const token = await sessionToken();
   if (!token) {
-    return Response.json({ detail: "Unable to mint API token" }, { status: 401 });
+    return Response.json({ detail: "Authentication required" }, { status: 401 });
   }
 
   const { path } = await context.params;
