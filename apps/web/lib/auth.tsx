@@ -29,10 +29,12 @@ const verifierKey = "rigor.auth.pkce-verifier";
 const stateKey = "rigor.auth.state";
 const nonceKey = "rigor.auth.nonce";
 const returnToKey = "rigor.auth.return-to";
-export const authMode = process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE ?? "local";
+export const authMode =
+  process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE ??
+  (process.env.NODE_ENV === "production" ? "clerk" : "local");
 export const apiUrl =
   process.env.NEXT_PUBLIC_RIGOR_API_URL ??
-  (authMode === "clerk" ? "/api/backend" : "http://localhost:8002");
+  (authMode === "local" ? "http://localhost:8002" : "/api/backend");
 const clientId = process.env.NEXT_PUBLIC_RIGOR_OIDC_CLIENT_ID ?? "rigor-web";
 const redirectUri =
   process.env.NEXT_PUBLIC_RIGOR_OIDC_REDIRECT_URI ??
