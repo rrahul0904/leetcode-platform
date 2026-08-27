@@ -1,6 +1,9 @@
 import type { CandidateSubmission, PracticeSession } from "@/lib/api";
 
-const apiUrl = process.env.NEXT_PUBLIC_RIGOR_API_URL ?? "http://localhost:8002";
+const authMode = process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE ?? "clerk";
+const apiUrl =
+  process.env.NEXT_PUBLIC_RIGOR_API_URL ??
+  (authMode === "local" ? "http://localhost:8002" : "/api/backend");
 
 export type SubmissionRuntime = "python3.13" | "postgresql18";
 export type AsyncExecutionStatus =
@@ -70,6 +73,17 @@ export function isTerminalExecution(status: AsyncExecutionStatus) {
   return terminalStates.has(status);
 }
 
+function localAccessToken() {
+  if (
+    authMode !== "local" ||
+    typeof window === "undefined" ||
+    typeof window.localStorage === "undefined"
+  ) {
+    return null;
+  }
+  return window.localStorage.getItem("rigor.auth.access-token");
+}
+
 async function executionRequest<T>(
   path: string,
   options: {
@@ -79,10 +93,7 @@ async function executionRequest<T>(
     signal?: AbortSignal;
   } = {},
 ): Promise<T> {
-  const accessToken =
-    typeof window === "undefined" || typeof window.localStorage === "undefined"
-      ? null
-      : window.localStorage.getItem("rigor.auth.access-token");
+  const accessToken = localAccessToken();
   const response = await fetch(`${apiUrl}${path}`, {
     method: options.method ?? "GET",
     headers: {
@@ -98,7 +109,7 @@ async function executionRequest<T>(
     if (response.status === 401 && typeof window !== "undefined") {
       window.dispatchEvent(new Event("rigor:unauthorized"));
     }
-    throw new Error(`Rigor execution API returned ${response.status}`);
+    throw new Error(`SkillForge execution API returned ${response.status}`);
   }
   return (await response.json()) as T;
 }
@@ -164,7 +175,10 @@ export function cancelExecution(executionId: string) {
   );
 }
 
-export function getCompletedSubmission(submissionId: string, signal?: AbortSignal) {
+export function getCompletedSubmission(
+  submissionId: string,
+  signal?: AbortSignal,
+) {
   return executionRequest<CandidateSubmission>(
     `/api/v1/submissions/${encodeURIComponent(submissionId)}`,
     signal ? { signal } : {},
