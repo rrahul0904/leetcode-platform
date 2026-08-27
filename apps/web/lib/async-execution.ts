@@ -1,9 +1,7 @@
 import type { CandidateSubmission, PracticeSession } from "@/lib/api";
 
 const authMode = process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE ?? "clerk";
-const apiUrl =
-  process.env.NEXT_PUBLIC_RIGOR_API_URL ??
-  (authMode === "local" ? "http://localhost:8002" : "/api/backend");
+const apiUrl = process.env.NEXT_PUBLIC_RIGOR_API_URL ?? "/api/backend";
 
 export type SubmissionRuntime = "python3.13" | "postgresql18";
 export type AsyncExecutionStatus =
