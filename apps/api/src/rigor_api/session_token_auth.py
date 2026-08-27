@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import jwt
+from fastapi import Request
 from jwt import ExpiredSignatureError, InvalidTokenError
 
 from .auth import AuthenticationError, TokenValidator
@@ -53,3 +54,24 @@ class ClerkSessionTokenValidator(TokenValidator):
             raise AuthenticationError("token_expired", "The bearer token has expired") from exc
         except InvalidTokenError as exc:
             raise AuthenticationError("token_invalid", "The bearer token is invalid") from exc
+
+
+def session_token_validator(request: Request) -> TokenValidator:
+    """Return the lifespan-created validator, wrapping external Clerk only.
+
+    FastAPI's application state is initialized during lifespan startup rather than
+    module import. Resolving here keeps imports side-effect free and lets tests,
+    local OIDC, and Vercel share the same application composition.
+    """
+
+    base: TokenValidator = request.app.state.token_validator
+    if base.local_provider is not None:
+        return base
+
+    cached = getattr(request.app.state, "clerk_session_token_validator", None)
+    if isinstance(cached, ClerkSessionTokenValidator):
+        return cached
+
+    wrapped = ClerkSessionTokenValidator(base.settings, base.local_provider)
+    request.app.state.clerk_session_token_validator = wrapped
+    return wrapped
