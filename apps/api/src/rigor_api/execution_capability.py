@@ -16,6 +16,7 @@ from .practice import (
     question_mode,
     question_runtime,
     question_tests,
+    starter_source,
 )
 from .schemas import AuthenticatedPrincipal, SubmissionRuntime
 
@@ -28,6 +29,7 @@ class ExecutionCapability(BaseModel):
     question_version_id: UUID
     availability: Literal["runnable", "hosted"]
     runtime: SubmissionRuntime | None = None
+    starter_source: str = ""
     public_test_count: int = Field(ge=0)
     hidden_test_count: int = Field(ge=0)
     reason: str | None = None
@@ -50,11 +52,13 @@ def _capability(payload: dict[str, object]) -> ExecutionCapability:
             reason=str(exc),
         )
 
+    public_starter = starter_source(payload, runtime)
     if not tests:
         return ExecutionCapability(
             question_version_id=question_version_id,
             availability="hosted",
             runtime=runtime,
+            starter_source=public_starter,
             public_test_count=0,
             hidden_test_count=0,
             reason="No deterministic execution tests are published for this question version.",
@@ -68,6 +72,7 @@ def _capability(payload: dict[str, object]) -> ExecutionCapability:
                 question_version_id=question_version_id,
                 availability="hosted",
                 runtime=runtime,
+                starter_source=public_starter,
                 public_test_count=public_test_count,
                 hidden_test_count=hidden_test_count,
                 reason="The published SQL question does not define an isolated fixture schema.",
@@ -80,6 +85,7 @@ def _capability(payload: dict[str, object]) -> ExecutionCapability:
                 question_version_id=question_version_id,
                 availability="hosted",
                 runtime=runtime,
+                starter_source=public_starter,
                 public_test_count=public_test_count,
                 hidden_test_count=hidden_test_count,
                 reason=str(exc.detail),
@@ -89,6 +95,7 @@ def _capability(payload: dict[str, object]) -> ExecutionCapability:
         question_version_id=question_version_id,
         availability="runnable",
         runtime=runtime,
+        starter_source=public_starter,
         public_test_count=public_test_count,
         hidden_test_count=hidden_test_count,
     )
