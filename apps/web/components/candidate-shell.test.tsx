@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "./app-shell";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/journal" }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/question-bank" }));
 vi.mock("@/lib/auth", () => ({
   useAuth: () => ({
     principal: {
@@ -17,50 +17,34 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 describe("candidate AppShell", () => {
-  it("exposes the recording-grade horizontal candidate navigation", () => {
+  it("exposes the focused SkillForge candidate navigation", () => {
     render(
       <AppShell>
-        <div>Candidate journal</div>
+        <div>Candidate question bank</div>
       </AppShell>,
     );
 
     const navigation = screen.getByRole("navigation", {
       name: "Primary navigation",
     });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(8);
-    expect(within(navigation).getByRole("link", { name: "Learn" })).toHaveAttribute(
+    expect(within(navigation).getAllByRole("link")).toHaveLength(3);
+    expect(within(navigation).getByRole("link", { name: "Overview" })).toHaveAttribute(
       "href",
-      "/learning-paths",
+      "/",
     );
     expect(
-      within(navigation).getByRole("link", { name: "Problems" }),
-    ).toHaveAttribute("href", "/problems");
+      within(navigation).getByRole("link", { name: "Question Bank" }),
+    ).toHaveAttribute("href", "/question-bank");
     expect(
-      within(navigation).getByRole("link", { name: "Companies" }),
-    ).toHaveAttribute("href", "/companies");
-    expect(
-      within(navigation).getByRole("link", { name: "Mock exams" }),
-    ).toHaveAttribute("href", "/mock-interviews");
-    expect(
-      within(navigation).getByRole("link", { name: "System design" }),
-    ).toHaveAttribute("href", "/system-design-library");
-    expect(within(navigation).getByRole("link", { name: "Journal" })).toHaveAttribute(
+      within(navigation).getByRole("link", { name: "Question Bank" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(within(navigation).getByRole("link", { name: "Progress" })).toHaveAttribute(
       "href",
-      "/journal",
+      "/progress",
     );
-    expect(within(navigation).getByRole("link", { name: "Journal" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    expect(
-      within(navigation).getByRole("link", { name: "Resources" }),
-    ).toHaveAttribute("href", "/resources");
-    expect(
-      within(navigation).getByRole("link", { name: "Readiness" }),
-    ).toHaveAttribute("href", "/progress");
-    expect(screen.getByRole("link", { name: "Search problems" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Search question bank" })).toHaveAttribute(
       "href",
-      "/problems",
+      "/question-bank",
     );
   });
 });
