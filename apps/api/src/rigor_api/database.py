@@ -12,9 +12,18 @@ from .config import Settings
 from .schemas import AuthenticatedPrincipal
 
 
+def normalize_database_url(value: str) -> str:
+    """Use the installed psycopg v3 driver for standard managed-Postgres URLs."""
+    if value.startswith("postgres://"):
+        return f"postgresql+psycopg://{value.removeprefix('postgres://')}"
+    if value.startswith("postgresql://"):
+        return f"postgresql+psycopg://{value.removeprefix('postgresql://')}"
+    return value
+
+
 def create_database_engine(settings: Settings, database_url: str | None = None) -> Engine:
     return create_engine(
-        database_url or settings.database_url,
+        normalize_database_url(database_url or settings.database_url),
         pool_pre_ping=True,
         pool_size=5,
         max_overflow=5,
