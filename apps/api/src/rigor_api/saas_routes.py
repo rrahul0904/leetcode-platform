@@ -5,10 +5,17 @@ from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
-from .auth import authenticated_principal
+from .auth import (
+    AuthenticationError,
+    TokenValidator,
+    authenticated_principal,
+    bearer_scheme,
+    token_validator,
+)
 from .config import get_settings
 from .database import DatabaseEngine, principal_transaction
 from .identity_webhooks import WebhookVerificationError, process_clerk_event, verify_svix_webhook
@@ -28,6 +35,20 @@ class MeResponse(BaseModel):
     display_name: str
     status: str
     roles: list[str]
+
+
+class IdentityReconcileRequest(BaseModel):
+    subject: str = Field(min_length=1, max_length=255)
+    email: str = Field(min_length=3, max_length=320)
+    email_verified: bool
+    display_name: str = Field(min_length=1, max_length=160)
+
+
+class IdentityReconcileResponse(BaseModel):
+    id: UUID
+    subject: str
+    status: str
+    role: Literal["candidate"] = "candidate"
 
 
 class PresignUploadRequest(BaseModel):
@@ -55,6 +76,108 @@ def _safe_file_name(value: str) -> str:
     leaf = value.replace("\\", "/").rsplit("/", 1)[-1].strip()
     leaf = re.sub(r"[^A-Za-z0-9._ -]+", "_", leaf)
     return (leaf or "upload.bin")[:255]
+
+
+@router.post("/identity/reconcile", response_model=IdentityReconcileResponse)
+def reconcile_clerk_identity(
+    payload: IdentityReconcileRequest,
+    engine: DatabaseEngine,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+    validator: Annotated[TokenValidator, Depends(token_validator)],
+) -> IdentityReconcileResponse:
+    """Idempotently bootstrap a verified Clerk identity as a candidate.
+
+    This is a recovery path for delayed webhook delivery. The bearer token proves
+    the Clerk subject, the caller may only reconcile that same subject, and this
+    endpoint always grants the lowest-privilege candidate role. Existing database
+    account status and elevated roles remain database-authoritative.
+    """
+
+    if credentials is None or credentials.scheme.casefold() != "bearer":
+        raise AuthenticationError("authentication_required", "A bearer token is required")
+    if validator.local_provider is not None:
+        raise HTTPException(status_code=400, detail="Identity reconciliation is external-OIDC only")
+
+    claims = validator.validate(credentials.credentials)
+    subject = str(claims.get("sub") or "")
+    if not subject or subject != payload.subject:
+        raise AuthenticationError(
+            "identity_subject_mismatch",
+            "The authenticated identity does not match the reconciliation request.",
+        )
+    if not payload.email_verified:
+        raise AuthenticationError(
+            "email_not_verified",
+            "A verified email address is required before provisioning SkillForge.",
+        )
+
+    email = payload.email.strip().lower()
+    display_name = payload.display_name.strip() or email
+    with engine.begin() as connection:
+        row = (
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO users(
+                        identity_subject, email, display_name, email_verified,
+                        auth_provider, status, last_login_at
+                    )
+                    VALUES (
+                        :subject, :email, :display_name, true,
+                        'clerk', 'active', CURRENT_TIMESTAMP
+                    )
+                    ON CONFLICT (identity_subject) DO UPDATE SET
+                        email=EXCLUDED.email,
+                        display_name=EXCLUDED.display_name,
+                        email_verified=true,
+                        auth_provider='clerk',
+                        last_login_at=CURRENT_TIMESTAMP,
+                        updated_at=CURRENT_TIMESTAMP
+                    RETURNING id, status
+                    """
+                ),
+                {
+                    "subject": subject,
+                    "email": email,
+                    "display_name": display_name[:160],
+                },
+            )
+            .mappings()
+            .one()
+        )
+        user_id = row["id"]
+        connection.execute(
+            text(
+                """
+                INSERT INTO user_roles(user_id, role_slug)
+                VALUES (:user_id, 'candidate')
+                ON CONFLICT DO NOTHING
+                """
+            ),
+            {"user_id": user_id},
+        )
+        connection.execute(
+            text("SELECT set_config('rigor.user_id', :user_id, true)"),
+            {"user_id": str(user_id)},
+        )
+        connection.execute(text("SELECT set_config('rigor.organization_id', '', true)"))
+        connection.execute(text("SELECT set_config('rigor.maintenance_bypass', 'off', true)"))
+        connection.execute(
+            text(
+                """
+                INSERT INTO user_preferences(user_id)
+                VALUES (:user_id)
+                ON CONFLICT (user_id) DO NOTHING
+                """
+            ),
+            {"user_id": user_id},
+        )
+
+    return IdentityReconcileResponse(
+        id=user_id,
+        subject=subject,
+        status=str(row["status"]),
+    )
 
 
 @router.get("/me", response_model=MeResponse)
