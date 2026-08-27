@@ -23,6 +23,7 @@ from .execution_api import (
     queue_submit,
 )
 from .schemas import AuthenticatedPrincipal, PracticeRunRequest, PracticeSubmitRequest
+from .vercel_sandbox_execution import dispatch_vercel_execution
 
 router = APIRouter(prefix="/api/v1", tags=["execution"])
 TERMINAL_STATUSES = {
@@ -38,6 +39,7 @@ INFRASTRUCTURE_ERROR_CATEGORIES = {
     "sandbox_missing_after_lease_expiry",
     "trusted_result_validation_failed",
     "unsupported_execution_language",
+    "vercel_sandbox_infrastructure_error",
 }
 
 
@@ -175,8 +177,9 @@ def queue_run_for_question(
     engine: DatabaseEngine,
     idempotency_key: IdempotencyHeader,
 ) -> CanonicalExecutionAccepted:
-    """Create a durable RUN without executing candidate source in FastAPI."""
+    """Create a durable RUN and execute it outside FastAPI in Vercel Sandbox."""
     accepted = queue_run(request, principal, engine, idempotency_key, slug)
+    dispatch_vercel_execution(engine, accepted.execution_id)
     return _accepted_contract(accepted, engine=engine, principal=principal)
 
 
@@ -187,8 +190,9 @@ def queue_submit_for_question(
     engine: DatabaseEngine,
     idempotency_key: IdempotencyHeader,
 ) -> CanonicalExecutionAccepted:
-    """Create a durable SUBMIT backed by the same execution service as Run."""
+    """Create a durable SUBMIT and execute it outside FastAPI in Vercel Sandbox."""
     accepted = queue_submit(request, principal, engine, idempotency_key, slug)
+    dispatch_vercel_execution(engine, accepted.execution_id)
     return _accepted_contract(accepted, engine=engine, principal=principal)
 
 
