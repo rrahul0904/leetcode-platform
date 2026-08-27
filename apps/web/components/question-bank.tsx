@@ -95,9 +95,6 @@ export function QuestionBank() {
             {label}
           </button>
         ))}
-        <Link className="catalog-tab" href="/simulation-lab" role="tab">
-          Simulations
-        </Link>
         <Link className="catalog-tab" href="/mock-interviews" role="tab">
           Mock Interviews
         </Link>
