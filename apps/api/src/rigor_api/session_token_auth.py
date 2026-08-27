@@ -5,6 +5,7 @@ from typing import Any
 import jwt
 from fastapi import Request
 from jwt import ExpiredSignatureError, InvalidTokenError
+from jwt.types import Options
 
 from .auth import AuthenticationError, TokenValidator
 
@@ -30,7 +31,7 @@ class ClerkSessionTokenValidator(TokenValidator):
         try:
             signing_key = self._jwks_client.get_signing_key_from_jwt(token)
             audience = self.settings.jwt_audience
-            options: dict[str, object] = {
+            options: Options = {
                 "require": ["exp", "iat", "iss", "sub"],
                 "verify_aud": bool(audience),
             }
