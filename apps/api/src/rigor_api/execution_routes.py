@@ -23,7 +23,7 @@ from .execution_api import (
     queue_submit,
 )
 from .schemas import AuthenticatedPrincipal, PracticeRunRequest, PracticeSubmitRequest
-from .vercel_sandbox_execution import dispatch_vercel_execution
+from .vercel_sandbox_runtime import dispatch_vercel_execution
 
 router = APIRouter(prefix="/api/v1", tags=["execution"])
 TERMINAL_STATUSES = {
