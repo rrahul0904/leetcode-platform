@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
 from rigor_api.auth import AuthenticationError
@@ -19,14 +17,15 @@ class _JwksClient:
 
 
 def _settings(*, audience: str | None = None) -> Settings:
-    return Settings(
+    settings = Settings(
         environment="production",
         local_oidc_enabled=False,
         execution_adapter="VERCEL_SANDBOX",
-        clerk_issuer="https://skillforge.clerk.accounts.dev",
-        clerk_jwks_url="https://skillforge.clerk.accounts.dev/.well-known/jwks.json",
-        jwt_audience=audience,
+        oidc_issuer="https://skillforge.clerk.accounts.dev",
+        oidc_jwks_url="https://skillforge.clerk.accounts.dev/.well-known/jwks.json",
     )
+    settings.jwt_audience = audience
+    return settings
 
 
 def _validator(*, audience: str | None = None) -> ClerkSessionTokenValidator:
@@ -35,8 +34,10 @@ def _validator(*, audience: str | None = None) -> ClerkSessionTokenValidator:
     return validator
 
 
-def test_standard_clerk_session_token_does_not_require_audience(monkeypatch: pytest.MonkeyPatch) -> None:
-    captured: dict[str, Any] = {}
+def test_standard_clerk_session_token_does_not_require_audience(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
 
     def fake_decode(*_args: object, **kwargs: object) -> dict[str, object]:
         captured.update(kwargs)
@@ -59,7 +60,9 @@ def test_standard_clerk_session_token_does_not_require_audience(monkeypatch: pyt
     }
 
 
-def test_standard_clerk_session_token_requires_session_id(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_standard_clerk_session_token_requires_session_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(
         "rigor_api.session_token_auth.jwt.decode",
         lambda *_args, **_kwargs: {
@@ -74,8 +77,10 @@ def test_standard_clerk_session_token_requires_session_id(monkeypatch: pytest.Mo
         _validator().validate("not-a-session-token")
 
 
-def test_custom_template_can_keep_explicit_audience(monkeypatch: pytest.MonkeyPatch) -> None:
-    captured: dict[str, Any] = {}
+def test_custom_template_can_keep_explicit_audience(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
 
     def fake_decode(*_args: object, **kwargs: object) -> dict[str, object]:
         captured.update(kwargs)
