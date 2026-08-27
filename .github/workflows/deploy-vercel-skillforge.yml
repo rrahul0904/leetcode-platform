@@ -1,9 +1,6 @@
 name: Deploy SkillForge to Vercel
 
 on:
-  push:
-    branches:
-      - agent/vercel-clean-skillforge
   workflow_dispatch:
 
 permissions:
