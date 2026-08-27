@@ -208,6 +208,9 @@ def sandbox_request(package: DispatchPackage) -> dict[str, object]:
     }
     if package.language == "python":
         request_payload["entrypoint"] = str(package.input_payload.get("entrypoint") or "solve")
+        request_payload["invocation_mode"] = str(
+            package.input_payload.get("invocation_mode") or "auto"
+        )
         return request_payload
     if package.language == "sql":
         schema_sql = package.input_payload.get("schema_sql")
@@ -359,251 +362,143 @@ def load_expected_tests(
     ).scalar_one_or_none()
     structured = _object_dict(cast(object, structured_value), label="Question structured content")
     mode = _question_mode(structured)
-    tests = _object_list(mode.get("tests"), label="Question expected tests")
-    if not tests or len(tests) > MAX_RESULT_TESTS:
-        raise TrustedResultError("Question expected test set is empty or too large.")
+    default_strategy = "sql_ordered" if _is_sql_mode(structured, mode) else "exact"
 
-    sql_mode = _is_sql_mode(structured, mode)
-    default_strategy = "sql_ordered" if sql_mode else "exact"
-    top_level_expected = mode.get("expected_result")
-    columns_value = mode.get("expected_output_columns")
-    expected_columns = (
-        [str(column) for column in cast(list[object], columns_value)]
-        if isinstance(columns_value, list)
-        else None
-    )
-
+    raw_tests = mode.get("tests")
+    if not isinstance(raw_tests, list):
+        raise TrustedResultError("Question expected tests are unavailable.")
     expected: dict[str, dict[str, object]] = {}
-    for index, raw_item in enumerate(tests):
-        item = _object_dict(raw_item, label="Question expected test")
-        test_id_value = item.get("id")
-        test_id = (
-            test_id_value
-            if isinstance(test_id_value, str) and test_id_value
-            else f"test-{index + 1}"
-        )
+    for raw_test in cast(list[object], raw_tests):
+        test = _object_dict(raw_test, label="Expected test")
+        test_id = _required_string(test.get("id"), label="Expected test id")
         if test_id in expected:
-            raise TrustedResultError("Question expected test identifiers must be unique.")
-        name_value = item.get("name")
-        visibility_value = item.get("visibility")
-        expected_output = item.get("expected_output")
-        if sql_mode and expected_output is None and top_level_expected is not None:
-            expected_output = top_level_expected
+            raise TrustedResultError("Expected test identifiers must be unique.")
         expected[test_id] = {
-            "id": test_id,
-            "name": name_value if isinstance(name_value, str) and name_value else test_id,
-            "visibility": "public" if visibility_value == "public" else "hidden",
-            "expected_output": expected_output,
-            "expected_columns": expected_columns,
-            "comparison": _comparison_policy(item, default_strategy=default_strategy),
+            "visibility": str(test.get("visibility") or "hidden"),
+            "expected": test.get("expected_output"),
+            "comparison": _comparison_policy(test, default_strategy=default_strategy),
         }
     return expected
 
 
-def _canonical_json(value: object) -> str:
-    try:
-        return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    except (TypeError, ValueError) as exc:
-        raise TrustedResultError("Comparison value is not JSON serializable.") from exc
+def _normalize_text(value: object) -> str:
+    return "\n".join(line.rstrip() for line in str(value).strip().splitlines())
 
 
-def _sql_result(value: object, expected_columns: object = None) -> dict[str, object] | None:
-    if isinstance(value, dict):
-        result = cast(dict[str, object], value)
-        columns_value: object = result.get("columns")
-        rows_value: object = result.get("rows")
-        if isinstance(columns_value, list) and isinstance(rows_value, list):
-            normalized_columns = [
-                str(column) for column in cast(list[object], columns_value)
-            ]
-            normalized_rows = list(cast(list[object], rows_value))
-            return {"columns": normalized_columns, "rows": normalized_rows}
-    if not isinstance(value, list):
-        return None
-
-    raw_rows = cast(list[object], value)
-    columns: list[str]
-    if isinstance(expected_columns, list):
-        columns = [str(column) for column in cast(list[object], expected_columns)]
-    elif raw_rows and isinstance(raw_rows[0], dict):
-        first_row = cast(dict[object, object], raw_rows[0])
-        columns = [str(column) for column in first_row]
-    else:
-        return None
-
-    rows: list[object] = []
-    for raw_row in raw_rows:
-        if isinstance(raw_row, dict):
-            row = cast(dict[object, object], raw_row)
-            rows.append([row.get(column) for column in columns])
-        elif isinstance(raw_row, list):
-            rows.append(list(cast(list[object], raw_row)))
-        else:
-            return None
-    return {"columns": columns, "rows": rows}
-
-
-def _compare_sql_result(
-    actual: object,
-    expected: object,
-    *,
-    expected_columns: object,
-    unordered: bool,
-) -> bool:
-    actual_result = _sql_result(actual)
-    expected_result = _sql_result(expected, expected_columns)
-    if actual_result is None or expected_result is None:
-        return False
-    if actual_result["columns"] != expected_result["columns"]:
-        return False
-    actual_rows_value: object = actual_result["rows"]
-    expected_rows_value: object = expected_result["rows"]
-    if not isinstance(actual_rows_value, list) or not isinstance(expected_rows_value, list):
-        return False
-    actual_rows = cast(list[object], actual_rows_value)
-    expected_rows = cast(list[object], expected_rows_value)
-    if unordered:
-        return sorted(_canonical_json(row) for row in actual_rows) == sorted(
-            _canonical_json(row) for row in expected_rows
-        )
-    return actual_rows == expected_rows
-
-
-def _compare_value(
-    actual: object,
-    expected: object,
-    policy: dict[str, object],
-    *,
-    expected_columns: object = None,
-) -> bool:
+def _compare(actual: object, expected: object, policy: dict[str, object]) -> bool:
     strategy = str(policy.get("strategy") or "exact")
-    if strategy in {"exact", "json"}:
+    if strategy == "exact":
         return actual == expected
     if strategy == "normalized_text":
-        return " ".join(str(actual).split()) == " ".join(str(expected).split())
+        return _normalize_text(actual) == _normalize_text(expected)
     if strategy == "numeric_tolerance":
-        tolerance_raw = policy.get("tolerance", 1e-9)
-        if not isinstance(tolerance_raw, (int, float)) or isinstance(tolerance_raw, bool):
-            raise TrustedResultError("Numeric comparison tolerance must be numeric.")
-        tolerance = float(tolerance_raw)
-        if not math.isfinite(tolerance) or tolerance < 0:
-            raise TrustedResultError("Numeric comparison tolerance is invalid.")
-        if not isinstance(actual, (int, float)) or isinstance(actual, bool):
+        if isinstance(actual, bool) or isinstance(expected, bool):
             return False
-        if not isinstance(expected, (int, float)) or isinstance(expected, bool):
+        if not isinstance(actual, (int, float)) or not isinstance(expected, (int, float)):
             return False
-        return math.isclose(float(actual), float(expected), rel_tol=0.0, abs_tol=tolerance)
+        absolute = float(policy.get("absolute_tolerance") or 0.0)
+        relative = float(policy.get("relative_tolerance") or 0.0)
+        return math.isclose(float(actual), float(expected), abs_tol=absolute, rel_tol=relative)
+    if strategy == "json":
+        return actual == expected
     if strategy == "unordered":
         if not isinstance(actual, list) or not isinstance(expected, list):
             return False
-        actual_items = cast(list[object], actual)
-        expected_items = cast(list[object], expected)
-        return sorted(_canonical_json(item) for item in actual_items) == sorted(
-            _canonical_json(item) for item in expected_items
-        )
-    if strategy == "sql_ordered":
-        return _compare_sql_result(
-            actual,
-            expected,
-            expected_columns=expected_columns,
-            unordered=False,
-        )
-    if strategy == "sql_unordered":
-        return _compare_sql_result(
-            actual,
-            expected,
-            expected_columns=expected_columns,
-            unordered=True,
-        )
-    raise TrustedResultError(f"Unsupported trusted comparison strategy {strategy!r}.")
-
-
-def _test_passed(actual: dict[str, object], expected: dict[str, object]) -> bool:
-    expected_output = expected.get("expected_output")
-    error_category = actual.get("error_category")
-    if isinstance(expected_output, str) and expected_output.endswith("Error"):
-        return error_category == expected_output
-    if not bool(actual.get("ok")):
-        return False
-    policy_value = expected.get("comparison")
-    policy = _object_dict(policy_value, label="Trusted comparison policy")
-    return _compare_value(
-        actual.get("actual"),
-        expected_output,
-        policy,
-        expected_columns=expected.get("expected_columns"),
-    )
+        return sorted(map(repr, actual)) == sorted(map(repr, expected))
+    if strategy in {"sql_ordered", "sql_unordered"}:
+        if not isinstance(actual, dict) or not isinstance(expected, dict):
+            return False
+        actual_mapping = cast(dict[str, object], actual)
+        expected_mapping = cast(dict[str, object], expected)
+        if actual_mapping.get("columns") != expected_mapping.get("columns"):
+            return False
+        actual_rows = actual_mapping.get("rows")
+        expected_rows = expected_mapping.get("rows")
+        if not isinstance(actual_rows, list) or not isinstance(expected_rows, list):
+            return False
+        if strategy == "sql_unordered":
+            return sorted(map(repr, actual_rows)) == sorted(map(repr, expected_rows))
+        return actual_rows == expected_rows
+    return False
 
 
 def trusted_compare(
-    sandbox: SandboxExecutionResult,
+    result: SandboxExecutionResult,
     expected_tests: dict[str, dict[str, object]],
 ) -> TrustedExecutionProjection:
-    if sandbox.status == "TIMEOUT":
-        terminal = ExecutionStatus.timeout
-    elif sandbox.status == "FAILED":
-        terminal = ExecutionStatus.failed
+    if result.status == "TIMEOUT":
+        execution_status = ExecutionStatus.timeout
+    elif result.status == "FAILED":
+        execution_status = ExecutionStatus.failed
     else:
-        terminal = ExecutionStatus.completed
+        execution_status = ExecutionStatus.completed
 
-    returned_ids = {str(item["id"]) for item in sandbox.tests}
-    unknown_ids = returned_ids.difference(expected_tests)
-    if unknown_ids:
-        raise TrustedResultError("Runner returned unknown test identifiers.")
-    if terminal is ExecutionStatus.completed and returned_ids != set(expected_tests):
-        raise TrustedResultError("Completed runner result omitted one or more expected tests.")
-
+    seen: set[str] = set()
     public_results: list[dict[str, object]] = []
-    hidden_total = sum(
-        1 for item in expected_tests.values() if str(item.get("visibility") or "hidden") == "hidden"
-    )
+    hidden_total = 0
     hidden_passed = 0
-    for actual in sandbox.tests:
-        test_id = str(actual["id"])
-        expected = expected_tests[test_id]
-        expected_visibility = str(expected.get("visibility") or "hidden")
-        if actual["visibility"] != expected_visibility:
-            raise TrustedResultError(f"Runner changed visibility for test {test_id!r}.")
-        passed = _test_passed(actual, expected)
-        if expected_visibility == "public":
+    any_candidate_error = False
+    for actual_test in result.tests:
+        test_id = _required_string(actual_test.get("id"), label="Runner result test id")
+        if test_id in seen:
+            raise TrustedResultError("Runner result included a duplicate test id.")
+        seen.add(test_id)
+        expected = expected_tests.get(test_id)
+        if expected is None:
+            raise TrustedResultError("Runner result references an unknown test id.")
+        if actual_test.get("visibility") != expected["visibility"]:
+            raise TrustedResultError("Runner result changed a test visibility boundary.")
+        error_category = _optional_string(actual_test.get("error_category"))
+        passed = bool(actual_test.get("ok")) and not error_category and _compare(
+            actual_test.get("actual"),
+            expected.get("expected"),
+            cast(dict[str, object], expected["comparison"]),
+        )
+        any_candidate_error = any_candidate_error or bool(error_category)
+        if expected["visibility"] == "public":
             public_results.append(
                 {
                     "test_id": test_id,
-                    "name": str(expected.get("name") or test_id),
+                    "name": test_id,
                     "passed": passed,
-                    "expected": expected.get("expected_output"),
-                    "actual": actual.get("actual"),
-                    "error_category": actual.get("error_category"),
+                    "expected": expected.get("expected"),
+                    "actual": actual_test.get("actual"),
+                    "error_category": error_category,
                 }
             )
         else:
+            hidden_total += 1
             hidden_passed += int(passed)
 
-    if terminal is ExecutionStatus.completed:
-        passed_count = sum(bool(item["passed"]) for item in public_results) + hidden_passed
-        total_count = len(public_results) + hidden_total
-        if total_count and passed_count == total_count:
-            message = "All evaluated tests passed."
-        elif total_count:
-            message = f"{passed_count} of {total_count} evaluated tests passed."
-        else:
-            message = "Execution completed."
-    elif terminal is ExecutionStatus.timeout:
-        message = "Execution exceeded the configured time limit."
-    else:
-        message = "Execution failed inside the isolated runner."
+    if execution_status == ExecutionStatus.completed and len(seen) != len(expected_tests):
+        execution_status = ExecutionStatus.failed
+        any_candidate_error = True
+
+    passed_count = sum(bool(item["passed"]) for item in public_results) + hidden_passed
+    total_count = len(public_results) + hidden_total
+    candidate_message = (
+        "All tests passed."
+        if execution_status == ExecutionStatus.completed and total_count > 0 and passed_count == total_count
+        else "Execution completed. Review the failed public cases and boundary conditions."
+    )
+    if execution_status == ExecutionStatus.timeout:
+        candidate_message = "Execution exceeded the configured time limit."
+    elif execution_status == ExecutionStatus.failed and any_candidate_error:
+        candidate_message = "Execution failed. Review the public error details and your implementation."
+    elif execution_status == ExecutionStatus.failed:
+        candidate_message = "Execution could not complete. Please retry."
 
     return TrustedExecutionProjection(
-        execution_status=terminal,
-        runtime_ms=sandbox.runtime_ms,
-        exit_code=sandbox.exit_code,
-        error_category=sandbox.error_category,
+        execution_status=execution_status,
+        runtime_ms=result.runtime_ms,
+        exit_code=result.exit_code,
+        error_category=result.error_category,
         public_results=public_results,
         hidden_total=hidden_total,
         hidden_passed=hidden_passed,
-        stdout=sandbox.stdout,
-        stderr=sandbox.stderr,
-        candidate_message=message,
+        stdout=result.stdout,
+        stderr=result.stderr,
+        candidate_message=candidate_message,
     )
 
 
@@ -614,17 +509,16 @@ def persist_terminal_result(
     projection: TrustedExecutionProjection,
 ) -> ExecutionStatus:
     repository = ExecutionRepository(connection)
-    current = repository.get(execution_id)
-    if current.status in TERMINAL_EXECUTION_STATUSES:
-        return current.status
+    snapshot = repository.get(execution_id)
+    if snapshot.status in TERMINAL_EXECUTION_STATUSES:
+        return snapshot.status
     try:
-        repository.transition(
+        terminal = repository.complete(
             execution_id,
-            projection.execution_status,
-            details={
-                "runtime_ms": projection.runtime_ms,
-                "error_category": projection.error_category or "",
-            },
+            status=projection.execution_status,
+            runtime_ms=projection.runtime_ms,
+            exit_code=projection.exit_code,
+            error_category=projection.error_category,
         )
     except ExecutionTransitionError:
         current = repository.get(execution_id)
@@ -635,28 +529,7 @@ def persist_terminal_result(
     connection.execute(
         text(
             """
-            UPDATE execution_requests
-            SET runtime_ms=:runtime_ms,
-                exit_code=:exit_code,
-                error_category=:error_category,
-                result_reference=:result_reference,
-                lease_owner=NULL,
-                lease_expires_at=NULL
-            WHERE id=:execution_id
-            """
-        ),
-        {
-            "execution_id": execution_id,
-            "runtime_ms": projection.runtime_ms,
-            "exit_code": projection.exit_code,
-            "error_category": projection.error_category,
-            "result_reference": f"db://execution-public-results/{execution_id}",
-        },
-    )
-    connection.execute(
-        text(
-            """
-            INSERT INTO execution_public_results (
+            INSERT INTO execution_public_results(
                 execution_request_id,
                 public_results,
                 hidden_total,
@@ -673,14 +546,13 @@ def persist_terminal_result(
                 :stderr,
                 :candidate_message
             )
-            ON CONFLICT (execution_request_id) DO UPDATE
-            SET public_results=EXCLUDED.public_results,
+            ON CONFLICT (execution_request_id) DO UPDATE SET
+                public_results=EXCLUDED.public_results,
                 hidden_total=EXCLUDED.hidden_total,
                 hidden_passed=EXCLUDED.hidden_passed,
                 stdout=EXCLUDED.stdout,
                 stderr=EXCLUDED.stderr,
-                candidate_message=EXCLUDED.candidate_message,
-                updated_at=CURRENT_TIMESTAMP
+                candidate_message=EXCLUDED.candidate_message
             """
         ),
         {
@@ -693,4 +565,4 @@ def persist_terminal_result(
             "candidate_message": projection.candidate_message,
         },
     )
-    return projection.execution_status
+    return terminal
