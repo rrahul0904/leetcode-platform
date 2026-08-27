@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from rigor_api.auth import AuthenticationError
 from rigor_api.config import Settings
 from rigor_api.session_token_auth import ClerkSessionTokenValidator
