@@ -1,14 +1,7 @@
 import type { NextConfig } from "next";
 
-const authMode =
-  process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE ??
-  (process.env.VERCEL ? "clerk" : "local");
 const configuredApiUrl = process.env.NEXT_PUBLIC_RIGOR_API_URL?.trim();
-const apiUrl =
-  configuredApiUrl ||
-  (authMode === "clerk" || process.env.VERCEL
-    ? "/api/backend"
-    : "http://localhost:8002");
+const apiUrl = configuredApiUrl || "/api/backend";
 
 if (process.env.VERCEL && apiUrl !== "/api/backend") {
   throw new Error(
@@ -56,6 +49,35 @@ const nextConfig: NextConfig = {
   output: "standalone",
   reactStrictMode: true,
   poweredByHeader: false,
+  async redirects() {
+    return [
+      {
+        source: "/problems",
+        destination: "/question-bank",
+        permanent: true,
+      },
+      {
+        source: "/problems/:slug",
+        destination: "/question-bank/:slug",
+        permanent: true,
+      },
+      {
+        source: "/coding-lab",
+        destination: "/question-bank",
+        permanent: true,
+      },
+      {
+        source: "/attempts",
+        destination: "/progress",
+        permanent: true,
+      },
+      {
+        source: "/workspace",
+        destination: "/",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {
