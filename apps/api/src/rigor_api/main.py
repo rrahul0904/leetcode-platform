@@ -16,6 +16,7 @@ from . import execution_patches as execution_patches
 from . import submissions as legacy_submissions
 from .attachment_solution_routes import router as attachment_solution_router
 from .auth import authenticated_principal, token_validator
+from .execution_capability import router as execution_capability_router
 from .execution_routes import router as execution_router
 from .principal_auth import database_authoritative_principal
 from .saas_routes import router as saas_router
@@ -57,6 +58,7 @@ app.dependency_overrides[token_validator] = session_token_validator
 # External identity proves who the user is. SkillForge PostgreSQL remains the
 # authority for account status, roles, permissions, and organization membership.
 app.dependency_overrides[authenticated_principal] = database_authoritative_principal
+app.include_router(execution_capability_router)
 app.include_router(execution_router)
 app.include_router(attachment_solution_router)
 app.include_router(saas_router)
