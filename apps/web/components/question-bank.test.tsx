@@ -62,10 +62,7 @@ describe("QuestionBank", () => {
     expect(
       screen.getByRole("tab", { name: "External practice" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Simulations" })).toHaveAttribute(
-      "href",
-      "/simulation-lab",
-    );
+    expect(screen.queryByRole("tab", { name: "Simulations" })).not.toBeInTheDocument();
     expect(
       screen.getByRole("tab", { name: "Mock Interviews" }),
     ).toHaveAttribute("href", "/mock-interviews");
