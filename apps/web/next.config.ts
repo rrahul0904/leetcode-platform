@@ -10,6 +10,12 @@ const apiUrl =
     ? "/api/backend"
     : "http://localhost:8002");
 
+if (process.env.VERCEL && apiUrl !== "/api/backend") {
+  throw new Error(
+    "SkillForge Vercel deployments must use the same-origin /api/backend boundary.",
+  );
+}
+
 function apiConnectSources(value: string) {
   if (value.startsWith("/")) return [];
   try {
@@ -59,7 +65,10 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=()",
+          },
         ],
       },
     ];
