@@ -16,7 +16,7 @@
     "api": {
       "root": "apps/api/",
       "framework": "fastapi",
-      "entrypoint": "src/rigor_api/main:app"
+      "entrypoint": "vercel_main:app"
     }
   },
   "env": {
