@@ -88,10 +88,19 @@ function ResultPanel({
   }
 
   const result = execution.result;
+  const evaluatedTestCount =
+    (result?.public_results.length ?? 0) + (result?.hidden_total ?? 0);
+  const hasDeterministicEvidence = evaluatedTestCount > 0;
   const publicPassed = result?.public_results.every((test) => test.passed) ?? false;
   const hiddenPassed = result != null && result.hidden_total === result.hidden_passed;
   const passed =
-    execution.status === "COMPLETED" && result != null && publicPassed && hiddenPassed;
+    execution.status === "COMPLETED" &&
+    result != null &&
+    hasDeterministicEvidence &&
+    publicPassed &&
+    hiddenPassed;
+  const completedWithoutEvidence =
+    execution.status === "COMPLETED" && result != null && !hasDeterministicEvidence;
 
   return (
     <div className="execution-report">
@@ -101,15 +110,19 @@ function ResultPanel({
           <strong>
             {passed
               ? "All evaluated tests passed"
-              : execution.status === "COMPLETED"
-                ? "Review the failing cases"
-                : `Execution ${execution.status.toLowerCase()}`}
+              : completedWithoutEvidence
+                ? "No deterministic test evidence returned"
+                : execution.status === "COMPLETED"
+                  ? "Review the failing cases"
+                  : `Execution ${execution.status.toLowerCase()}`}
           </strong>
           <span>
-            {result?.candidate_message ??
-              (execution.error
-                ? `Execution could not complete (${execution.error}).`
-                : "Execution finished.")}
+            {completedWithoutEvidence
+              ? "SkillForge will not mark this run as passed without at least one evaluated test."
+              : result?.candidate_message ??
+                (execution.error
+                  ? `Execution could not complete (${execution.error}).`
+                  : "Execution finished.")}
           </span>
         </div>
         <small>{execution.runtime_ms ?? 0} ms</small>
@@ -157,6 +170,12 @@ function ResultPanel({
 }
 
 type ActiveExecutionKind = "run" | "submit";
+type DraftSaveState =
+  | "Starting practice session…"
+  | "Saved"
+  | "Unsaved changes"
+  | "Saving…"
+  | "Save unavailable";
 
 type StoredExecution = {
   executionId: string;
@@ -179,19 +198,38 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
   const [activeExecutionId, setActiveExecutionId] = useState<string | null>(null);
   const [activeKind, setActiveKind] = useState<ActiveExecutionKind | null>(null);
   const [hint, setHint] = useState<string | null>(null);
-  const [notice, setNotice] = useState("Starting practice session…");
+  const [saveState, setSaveState] = useState<DraftSaveState>(
+    "Starting practice session…",
+  );
+  const [executionNotice, setExecutionNotice] = useState("Preparing workspace…");
   const initialized = useRef(false);
   const pollStartedAt = useRef<number | null>(null);
   const runIdempotencyKey = useRef<string | null>(null);
   const submitIdempotencyKey = useRef<string | null>(null);
-  const storageKey = `rigor.active-execution:${slug}`;
+  const lastSavedSource = useRef("");
+  const lastSavedElapsed = useRef(0);
+  const elapsedRef = useRef(0);
+
+  function executionStorageKey(sessionId: string) {
+    return `rigor.active-execution:${sessionId}`;
+  }
+
+  function clearStoredExecution() {
+    if (session) {
+      window.localStorage.removeItem(executionStorageKey(session.id));
+    }
+  }
 
   function rememberExecution(accepted: ExecutionAccepted, kind: ActiveExecutionKind) {
+    if (!session) return;
     const stored: StoredExecution = {
       executionId: accepted.execution_id,
       kind,
     };
-    window.localStorage.setItem(storageKey, JSON.stringify(stored));
+    window.localStorage.setItem(
+      executionStorageKey(session.id),
+      JSON.stringify(stored),
+    );
     pollStartedAt.current = Date.now();
     setActiveExecutionId(accepted.execution_id);
     setActiveKind(kind);
@@ -199,8 +237,12 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
     setSubmission(null);
   }
 
-  function restoreExecution() {
+  function restoreExecution(sessionId: string) {
+    const storageKey = executionStorageKey(sessionId);
     const raw = window.localStorage.getItem(storageKey);
+    // Old builds stored execution recovery by slug. Do not restore that value into
+    // a potentially newer question version; remove it once the durable session is known.
+    window.localStorage.removeItem(`rigor.active-execution:${slug}`);
     if (!raw) return;
     try {
       const stored = JSON.parse(raw) as Partial<StoredExecution>;
@@ -211,7 +253,7 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
         pollStartedAt.current = Date.now();
         setActiveExecutionId(stored.executionId);
         setActiveKind(stored.kind);
-        setNotice("Recovering active execution…");
+        setExecutionNotice("Recovering active execution…");
       }
     } catch {
       window.localStorage.removeItem(storageKey);
@@ -224,10 +266,17 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
       setSession(created);
       setSource(created.draft_code);
       setElapsed(created.elapsed_seconds);
-      setNotice("Saved");
-      restoreExecution();
+      elapsedRef.current = created.elapsed_seconds;
+      lastSavedSource.current = created.draft_code;
+      lastSavedElapsed.current = created.elapsed_seconds;
+      setSaveState("Saved");
+      setExecutionNotice("Ready");
+      restoreExecution(created.id);
     },
-    onError: () => setNotice("Could not start the session"),
+    onError: () => {
+      setSaveState("Save unavailable");
+      setExecutionNotice("Could not start the practice session");
+    },
   });
 
   const executionQuery = useQuery({
@@ -258,13 +307,28 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
     onSuccess: (accepted) => {
       runIdempotencyKey.current = null;
       rememberExecution(accepted, "run");
-      setNotice(accepted.duplicate ? "Run already queued" : "Run queued");
+      setExecutionNotice(accepted.duplicate ? "Run already queued" : "Run queued");
     },
-    onError: () => setNotice("Execution could not be queued; retry is safe"),
+    onError: () =>
+      setExecutionNotice("Execution could not be queued; retry is safe"),
   });
 
   const submitMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
+      setSaveState("Saving…");
+      try {
+        const saved = await autosavePracticeSession(session!.id, {
+          draft_code: source,
+          elapsed_seconds: elapsedRef.current,
+        });
+        lastSavedSource.current = saved.draft_code;
+        lastSavedElapsed.current = saved.elapsed_seconds;
+        setSaveState("Saved");
+      } catch {
+        // The immutable submission carries the source independently, so a draft-save
+        // outage must not turn a valid submission retry into data loss.
+        setSaveState("Save unavailable");
+      }
       const key =
         submitIdempotencyKey.current ?? `candidate-submit-${crypto.randomUUID()}`;
       submitIdempotencyKey.current = key;
@@ -273,28 +337,29 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
     onSuccess: (accepted) => {
       submitIdempotencyKey.current = null;
       rememberExecution(accepted, "submit");
-      setNotice(
+      setExecutionNotice(
         accepted.duplicate ? "Submission already queued" : "Submission queued",
       );
     },
-    onError: () => setNotice("Submission could not be queued; retry is safe"),
+    onError: () =>
+      setExecutionNotice("Submission could not be queued; retry is safe"),
   });
 
   const cancelMutation = useMutation({
     mutationFn: () => cancelExecution(activeExecutionId!),
-    onMutate: () => setNotice("Cancelling execution…"),
+    onMutate: () => setExecutionNotice("Cancelling execution…"),
     onSuccess: (cancelled) => {
       setLastExecution(cancelled);
-      setNotice(
+      setExecutionNotice(
         cancelled.status === "CANCELLED"
           ? "Execution cancelled"
           : "Execution already finished",
       );
-      window.localStorage.removeItem(storageKey);
+      clearStoredExecution();
       setActiveExecutionId(null);
       setActiveKind(null);
     },
-    onError: () => setNotice("Cancellation could not be confirmed"),
+    onError: () => setExecutionNotice("Cancellation could not be confirmed"),
   });
 
   const hintMutation = useMutation({
@@ -310,13 +375,17 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
   }, [question.data, sessionMutation]);
 
   useEffect(() => {
+    elapsedRef.current = elapsed;
+  }, [elapsed]);
+
+  useEffect(() => {
     const current = executionQuery.data;
     if (!current) return;
 
     queueMicrotask(() => {
       setLastExecution(current);
       if (!isTerminalExecution(current.status)) {
-        setNotice(
+        setExecutionNotice(
           current.status === "QUEUED"
             ? "Waiting for isolated runner…"
             : "Running in isolated sandbox…",
@@ -324,14 +393,16 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
         return;
       }
 
-      window.localStorage.removeItem(storageKey);
+      clearStoredExecution();
       setActiveExecutionId(null);
       const completedKind = activeKind;
       setActiveKind(null);
       if (current.status === "COMPLETED") {
-        setNotice(completedKind === "submit" ? "Submission evaluated" : "Run completed");
+        setExecutionNotice(
+          completedKind === "submit" ? "Submission evaluated" : "Run completed",
+        );
       } else {
-        setNotice(`Execution ${current.status.toLowerCase()}`);
+        setExecutionNotice(`Execution ${current.status.toLowerCase()}`);
       }
 
       if (completedKind === "submit" && current.submission_id) {
@@ -340,13 +411,17 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
             setSubmission(saved);
             void queryClient.invalidateQueries({ queryKey: ["candidate-readiness"] });
             void queryClient.invalidateQueries({ queryKey: ["submissions"] });
+            void queryClient.invalidateQueries({ queryKey: ["candidate-competencies"] });
+            void queryClient.invalidateQueries({ queryKey: ["next-action"] });
           })
           .catch(() =>
-            setNotice("Execution finished; submission summary is still syncing"),
+            setExecutionNotice(
+              "Execution finished; submission summary is still syncing",
+            ),
           );
       }
     });
-  }, [activeKind, executionQuery.data, queryClient, storageKey]);
+  }, [activeKind, executionQuery.data, queryClient, session]);
 
   useEffect(() => {
     const submitInFlight = activeKind === "submit";
@@ -356,17 +431,47 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
   }, [activeKind, session, submission]);
 
   useEffect(() => {
-    if (!session || !source || submission || activeKind === "submit") return;
+    if (!session || submission || activeKind === "submit") return;
+    if (source === lastSavedSource.current) return;
     const autosave = window.setTimeout(() => {
+      setSaveState("Saving…");
       void autosavePracticeSession(session.id, {
         draft_code: source,
-        elapsed_seconds: elapsed,
+        elapsed_seconds: elapsedRef.current,
       })
-        .then(() => setNotice("Saved"))
-        .catch(() => setNotice("Autosave unavailable"));
-    }, 900);
+        .then((saved) => {
+          lastSavedSource.current = saved.draft_code;
+          lastSavedElapsed.current = saved.elapsed_seconds;
+          if (saved.draft_code === source) setSaveState("Saved");
+        })
+        .catch(() => setSaveState("Save unavailable"));
+    }, 700);
     return () => window.clearTimeout(autosave);
-  }, [activeKind, elapsed, session, source, submission]);
+  }, [activeKind, session, source, submission]);
+
+  useEffect(() => {
+    if (!session || submission || activeKind === "submit") return;
+    const persistenceTimer = window.setInterval(() => {
+      const currentElapsed = elapsedRef.current;
+      if (
+        currentElapsed === lastSavedElapsed.current &&
+        source === lastSavedSource.current
+      ) {
+        return;
+      }
+      void autosavePracticeSession(session.id, {
+        draft_code: source,
+        elapsed_seconds: currentElapsed,
+      })
+        .then((saved) => {
+          lastSavedSource.current = saved.draft_code;
+          lastSavedElapsed.current = saved.elapsed_seconds;
+          if (saved.draft_code === source) setSaveState("Saved");
+        })
+        .catch(() => setSaveState("Save unavailable"));
+    }, 15_000);
+    return () => window.clearInterval(persistenceTimer);
+  }, [activeKind, session, source, submission]);
 
   if (question.isLoading) {
     return (
@@ -393,7 +498,7 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
     setSource(nextSource);
     runIdempotencyKey.current = null;
     submitIdempotencyKey.current = null;
-    setNotice("Unsaved changes");
+    setSaveState("Unsaved changes");
   }
 
   return (
@@ -409,7 +514,7 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
         <div className="practice-timer">
           <Clock3 size={16} />
           <strong>{formatTime(elapsed)}</strong>
-          <span>{notice}</span>
+          <span>{saveState} · {executionNotice}</span>
         </div>
       </header>
       <div className="practice-layout">
@@ -455,7 +560,7 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
             source={source}
             starterSource={starterSource}
             disabled={Boolean(submission)}
-            saveState={notice}
+            saveState={saveState}
             onChange={updateSource}
             onRun={() => runMutation.mutate()}
             onSubmit={() => submitMutation.mutate()}
