@@ -1,5 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "./app-shell";
 
@@ -16,8 +16,17 @@ vi.mock("@/lib/auth", () => ({
   }),
 }));
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe("candidate AppShell", () => {
-  it("exposes the focused SkillForge candidate navigation", () => {
+  it("exposes the focused SkillForge candidate navigation", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200 }),
+    );
+
     render(
       <AppShell>
         <div>Candidate question bank</div>
@@ -28,23 +37,24 @@ describe("candidate AppShell", () => {
       name: "Primary navigation",
     });
     expect(within(navigation).getAllByRole("link")).toHaveLength(3);
-    expect(within(navigation).getByRole("link", { name: "Overview" })).toHaveAttribute(
-      "href",
-      "/",
-    );
+    expect(
+      within(navigation).getByRole("link", { name: "Overview" }),
+    ).toHaveAttribute("href", "/");
     expect(
       within(navigation).getByRole("link", { name: "Question Bank" }),
     ).toHaveAttribute("href", "/question-bank");
     expect(
       within(navigation).getByRole("link", { name: "Question Bank" }),
     ).toHaveAttribute("aria-current", "page");
-    expect(within(navigation).getByRole("link", { name: "Progress" })).toHaveAttribute(
-      "href",
-      "/progress",
-    );
-    expect(screen.getByRole("link", { name: "Search question bank" })).toHaveAttribute(
-      "href",
-      "/question-bank",
+    expect(
+      within(navigation).getByRole("link", { name: "Progress" }),
+    ).toHaveAttribute("href", "/progress");
+    expect(
+      screen.getByRole("link", { name: "Search question bank" }),
+    ).toHaveAttribute("href", "/question-bank");
+
+    await waitFor(() =>
+      expect(screen.getByTitle("SkillForge API: Connected")).toBeInTheDocument(),
     );
   });
 });
