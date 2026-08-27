@@ -19,6 +19,7 @@ from .auth import authenticated_principal
 from .execution_routes import router as execution_router
 from .principal_auth import database_authoritative_principal
 from .saas_routes import router as saas_router
+from .session_token_auth import ClerkSessionTokenValidator
 
 _LEGACY_SYNCHRONOUS_ENDPOINTS = {
     ("/api/v1/questions/{slug}/run", "run_question"),
@@ -47,6 +48,18 @@ app.description = (
     "Production API for SkillForge AI technical learning, interview preparation, "
     "durable execution, identity, and candidate progress."
 )
+
+# Keep local OIDC compatibility while allowing production Clerk to use its normal
+# short-lived session token. Custom JWT templates remain optional via
+# RIGOR_JWT_AUDIENCE / CLERK_JWT_TEMPLATE.
+_existing_validator = app.state.token_validator
+app.state.token_validator = ClerkSessionTokenValidator(
+    _existing_validator.settings,
+    _existing_validator.local_provider,
+)
+
+# External identity proves who the user is. SkillForge PostgreSQL remains the
+# authority for account status, roles, permissions, and organization membership.
 app.dependency_overrides[authenticated_principal] = database_authoritative_principal
 app.include_router(execution_router)
 app.include_router(attachment_solution_router)
