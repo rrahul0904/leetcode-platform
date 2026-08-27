@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "fluid": true,
   "services": {
     "web": {
       "root": "apps/web/",
@@ -16,7 +17,12 @@
     "api": {
       "root": "apps/api/",
       "framework": "fastapi",
-      "entrypoint": "vercel_main:app"
+      "entrypoint": "vercel_main:app",
+      "functions": {
+        "vercel_main.py": {
+          "maxDuration": 300
+        }
+      }
     }
   },
   "env": {
