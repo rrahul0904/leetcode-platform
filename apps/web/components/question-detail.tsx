@@ -15,12 +15,23 @@ import Link from "next/link";
 
 import { ErrorState, LoadingState } from "@/components/page-ui";
 import { getPublishedQuestion } from "@/lib/api";
+import { getExecutionCapability } from "@/lib/execution-capability";
 import { titleCaseSlug } from "@/lib/product-data";
+
+function runtimeLabel(runtime: "python3.13" | "postgresql18" | null) {
+  if (runtime === "python3.13") return "Python 3.13";
+  if (runtime === "postgresql18") return "PostgreSQL 18";
+  return "Not executable";
+}
 
 export function QuestionDetail({ slug }: { slug: string }) {
   const question = useQuery({
     queryKey: ["published-question", slug],
     queryFn: ({ signal }) => getPublishedQuestion(slug, signal),
+  });
+  const capability = useQuery({
+    queryKey: ["execution-capability", slug],
+    queryFn: ({ signal }) => getExecutionCapability(slug, signal),
   });
   if (question.isLoading)
     return (
@@ -35,8 +46,7 @@ export function QuestionDetail({ slug }: { slug: string }) {
       </div>
     );
   const item = question.data;
-  const classStyle = item.starter_code?.trimStart().startsWith("class ") ?? false;
-  const canPractice = Boolean(item.starter_code) && !classStyle;
+  const canPractice = capability.data?.availability === "runnable";
   return (
     <div className="page-content">
       <Link className="back-link" href="/question-bank">
@@ -72,18 +82,37 @@ export function QuestionDetail({ slug }: { slug: string }) {
               <BookOpenCheck size={16} /> Review solution
             </Link>
           </div>
-          {classStyle && (
+          {capability.isLoading && (
+            <p className="boundary-note">Checking isolated execution availability…</p>
+          )}
+          {capability.isError && (
             <p className="boundary-note">
-              Class-style execution is not enabled in the current Python runner
-              milestone. The prompt remains available for guided study.
+              Execution availability could not be verified. Practice is disabled
+              until the backend capability check succeeds.
+            </p>
+          )}
+          {capability.data?.availability === "hosted" && (
+            <p className="boundary-note">
+              {capability.data.reason ??
+                "This published question is currently available for guided study only."}
             </p>
           )}
         </div>
         <aside className="availability-card">
           <ShieldCheck size={22} />
-          <span>PUBLICATION</span>
-          <strong>Published</strong>
-          <p>This candidate view is projected from public fields only.</p>
+          <span>EXECUTION</span>
+          <strong>
+            {capability.data?.availability === "runnable"
+              ? "Runnable"
+              : capability.isLoading
+                ? "Checking"
+                : "Hosted study"}
+          </strong>
+          <p>
+            {capability.data
+              ? `${runtimeLabel(capability.data.runtime)} · ${capability.data.public_test_count} public · ${capability.data.hidden_test_count} hidden tests`
+              : "The server decides whether this exact published version can execute."}
+          </p>
           <Link href="/quality-gates">View the release gates</Link>
         </aside>
       </section>
