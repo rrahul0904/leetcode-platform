@@ -21,7 +21,7 @@ jobs:
   deploy:
     name: Build and deploy existing SkillForge project
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
@@ -42,11 +42,53 @@ jobs:
         with:
           node-version: "24.18.0"
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
       - name: Install pinned Vercel CLI
         run: npm install --global vercel@59.7.0
 
       - name: Link existing SkillForge project and pull production environment
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Install locked Python workspace
+        run: uv sync --frozen --all-packages
+
+      - name: Migrate and seed managed SkillForge PostgreSQL
+        shell: bash
+        run: |
+          set -a
+          source .vercel/.env.production.local
+          set +a
+
+          if [ -z "${RIGOR_DATABASE_URL:-}" ]; then
+            export RIGOR_DATABASE_URL="${POSTGRES_URL:-}"
+          fi
+          if [ -z "${RIGOR_DATABASE_URL:-}" ]; then
+            echo "Managed PostgreSQL connection is missing from the Vercel production environment."
+            exit 1
+          fi
+
+          case "$RIGOR_DATABASE_URL" in
+            postgres://*)
+              export RIGOR_DATABASE_URL="postgresql+psycopg://${RIGOR_DATABASE_URL#postgres://}"
+              ;;
+            postgresql://*)
+              export RIGOR_DATABASE_URL="postgresql+psycopg://${RIGOR_DATABASE_URL#postgresql://}"
+              ;;
+          esac
+
+          uv run alembic upgrade head
+
+          seed_url="${POSTGRES_URL:-${RIGOR_DATABASE_URL/postgresql+psycopg:/postgresql:}}"
+          RIGOR_SEED_DATABASE_URL="$seed_url" uv run python scripts/seed_database.py
 
       - name: Build production artifact
         run: vercel build --prod --token="$VERCEL_TOKEN"
@@ -66,6 +108,22 @@ jobs:
         run: |
           curl --fail --silent --show-error --location "$DEPLOYMENT_URL/" >/tmp/skillforge.html
           grep -q "SkillForge" /tmp/skillforge.html
+
+      - name: Verify Vercel BFF route exists
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        shell: bash
+        run: |
+          status="$(curl --silent --output /tmp/bff.json --write-out '%{http_code}' "$DEPLOYMENT_URL/api/backend/api/v1/auth/me")"
+          if [ "$status" = "404" ]; then
+            echo "The deployed site does not contain the SkillForge BFF route."
+            exit 1
+          fi
+          if [ "$status" != "401" ] && [ "$status" != "200" ]; then
+            echo "Unexpected anonymous BFF status: $status"
+            cat /tmp/bff.json
+            exit 1
+          fi
 
       - name: Reject localhost API dependencies in production CSP
         env:
