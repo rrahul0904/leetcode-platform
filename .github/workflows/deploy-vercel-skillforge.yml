@@ -1,0 +1,79 @@
+name: Deploy SkillForge to Vercel
+
+on:
+  push:
+    branches:
+      - agent/vercel-first-skillforge
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: skillforge-vercel-production
+  cancel-in-progress: true
+
+env:
+  VERCEL_ORG_ID: team_zmEezpOKGZy2sH5nqTfO44LD
+  VERCEL_PROJECT_ID: prj_fnbuYcKQeKrEq5Sax2uWdTg2SHqT
+
+jobs:
+  deploy:
+    name: Build and deploy existing SkillForge project
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Checkout deployment commit
+        uses: actions/checkout@v4
+
+      - name: Require Vercel deployment credential
+        shell: bash
+        run: |
+          if [ -z "${VERCEL_TOKEN:-}" ]; then
+            echo "VERCEL_TOKEN GitHub Actions secret is not configured."
+            echo "The existing SkillForge Vercel project was not modified."
+            exit 1
+          fi
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.18.0"
+
+      - name: Install pinned Vercel CLI
+        run: npm install --global vercel@59.7.0
+
+      - name: Link existing SkillForge project and pull production environment
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build production artifact
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy production artifact
+        id: deploy
+        shell: bash
+        run: |
+          deployment_url="$(vercel deploy --prebuilt --prod --yes --token="$VERCEL_TOKEN")"
+          echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
+          echo "Deployed $deployment_url"
+
+      - name: Verify deployed landing page
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --location "$DEPLOYMENT_URL/" >/tmp/skillforge.html
+          grep -q "SkillForge" /tmp/skillforge.html
+
+      - name: Reject localhost API dependencies in production CSP
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        shell: bash
+        run: |
+          headers="$(curl --silent --show-error --head "$DEPLOYMENT_URL/")"
+          if printf '%s\n' "$headers" | grep -Ei '^content-security-policy:' | grep -Eq 'localhost:8002|127\.0\.0\.1:8002'; then
+            echo "Production deployment still exposes a localhost API dependency in CSP."
+            exit 1
+          fi
