@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import cast
 
 from fastapi.testclient import TestClient
@@ -64,12 +65,25 @@ def test_candidate_cannot_read_another_candidates_submission_or_evidence(monkeyp
                         candidate_message, quality_signals
                     ) VALUES (
                         :submission_id, 'PASSED'::execution_state,
-                        '[{"id":"public-1","name":"identity","passed":true,"expected_output":7,"actual_output":7}]'::jsonb,
+                        CAST(:public_results AS jsonb),
                         1, 1, 10, 1024, NULL, 'passed', '{}'::jsonb
                     )
                     """
                 ),
-                {"submission_id": submission_id},
+                {
+                    "submission_id": submission_id,
+                    "public_results": json.dumps(
+                        [
+                            {
+                                "id": "public-1",
+                                "name": "identity",
+                                "passed": True,
+                                "expected_output": 7,
+                                "actual_output": 7,
+                            }
+                        ]
+                    ),
+                },
             )
             connection.execute(
                 text(
