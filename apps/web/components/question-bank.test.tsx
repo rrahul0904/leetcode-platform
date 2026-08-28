@@ -68,16 +68,20 @@ afterEach(() => {
 });
 
 describe("QuestionBank", () => {
-  it("renders unified practice navigation and hosted capabilities", async () => {
+  it("renders unified practice navigation and candidate-safe hosted metadata", async () => {
     render(
       <QueryProvider>
         <QuestionBank />
       </QueryProvider>,
     );
 
-    expect(
-      await screen.findByText("Select a Bounded Priority Worker Batch"),
-    ).toBeInTheDocument();
+    const card = await screen.findByRole("link", {
+      name: /Select a Bounded Priority Worker Batch/i,
+    });
+    expect(card).toHaveAttribute(
+      "href",
+      "/questions/py-0005-select-a-bounded-priority-worker-batch",
+    );
     expect(
       screen.getByRole("tab", { name: "All practice" }),
     ).toBeInTheDocument();
@@ -95,10 +99,12 @@ describe("QuestionBank", () => {
       "href",
       "/learning-paths",
     );
-    expect(screen.getByText("Hosted prompt · Workspace ready")).toBeInTheDocument();
+    expect(screen.getByText("Check question details")).toBeInTheDocument();
+    expect(screen.queryByText(/Workspace ready/i)).not.toBeInTheDocument();
     expect(screen.getByText("Senior")).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Attempted" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Passed" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Python coding" })).toBeInTheDocument();
   });
 
   it("uses candidate context when bookmarked=true", async () => {
