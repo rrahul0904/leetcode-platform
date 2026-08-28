@@ -87,6 +87,8 @@ def _execution_metadata(
     principal: AuthenticatedPrincipal,
     execution_id: UUID,
 ) -> dict[str, object]:
+    """Read candidate-visible metadata with explicit ownership plus PostgreSQL RLS."""
+
     with principal_transaction(engine, principal) as connection:
         row = (
             connection.execute(
@@ -96,6 +98,9 @@ def _execution_metadata(
                            created_at, memory_peak_bytes
                     FROM execution_requests
                     WHERE id=:execution_id
+                      AND candidate_id=NULLIF(
+                        current_setting('rigor.user_id', true), ''
+                      )::uuid
                     """
                 ),
                 {"execution_id": execution_id},
@@ -201,6 +206,9 @@ def get_candidate_execution(
     principal: CandidateReadPrincipal,
     engine: DatabaseEngine,
 ) -> CanonicalExecutionView:
+    # Explicitly establish candidate ownership before reading the richer internal
+    # execution snapshot. Trusted workers still use ExecutionRepository directly.
+    _execution_metadata(engine, principal, execution_id)
     view = get_execution(execution_id, principal, engine)
     return _view_contract(view, engine=engine, principal=principal)
 
@@ -210,6 +218,9 @@ def cancel_candidate_execution(
     principal: CandidateWritePrincipal,
     engine: DatabaseEngine,
 ) -> CanonicalExecutionView:
+    # Never let cancellation reach the worker-facing repository until the public
+    # candidate boundary has proven ownership independently of RLS.
+    _execution_metadata(engine, principal, execution_id)
     current = get_execution(execution_id, principal, engine)
     if current.status in TERMINAL_STATUSES:
         return _view_contract(current, engine=engine, principal=principal)
