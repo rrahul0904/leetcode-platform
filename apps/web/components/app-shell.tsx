@@ -185,14 +185,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="candidate-global-header">
           <Link className="candidate-brand" href="/">
             <span>S</span>
-            <strong>SKILLFORGE</strong>
+            <strong>SKILLSFORGE AI</strong>
           </Link>
           <nav
             aria-label="Primary navigation"
             className={mobileNavOpen ? "candidate-global-nav is-open" : "candidate-global-nav"}
           >
             <div className="candidate-global-nav__mobile-heading">
-              <span>EXPLORE SKILLFORGE</span>
+              <span>EXPLORE SKILLSFORGE AI</span>
               <button
                 aria-label="Close navigation"
                 onClick={() => setMobileNavOpen(false)}
@@ -227,7 +227,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
             <span
               className={`candidate-connection candidate-connection--${connectionState}`}
-              title={`SkillForge API: ${connectionLabel(connectionState)}`}
+              title={`SkillsForge AI API: ${connectionLabel(connectionState)}`}
             >
               <i /> {connectionLabel(connectionState)}
             </span>
@@ -245,7 +245,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main id="main-content" className="candidate-content">
           {children}
           <footer className="candidate-footer">
-            <span>SKILLFORGE · TECHNICAL INTERVIEW PREPARATION</span>
+            <span>SKILLSFORGE AI · TECHNICAL INTERVIEW PREPARATION</span>
             <span>DATABASE-BACKED CONTENT · EVIDENCE-DRIVEN PROGRESS</span>
           </footer>
         </main>
@@ -289,7 +289,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="brand__mark">R</span>
           <span>
             <strong>RIGOR</strong>
-            <small>SKILLFORGE PLATFORM ADMIN</small>
+            <small>SKILLSFORGE AI PLATFORM ADMIN</small>
           </span>
         </Link>
         <button
@@ -336,7 +336,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
         {children}
         <footer className="site-footer">
-          <span>Rigor · SkillForge platform governance and administration.</span>
+          <span>Rigor · SkillsForge AI platform governance and administration.</span>
           <span>Content states and readiness claims are evidence-gated.</span>
         </footer>
       </main>
