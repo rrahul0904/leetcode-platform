@@ -21,6 +21,7 @@ from .schemas import (
 )
 
 router = APIRouter(prefix="/api/v1", tags=["practice"])
+_CURRENT_CANDIDATE_SQL = "NULLIF(current_setting('rigor.user_id', true), '')::uuid"
 
 
 class PracticeSessionNotFoundError(Exception):
@@ -32,9 +33,7 @@ class PracticeStateTransitionError(Exception):
 
 
 def candidate_id(connection: Connection) -> UUID:
-    value = connection.execute(
-        text("SELECT NULLIF(current_setting('rigor.user_id', true), '')::uuid")
-    ).scalar_one()
+    value = connection.execute(text(f"SELECT {_CURRENT_CANDIDATE_SQL}")).scalar_one()
     if value is None:
         raise RuntimeError("Candidate database context is unavailable")
     return UUID(str(value))
@@ -67,7 +66,6 @@ def published_question_payload(connection: Connection, slug: str) -> dict[str, A
 
 def question_mode(payload: dict[str, Any]) -> dict[str, Any]:
     """Return the established execution specification for old and universal content."""
-
     structured = payload.get("structured_content")
     if not isinstance(structured, dict):
         return {}
@@ -86,7 +84,6 @@ def question_runtime(payload: dict[str, Any]) -> SubmissionRuntime:
     question_type = str(content.get("question_type") or "")
     dialect = str(mode.get("dialect") or "")
     runtime = str(mode.get("runtime") or "")
-
     if question_type == "sql_coding" or dialect in {"postgresql", "postgresql18"}:
         return SubmissionRuntime.postgresql
     if question_type == "python_coding" or runtime in {"3.13", "python3.13"}:
@@ -103,9 +100,7 @@ def question_tests(payload: dict[str, Any], *, public_only: bool) -> list[dict[s
         for item in cast(list[object], tests_value)
         if isinstance(item, dict)
     ]
-    if public_only:
-        return [test for test in tests if test.get("visibility") == "public"]
-    return tests
+    return [test for test in tests if test.get("visibility") == "public"] if public_only else tests
 
 
 def question_hints(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -146,25 +141,22 @@ class PracticeSessionRepository:
                 "Requested runtime does not match the published question runtime "
                 f"({required_runtime.value})."
             )
-        draft_source = starter_source(question, required_runtime)
         existing = self._connection.execute(
             text(
+                f"""
+                SELECT ps.id
+                FROM practice_sessions ps
+                WHERE ps.candidate_id={_CURRENT_CANDIDATE_SQL}
+                  AND ps.question_version_id=:question_version_id
+                  AND ps.runtime=:runtime
+                  AND ps.state IN (
+                    'CREATED'::practice_session_state,
+                    'IN_PROGRESS'::practice_session_state,
+                    'PAUSED'::practice_session_state
+                  )
+                ORDER BY ps.updated_at DESC
+                LIMIT 1
                 """
-                    SELECT ps.id
-                    FROM practice_sessions ps
-                    WHERE ps.candidate_id=NULLIF(
-                        current_setting('rigor.user_id', true), ''
-                    )::uuid
-                      AND ps.question_version_id=:question_version_id
-                      AND ps.runtime=:runtime
-                      AND ps.state IN (
-                        'CREATED'::practice_session_state,
-                        'IN_PROGRESS'::practice_session_state,
-                        'PAUSED'::practice_session_state
-                      )
-                    ORDER BY ps.updated_at DESC
-                    LIMIT 1
-                    """
             ),
             {
                 "question_version_id": question["question_version_id"],
@@ -173,16 +165,17 @@ class PracticeSessionRepository:
         ).scalar_one_or_none()
         if existing is not None:
             return self.get(UUID(str(existing)))
+
         session_id = self._connection.execute(
             text(
-                """
+                f"""
                 INSERT INTO practice_sessions (
                     organization_id, candidate_id, question_version_id,
                     session_type, state, runtime, draft_code,
                     started_at, last_activity_at
                 ) VALUES (
                     CAST(NULLIF(:organization_id, '') AS uuid),
-                    NULLIF(current_setting('rigor.user_id', true), '')::uuid,
+                    {_CURRENT_CANDIDATE_SQL},
                     :question_version_id,
                     'HOSTED_QUESTION',
                     'IN_PROGRESS'::practice_session_state,
@@ -198,11 +191,12 @@ class PracticeSessionRepository:
                 "organization_id": principal.organization_id or "",
                 "question_version_id": question["question_version_id"],
                 "runtime": required_runtime.value,
-                "draft_code": draft_source,
+                "draft_code": starter_source(question, required_runtime),
             },
         ).scalar_one()
+        session_uuid = UUID(str(session_id))
         self.append_event(
-            UUID(str(session_id)),
+            session_uuid,
             PracticeSessionEventInput(
                 event_type="SESSION_STARTED",
                 payload={
@@ -211,7 +205,7 @@ class PracticeSessionRepository:
                 },
             ),
         )
-        return self.get(UUID(str(session_id)))
+        return self.get(session_uuid)
 
     def list(self, limit: int = 50) -> list[PracticeSessionView]:
         rows = (
@@ -219,6 +213,7 @@ class PracticeSessionRepository:
                 text(
                     f"""
                     {self._view_select()}
+                    WHERE ps.candidate_id={_CURRENT_CANDIDATE_SQL}
                     ORDER BY ps.updated_at DESC
                     LIMIT :limit
                     """
@@ -233,7 +228,13 @@ class PracticeSessionRepository:
     def get(self, session_id: UUID) -> PracticeSessionView:
         row = (
             self._connection.execute(
-                text(f"{self._view_select()} WHERE ps.id=:session_id"),
+                text(
+                    f"""
+                    {self._view_select()}
+                    WHERE ps.id=:session_id
+                      AND ps.candidate_id={_CURRENT_CANDIDATE_SQL}
+                    """
+                ),
                 {"session_id": session_id},
             )
             .mappings()
@@ -243,11 +244,7 @@ class PracticeSessionRepository:
             raise PracticeSessionNotFoundError
         return self._view(dict(row))
 
-    def patch(
-        self,
-        session_id: UUID,
-        update: PracticeSessionPatch,
-    ) -> PracticeSessionView:
+    def patch(self, session_id: UUID, update: PracticeSessionPatch) -> PracticeSessionView:
         current = self.get(session_id)
         if current.state not in {
             PracticeSessionState.created,
@@ -258,7 +255,7 @@ class PracticeSessionRepository:
         fields = update.model_fields_set
         self._connection.execute(
             text(
-                """
+                f"""
                 UPDATE practice_sessions
                 SET draft_code=CASE WHEN :set_draft THEN :draft_code ELSE draft_code END,
                     notes=CASE WHEN :set_notes THEN :notes ELSE notes END,
@@ -269,6 +266,7 @@ class PracticeSessionRepository:
                     last_activity_at=CURRENT_TIMESTAMP,
                     updated_at=CURRENT_TIMESTAMP
                 WHERE id=:session_id
+                  AND candidate_id={_CURRENT_CANDIDATE_SQL}
                 """
             ),
             {
@@ -310,6 +308,7 @@ class PracticeSessionRepository:
                     last_activity_at=CURRENT_TIMESTAMP,
                     updated_at=CURRENT_TIMESTAMP
                 WHERE id=:session_id
+                  AND candidate_id={_CURRENT_CANDIDATE_SQL}
                 """
             ),
             {"session_id": session_id, "target": target.value},
@@ -323,15 +322,11 @@ class PracticeSessionRepository:
         )
         return self.get(session_id)
 
-    def append_event(
-        self,
-        session_id: UUID,
-        event: PracticeSessionEventInput,
-    ) -> None:
+    def append_event(self, session_id: UUID, event: PracticeSessionEventInput) -> None:
         self.get(session_id)
         self._connection.execute(
             text(
-                """
+                f"""
                 INSERT INTO practice_session_events (
                     session_id, sequence_number, event_type, payload
                 )
@@ -339,8 +334,13 @@ class PracticeSessionRepository:
                        COALESCE(max(sequence_number), 0) + 1,
                        :event_type,
                        CAST(:payload AS jsonb)
-                FROM practice_session_events
-                WHERE session_id=:session_id
+                FROM practice_session_events pse
+                WHERE pse.session_id=:session_id
+                  AND EXISTS (
+                    SELECT 1 FROM practice_sessions ps
+                    WHERE ps.id=:session_id
+                      AND ps.candidate_id={_CURRENT_CANDIDATE_SQL}
+                  )
                 """
             ),
             {
@@ -360,12 +360,13 @@ class PracticeSessionRepository:
         new_count = session.hint_count + 1
         self._connection.execute(
             text(
-                """
+                f"""
                 UPDATE practice_sessions
                 SET hint_count=:hint_count,
                     last_activity_at=CURRENT_TIMESTAMP,
                     updated_at=CURRENT_TIMESTAMP
                 WHERE id=:session_id
+                  AND candidate_id={_CURRENT_CANDIDATE_SQL}
                 """
             ),
             {"session_id": session_id, "hint_count": new_count},
@@ -478,11 +479,7 @@ def _transition_route(
 ) -> PracticeSessionView:
     try:
         with principal_transaction(engine, principal) as connection:
-            return PracticeSessionRepository(connection).transition(
-                session_id,
-                target,
-                allowed,
-            )
+            return PracticeSessionRepository(connection).transition(session_id, target, allowed)
     except (PracticeSessionNotFoundError, PracticeStateTransitionError) as exc:
         raise _session_error(exc) from exc
 
