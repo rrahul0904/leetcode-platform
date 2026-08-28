@@ -89,8 +89,8 @@ def reconcile_clerk_identity(
 
     This is a recovery path for delayed webhook delivery. The bearer token proves
     the Clerk subject, the caller may only reconcile that same subject, and this
-    endpoint always grants the lowest-privilege candidate role. Existing database
-    account status and elevated roles remain database-authoritative.
+    endpoint only provisions the lowest-privilege candidate role when the database
+    account has no role yet. Existing status and elevated roles remain authoritative.
     """
 
     if credentials is None or credentials.scheme.casefold() != "bearer":
@@ -150,7 +150,10 @@ def reconcile_clerk_identity(
             text(
                 """
                 INSERT INTO user_roles(user_id, role_slug)
-                VALUES (:user_id, 'candidate')
+                SELECT :user_id, 'candidate'
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM user_roles WHERE user_id=:user_id
+                )
                 ON CONFLICT DO NOTHING
                 """
             ),
@@ -318,7 +321,11 @@ def presign_download(
             text(
                 """
                 SELECT storage_key FROM candidate_files
-                WHERE id=:file_id AND status IN ('pending_upload', 'available')
+                WHERE id=:file_id
+                  AND user_id=NULLIF(
+                    current_setting('rigor.user_id', true), ''
+                  )::uuid
+                  AND status IN ('pending_upload', 'available')
                 """
             ),
             {"file_id": file_id},
