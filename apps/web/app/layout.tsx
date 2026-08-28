@@ -22,9 +22,9 @@ import "./curriculum-experience.css";
 import "./editorial-experience.css";
 
 export const metadata: Metadata = {
-  title: "SkillForge AI — Technical Interview Platform",
+  title: "SkillsForge AI — Technical Interview Platform",
   description:
-    "AI-powered technical interview preparation for data engineering, software engineering, system design, and senior engineering roles.",
+    "AI-powered technical interview preparation with persistent practice, secure code execution, evidence-driven progress, and role-focused learning paths.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
