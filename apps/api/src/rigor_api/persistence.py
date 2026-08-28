@@ -10,38 +10,45 @@ from .schemas import AuthenticatedPrincipal, CatalogAggregateSummary, PlatformSt
 
 
 def ensure_user(connection: Connection, principal: AuthenticatedPrincipal) -> UUID:
-    """Persist identity metadata without mutating application authorization.
+    """Persist identity metadata without letting external identity mutate authorization.
 
-    Normal authenticated requests may refresh trusted identity metadata and last-login
+    External Clerk/OIDC requests may refresh trusted identity metadata and last-login
     timestamps, but PostgreSQL ``user_roles`` remains authoritative and is never
-    rewritten here. Role provisioning belongs to explicit trusted provisioning paths
-    (Clerk webhook/reconciliation) or the controlled local-development bootstrap.
+    rewritten from provider claims. The controlled local OIDC development provider
+    is the only exception: its deterministic identities bootstrap their local test
+    roles so legacy repositories that call ``ensure_user`` directly keep working.
     """
 
-    user_id = connection.execute(
-        text(
-            """
-            INSERT INTO users (
-                identity_subject, email, display_name, email_verified, last_login_at
-            ) VALUES (
-                :subject, :email, :display_name, true, CURRENT_TIMESTAMP
-            )
-            ON CONFLICT (identity_subject) DO UPDATE SET
-                email = EXCLUDED.email,
-                display_name = EXCLUDED.display_name,
-                email_verified = true,
-                last_login_at = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
-            RETURNING id
-            """
-        ),
-        {
-            "subject": principal.subject_id,
-            "email": principal.email,
-            "display_name": principal.display_name,
-        },
-    ).scalar_one()
-    return UUID(str(user_id))
+    user_id = UUID(
+        str(
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO users (
+                        identity_subject, email, display_name, email_verified, last_login_at
+                    ) VALUES (
+                        :subject, :email, :display_name, true, CURRENT_TIMESTAMP
+                    )
+                    ON CONFLICT (identity_subject) DO UPDATE SET
+                        email = EXCLUDED.email,
+                        display_name = EXCLUDED.display_name,
+                        email_verified = true,
+                        last_login_at = CURRENT_TIMESTAMP,
+                        updated_at = CURRENT_TIMESTAMP
+                    RETURNING id
+                    """
+                ),
+                {
+                    "subject": principal.subject_id,
+                    "email": principal.email,
+                    "display_name": principal.display_name,
+                },
+            ).scalar_one()
+        )
+    )
+    if principal.authentication_provider == "local-oidc":
+        synchronize_local_user_roles(connection, principal, user_id)
+    return user_id
 
 
 def synchronize_local_user_roles(
