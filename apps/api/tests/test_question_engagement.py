@@ -7,7 +7,6 @@ from rigor_api.auth import LOCAL_IDENTITIES, LocalIdentity, LocalOIDCProvider
 from rigor_api.main import app
 from rigor_api.schemas import Role
 from sqlalchemy import Engine, text
-
 from test_published_catalog import cleanup_catalog_fixtures, seed_catalog_fixtures
 
 SECOND_IDENTITY_KEY = "candidate-b"
