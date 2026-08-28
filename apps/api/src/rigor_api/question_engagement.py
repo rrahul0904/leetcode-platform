@@ -53,6 +53,9 @@ CandidateEngagementWritePrincipal = Annotated[
 ]
 
 
+_CURRENT_USER_SQL = "NULLIF(current_setting('rigor.user_id', true), '')::uuid"
+
+
 def _question_id(connection: Connection, slug: str) -> UUID:
     value = connection.execute(
         text(
@@ -75,10 +78,11 @@ def _question_id(connection: Connection, slug: str) -> UUID:
 def _notes(connection: Connection, *, question_id: UUID, slug: str) -> list[QuestionNoteView]:
     rows = connection.execute(
         text(
-            """
+            f"""
             SELECT id, body, created_at, updated_at
             FROM candidate_question_notes
             WHERE question_id=:question_id
+              AND user_id={_CURRENT_USER_SQL}
             ORDER BY updated_at DESC, created_at DESC
             """
         ),
@@ -105,11 +109,12 @@ def get_question_engagement(
         question_id = _question_id(connection, slug)
         bookmarked = connection.execute(
             text(
-                """
+                f"""
                 SELECT EXISTS(
                     SELECT 1
                     FROM candidate_question_bookmarks
                     WHERE question_id=:question_id
+                      AND user_id={_CURRENT_USER_SQL}
                 )
                 """
             ),
@@ -129,12 +134,13 @@ def list_candidate_bookmarks(
     with principal_transaction(engine, principal) as connection:
         rows = connection.execute(
             text(
-                """
+                f"""
                 SELECT q.slug AS question_slug, v.title, b.created_at
                 FROM candidate_question_bookmarks b
                 JOIN questions q ON q.id=b.question_id
                 JOIN question_versions v ON v.id=q.current_published_version_id
-                WHERE q.archived_at IS NULL
+                WHERE b.user_id={_CURRENT_USER_SQL}
+                  AND q.archived_at IS NULL
                   AND v.state='published'::content_state
                 ORDER BY b.created_at DESC
                 """
@@ -152,12 +158,9 @@ def bookmark_question(
         question_id = _question_id(connection, slug)
         connection.execute(
             text(
-                """
+                f"""
                 INSERT INTO candidate_question_bookmarks (user_id, question_id)
-                VALUES (
-                    NULLIF(current_setting('rigor.user_id', true), '')::uuid,
-                    :question_id
-                )
+                VALUES ({_CURRENT_USER_SQL}, :question_id)
                 ON CONFLICT (user_id, question_id) DO NOTHING
                 """
             ),
@@ -179,9 +182,10 @@ def remove_question_bookmark(
         question_id = _question_id(connection, slug)
         connection.execute(
             text(
-                """
+                f"""
                 DELETE FROM candidate_question_bookmarks
                 WHERE question_id=:question_id
+                  AND user_id={_CURRENT_USER_SQL}
                 """
             ),
             {"question_id": question_id},
@@ -202,13 +206,9 @@ def create_question_note(
         question_id = _question_id(connection, slug)
         row = connection.execute(
             text(
-                """
+                f"""
                 INSERT INTO candidate_question_notes (user_id, question_id, body)
-                VALUES (
-                    NULLIF(current_setting('rigor.user_id', true), '')::uuid,
-                    :question_id,
-                    :body
-                )
+                VALUES ({_CURRENT_USER_SQL}, :question_id, :body)
                 RETURNING id, body, created_at, updated_at
                 """
             ),
@@ -237,10 +237,12 @@ def update_question_note(
         question_id = _question_id(connection, slug)
         row = connection.execute(
             text(
-                """
+                f"""
                 UPDATE candidate_question_notes
                 SET body=:body, updated_at=CURRENT_TIMESTAMP
-                WHERE id=:note_id AND question_id=:question_id
+                WHERE id=:note_id
+                  AND question_id=:question_id
+                  AND user_id={_CURRENT_USER_SQL}
                 RETURNING id, body, created_at, updated_at
                 """
             ),
@@ -267,9 +269,11 @@ def delete_question_note(
         question_id = _question_id(connection, slug)
         deleted = connection.execute(
             text(
-                """
+                f"""
                 DELETE FROM candidate_question_notes
-                WHERE id=:note_id AND question_id=:question_id
+                WHERE id=:note_id
+                  AND question_id=:question_id
+                  AND user_id={_CURRENT_USER_SQL}
                 RETURNING id
                 """
             ),
