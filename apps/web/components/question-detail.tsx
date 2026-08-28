@@ -169,7 +169,7 @@ export function QuestionDetail({ slug }: { slug: string }) {
             </button>
             <Link
               className="button button--secondary"
-              href={`/question-bank/${slug}/solution`}
+              href={`/questions/${slug}/solution`}
             >
               <BookOpenCheck size={16} /> Review solution
             </Link>
