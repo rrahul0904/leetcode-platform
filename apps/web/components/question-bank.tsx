@@ -239,7 +239,6 @@ export function QuestionBank() {
                 onChange={(event) =>
                   replaceParams({
                     bookmarked: event.target.checked ? "true" : null,
-                    mode: event.target.checked && mode === "external" ? "hosted" : null,
                   })
                 }
               />
