@@ -6,7 +6,6 @@ from fastapi.testclient import TestClient
 from rigor_api.auth import LocalOIDCProvider
 from rigor_api.main import app
 from sqlalchemy import Engine
-
 from test_published_catalog import cleanup_catalog_fixtures, seed_catalog_fixtures
 
 
