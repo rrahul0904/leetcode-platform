@@ -28,11 +28,11 @@ class PublishedCatalogRepository:
         skill: str | None,
         difficulty: str | None,
         role: str | None,
-        question_type: str | None,
         company_style: str | None,
         completion_status: str | None,
         sort: CatalogSort,
         bookmarked: bool | None = None,
+        question_type: str | None = None,
         connection: Connection | None = None,
     ) -> Page[CatalogQuestion]:
         conditions = [
