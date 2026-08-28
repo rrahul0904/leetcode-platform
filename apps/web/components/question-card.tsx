@@ -6,9 +6,9 @@ import { titleCaseSlug } from "@/lib/product-data";
 
 export function QuestionCard({ question }: { question: CatalogQuestion }) {
   return (
-    <Link className="question-card" href={`/question-bank/${question.slug}`}>
+    <Link className="question-card" href={`/questions/${question.slug}`}>
       <div className="question-card__topline">
-        <span className="practice-type practice-type--hosted">HOSTED</span>
+        <span className="practice-type practice-type--hosted">PUBLISHED</span>
         <span className={`difficulty difficulty--${question.difficulty}`}>
           {question.difficulty}
         </span>
@@ -26,14 +26,14 @@ export function QuestionCard({ question }: { question: CatalogQuestion }) {
           <span key={skill}>{skill}</span>
         ))}
       </div>
-      <dl className="external-card__meta" aria-label="Practice capabilities">
+      <dl className="external-card__meta" aria-label="Question metadata">
         <div>
           <dt>Role level</dt>
           <dd>{titleCaseSlug(question.role_level)}</dd>
         </div>
         <div>
-          <dt>Capabilities</dt>
-          <dd>Hosted prompt · Workspace ready</dd>
+          <dt>Availability</dt>
+          <dd>Check question details</dd>
         </div>
       </dl>
       <div className="question-card__footer">
