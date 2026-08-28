@@ -2,6 +2,7 @@ export type ExecutionCapability = {
   question_version_id: string;
   availability: "runnable" | "hosted";
   runtime: "python3.13" | "postgresql18" | null;
+  starter_source: string;
   public_test_count: number;
   hidden_test_count: number;
   reason: string | null;
