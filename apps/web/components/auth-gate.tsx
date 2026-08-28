@@ -30,6 +30,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
     "/mock-interviews",
     "/progress",
     "/onboarding",
+    "/profile",
+    "/settings",
   ].some(
     (route) =>
       pathname === route || (route !== "/" && pathname.startsWith(`${route}/`)),
