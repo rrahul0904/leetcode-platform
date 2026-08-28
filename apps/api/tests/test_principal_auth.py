@@ -68,7 +68,7 @@ def test_external_provider_role_claim_cannot_escalate_database_role() -> None:
         {
             "sub": "user_clerk_123",
             "iat": int(datetime(2026, 8, 26, tzinfo=UTC).timestamp()),
-            "roles": ["platform_administrator"],
+            "roles": ["platform-administrator"],
             "email": "attacker-controlled@example.com",
         },
     )
@@ -83,14 +83,14 @@ def test_external_provider_role_claim_cannot_escalate_database_role() -> None:
 def test_database_admin_remains_admin_when_external_token_omits_roles() -> None:
     principal = _database_principal(
         _request(),
-        _database_engine(roles=["platform_administrator"]),
+        _database_engine(roles=["platform-administrator"]),
         {
             "sub": "user_clerk_123",
             "iat": int(datetime(2026, 8, 26, tzinfo=UTC).timestamp()),
         },
     )
 
-    assert [role.value for role in principal.roles] == ["platform_administrator"]
+    assert [role.value for role in principal.roles] == ["platform-administrator"]
     assert "user:manage" in principal.permissions
 
 
