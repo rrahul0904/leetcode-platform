@@ -69,10 +69,11 @@ class PublishedCatalogRepository:
             )
             parameters["company_style"] = company_style
 
+        current_user = "NULLIF(current_setting('rigor.user_id', true), '')::uuid"
         candidate_submission = (
             "SELECT 1 FROM submissions sub "
             "WHERE sub.question_version_id=v.id "
-            "AND sub.candidate_id = NULLIF(current_setting('rigor.user_id', true), '')::uuid"
+            f"AND sub.candidate_id={current_user}"
         )
         if completion_status == "not_started":
             conditions.append(f"NOT EXISTS ({candidate_submission})")
@@ -86,7 +87,7 @@ class PublishedCatalogRepository:
         if bookmarked is not None:
             bookmark_exists = (
                 "EXISTS (SELECT 1 FROM candidate_question_bookmarks b "
-                "WHERE b.question_id=q.id)"
+                f"WHERE b.question_id=q.id AND b.user_id={current_user})"
             )
             conditions.append(bookmark_exists if bookmarked else f"NOT {bookmark_exists}")
 
