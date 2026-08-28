@@ -10,6 +10,14 @@ from .schemas import AuthenticatedPrincipal, CatalogAggregateSummary, PlatformSt
 
 
 def ensure_user(connection: Connection, principal: AuthenticatedPrincipal) -> UUID:
+    """Persist identity metadata without mutating application authorization.
+
+    Normal authenticated requests may refresh trusted identity metadata and last-login
+    timestamps, but PostgreSQL ``user_roles`` remains authoritative and is never
+    rewritten here. Role provisioning belongs to explicit trusted provisioning paths
+    (Clerk webhook/reconciliation) or the controlled local-development bootstrap.
+    """
+
     user_id = connection.execute(
         text(
             """
@@ -33,6 +41,18 @@ def ensure_user(connection: Connection, principal: AuthenticatedPrincipal) -> UU
             "display_name": principal.display_name,
         },
     ).scalar_one()
+    return UUID(str(user_id))
+
+
+def synchronize_local_user_roles(
+    connection: Connection,
+    principal: AuthenticatedPrincipal,
+    user_id: UUID,
+) -> None:
+    """Synchronize roles only for the controlled local OIDC development provider."""
+
+    if principal.authentication_provider != "local-oidc":
+        raise ValueError("Only the controlled local OIDC provider may synchronize request roles")
     connection.execute(
         text("DELETE FROM user_roles WHERE user_id = :user_id"), {"user_id": user_id}
     )
@@ -41,7 +61,6 @@ def ensure_user(connection: Connection, principal: AuthenticatedPrincipal) -> UU
             text("INSERT INTO user_roles (user_id, role_slug) VALUES (:user_id, :role)"),
             {"user_id": user_id, "role": role.value},
         )
-    return UUID(str(user_id))
 
 
 def audit_event(
