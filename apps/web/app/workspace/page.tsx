@@ -1,5 +1,5 @@
-import { WorkspaceEntry } from "@/components/workspace-entry";
+import { redirect } from "next/navigation";
 
 export default function WorkspacePage() {
-  return <WorkspaceEntry />;
+  redirect("/");
 }
