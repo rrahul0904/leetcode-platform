@@ -60,6 +60,7 @@ jobs:
       - name: Pull trusted production bootstrap values from the previous project
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p .vercel
           printf '{"orgId":"%s","projectId":"%s"}\n' \
             "$VERCEL_ORG_ID" "$SOURCE_PROJECT_ID" > .vercel/project.json
@@ -115,22 +116,7 @@ jobs:
             exit 1
           fi
 
-          clerk_domain="$(python - "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" <<'PY'
-import base64
-import sys
-
-key = sys.argv[1]
-for prefix in ("pk_test_", "pk_live_"):
-    if key.startswith(prefix):
-        encoded = key[len(prefix):]
-        break
-else:
-    raise SystemExit("Unsupported Clerk publishable key format")
-encoded += "=" * (-len(encoded) % 4)
-decoded = base64.urlsafe_b64decode(encoded).decode("utf-8").rstrip("$")
-print(decoded)
-PY
-)"
+          clerk_domain="$(python -c 'import base64,sys; key=sys.argv[1]; prefixes=("pk_test_","pk_live_"); encoded=next((key[len(p):] for p in prefixes if key.startswith(p)), None); encoded or (_ for _ in ()).throw(SystemExit("Unsupported Clerk publishable key format")); encoded += "=" * (-len(encoded) % 4); print(base64.urlsafe_b64decode(encoded).decode("utf-8").rstrip("$"))' "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY")"
           clerk_issuer="https://$clerk_domain"
           clerk_jwks_url="$clerk_issuer/.well-known/jwks.json"
 
