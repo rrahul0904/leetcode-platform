@@ -4,6 +4,15 @@ const authMode = process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE ?? "clerk";
 const apiUrl = process.env.NEXT_PUBLIC_RIGOR_API_URL ?? "/api/backend";
 
 export type SubmissionRuntime = "python3.13" | "postgresql18";
+export type ExecutionCapability = {
+  question_version_id: string;
+  availability: "runnable" | "hosted";
+  runtime: SubmissionRuntime | null;
+  starter_source: string;
+  public_test_count: number;
+  hidden_test_count: number;
+  reason: string | null;
+};
 export type AsyncExecutionStatus =
   | "QUEUED"
   | "DISPATCHING"
@@ -107,9 +116,16 @@ async function executionRequest<T>(
     if (response.status === 401 && typeof window !== "undefined") {
       window.dispatchEvent(new Event("rigor:unauthorized"));
     }
-    throw new Error(`SkillForge execution API returned ${response.status}`);
+    throw new Error(`SkillsForge AI execution API returned ${response.status}`);
   }
   return (await response.json()) as T;
+}
+
+export function getExecutionCapability(slug: string, signal?: AbortSignal) {
+  return executionRequest<ExecutionCapability>(
+    `/api/v1/questions/${encodeURIComponent(slug)}/execution-capability`,
+    signal ? { signal } : {},
+  );
 }
 
 export function createRuntimePracticeSession(
