@@ -13,7 +13,7 @@ from .execution_routes import (
 )
 from .schemas import ReadinessCheck, ReadinessResponse
 
-EXPECTED_MIGRATION_VERSION = "20260826_0017"
+EXPECTED_MIGRATION_VERSION = "20260828_0018"
 REQUIRED_TABLES = (
     "users",
     "user_roles",
@@ -59,7 +59,12 @@ REQUIRED_TABLES = (
     "subscriptions",
     "entitlements",
 )
-EXECUTION_ADAPTERS = {"LOCAL_FUNCTIONAL", "LOCAL_DOCKER", "KUBERNETES_JOB"}
+EXECUTION_ADAPTERS = {
+    "LOCAL_FUNCTIONAL",
+    "LOCAL_DOCKER",
+    "KUBERNETES_JOB",
+    "VERCEL_SANDBOX",
+}
 AI_ADAPTERS = {"DETERMINISTIC", "OPENAI", "ANTHROPIC"}
 
 
@@ -124,7 +129,9 @@ def dependency_check(name: str, url: str) -> ReadinessCheck:
 
 def readiness_report(engine: Engine, settings: Settings) -> ReadinessResponse:
     checks, content_count = database_checks(engine)
-    checks.append(dependency_check("valkey", settings.valkey_url))
+    execution_adapter = settings.execution_adapter.upper()
+    if execution_adapter != "VERCEL_SANDBOX":
+        checks.append(dependency_check("valkey", settings.valkey_url))
     checks.append(
         ReadinessCheck(
             name="content",
@@ -132,7 +139,6 @@ def readiness_report(engine: Engine, settings: Settings) -> ReadinessResponse:
             detail=f"question_versions={content_count}",
         )
     )
-    execution_adapter = settings.execution_adapter.upper()
     checks.append(
         ReadinessCheck(
             name="execution_adapter",
