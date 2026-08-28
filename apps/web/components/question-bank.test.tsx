@@ -4,9 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryProvider } from "./query-provider";
 import { QuestionBank } from "./question-bank";
 
-const { replaceMock, getBookmarkedQuestionsMock } = vi.hoisted(() => ({
+const { replaceMock, getCandidateQuestionsMock } = vi.hoisted(() => ({
   replaceMock: vi.fn(),
-  getBookmarkedQuestionsMock: vi.fn(),
+  getCandidateQuestionsMock: vi.fn(),
 }));
 let currentSearchParams = new URLSearchParams();
 
@@ -40,7 +40,6 @@ const hostedPage = {
 
 vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api")>()),
-  getPublishedQuestions: () => Promise.resolve(hostedPage),
   getExternalReferenceFacets: () =>
     Promise.resolve({ sources: [], difficulties: [], competencies: [] }),
   getExternalReferences: () =>
@@ -54,14 +53,14 @@ vi.mock("@/lib/api", async (importOriginal) => ({
 }));
 
 vi.mock("@/lib/question-engagement-client", () => ({
-  getBookmarkedQuestions: getBookmarkedQuestionsMock,
+  getCandidateQuestions: getCandidateQuestionsMock,
 }));
 
 beforeEach(() => {
   currentSearchParams = new URLSearchParams();
   replaceMock.mockReset();
-  getBookmarkedQuestionsMock.mockReset();
-  getBookmarkedQuestionsMock.mockResolvedValue(hostedPage);
+  getCandidateQuestionsMock.mockReset();
+  getCandidateQuestionsMock.mockResolvedValue(hostedPage);
 });
 
 afterEach(() => {
@@ -98,9 +97,11 @@ describe("QuestionBank", () => {
     );
     expect(screen.getByText("Hosted prompt · Workspace ready")).toBeInTheDocument();
     expect(screen.getByText("Senior")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Attempted" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Passed" })).toBeInTheDocument();
   });
 
-  it("uses the candidate bookmark catalog when bookmarked=true", async () => {
+  it("uses candidate context when bookmarked=true", async () => {
     currentSearchParams = new URLSearchParams("bookmarked=true&track=python-engineering");
     render(
       <QueryProvider>
@@ -111,9 +112,29 @@ describe("QuestionBank", () => {
     expect(
       await screen.findByText("Select a Bounded Priority Worker Batch"),
     ).toBeInTheDocument();
-    expect(getBookmarkedQuestionsMock).toHaveBeenCalled();
+    expect(getCandidateQuestionsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ track: "python-engineering" }),
+      expect.anything(),
+      true,
+    );
     expect(screen.getByRole("checkbox", { name: /bookmarked only/i })).toBeChecked();
     expect(screen.queryByText("External practice", { selector: "h2" })).not.toBeInTheDocument();
+  });
+
+  it("passes persisted completion state to the candidate catalog", async () => {
+    currentSearchParams = new URLSearchParams("completion=passed");
+    render(
+      <QueryProvider>
+        <QuestionBank />
+      </QueryProvider>,
+    );
+    await screen.findByText("Select a Bounded Priority Worker Batch");
+
+    expect(getCandidateQuestionsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ completionStatus: "passed" }),
+      expect.anything(),
+      undefined,
+    );
   });
 
   it("writes filter changes back to the question-bank URL", async () => {
