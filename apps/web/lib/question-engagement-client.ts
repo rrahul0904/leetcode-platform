@@ -1,3 +1,4 @@
+import type { CatalogQuestionPage } from "@/lib/api";
 import { apiUrl, authMode, storedAccessToken } from "@/lib/auth";
 
 export type QuestionNote = {
@@ -18,6 +19,19 @@ export type BookmarkItem = {
   question_slug: string;
   title: string;
   created_at: string;
+};
+
+export type BookmarkedCatalogFilters = {
+  query: string;
+  track: string;
+  skill: string;
+  difficulty: string;
+  role: string;
+  companyStyle: string;
+  completionStatus: string;
+  sort: string;
+  page?: number;
+  pageSize?: number;
 };
 
 type RequestOptions = {
@@ -63,6 +77,30 @@ export function getQuestionEngagement(slug: string, signal?: AbortSignal) {
 export function listCandidateBookmarks(signal?: AbortSignal) {
   return engagementRequest<BookmarkItem[]>(
     "/api/v1/candidate/bookmarks",
+    signal ? { signal } : {},
+  );
+}
+
+export function getBookmarkedQuestions(
+  filters: BookmarkedCatalogFilters,
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams({
+    page: String(filters.page ?? 1),
+    page_size: String(filters.pageSize ?? 18),
+    sort: filters.sort,
+  });
+  if (filters.query) params.set("query", filters.query);
+  if (filters.track) params.set("track", filters.track);
+  if (filters.skill) params.set("skill", filters.skill);
+  if (filters.difficulty) params.set("difficulty", filters.difficulty);
+  if (filters.role) params.set("role", filters.role);
+  if (filters.companyStyle) params.set("company_style", filters.companyStyle);
+  if (filters.completionStatus) {
+    params.set("completion_status", filters.completionStatus);
+  }
+  return engagementRequest<CatalogQuestionPage>(
+    `/api/v1/candidate/bookmarked-questions?${params.toString()}`,
     signal ? { signal } : {},
   );
 }
