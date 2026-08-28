@@ -61,6 +61,7 @@ export function QuestionDetail({ slug }: { slug: string }) {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["question-engagement", slug] }),
       queryClient.invalidateQueries({ queryKey: ["candidate-bookmarks"] }),
+      queryClient.invalidateQueries({ queryKey: ["candidate-questions"] }),
     ]);
   };
 
