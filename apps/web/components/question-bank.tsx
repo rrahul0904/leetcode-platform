@@ -20,9 +20,8 @@ import {
   PageHeader,
 } from "@/components/page-ui";
 import { QuestionCard, QuestionCardSkeleton } from "@/components/question-card";
-import { getPublishedQuestions } from "@/lib/api";
 import { difficulties, tracks } from "@/lib/product-data";
-import { getBookmarkedQuestions } from "@/lib/question-engagement-client";
+import { getCandidateQuestions } from "@/lib/question-engagement-client";
 
 const pageSize = 12;
 type CatalogMode = "all" | "hosted" | "external";
@@ -83,11 +82,9 @@ export function QuestionBank() {
   );
 
   const questions = useQuery({
-    queryKey: ["published-questions", bookmarkedOnly ? "bookmarked" : "all", filters],
+    queryKey: ["candidate-questions", bookmarkedOnly ? "bookmarked" : "all", filters],
     queryFn: ({ signal }) =>
-      bookmarkedOnly
-        ? getBookmarkedQuestions(filters, signal)
-        : getPublishedQuestions(filters, signal),
+      getCandidateQuestions(filters, signal, bookmarkedOnly ? true : undefined),
     enabled: mode !== "external",
   });
 
@@ -114,7 +111,7 @@ export function QuestionBank() {
       <PageHeader
         eyebrow="QUESTION BANK"
         title="Choose work that changes your readiness."
-        description="Published SkillsForge AI questions are backed by the candidate catalog. Filters remain in the URL so the same view survives refresh and can be shared."
+        description="Published SkillsForge AI questions are backed by your authenticated candidate catalog. Filters remain in the URL so the same view survives refresh and can be shared."
       />
       <div className="catalog-tabs" role="tablist" aria-label="Practice type">
         {(
@@ -152,8 +149,7 @@ export function QuestionBank() {
             <strong>Candidate-safe publication boundary.</strong>
             <span>
               Hosted cards expose public prompts, examples, constraints, and starter
-              source only. Hidden tests, solutions, rubrics, and interviewer guidance
-              stay server-side.
+              source only. Candidate completion and bookmark state come from PostgreSQL.
             </span>
           </EvidenceNote>
           {mode === "all" && (
@@ -217,6 +213,8 @@ export function QuestionBank() {
               >
                 <option value="">Any completion state</option>
                 <option value="not_started">Not started</option>
+                <option value="attempted">Attempted</option>
+                <option value="passed">Passed</option>
               </select>
             </label>
             <label>
