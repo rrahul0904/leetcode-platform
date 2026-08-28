@@ -3,10 +3,11 @@ from __future__ import annotations
 from typing import cast
 
 from fastapi.testclient import TestClient
+from sqlalchemy import Engine, text
+
 from rigor_api.auth import LOCAL_IDENTITIES, LocalIdentity, LocalOIDCProvider
 from rigor_api.main import app
 from rigor_api.schemas import Role
-from sqlalchemy import Engine, text
 
 from test_published_catalog import cleanup_catalog_fixtures, seed_catalog_fixtures
 
