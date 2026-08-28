@@ -148,16 +148,18 @@ export function AppShell({ children }: { children: ReactNode }) {
               View progress
             </Link>
             {principal?.roles.includes("candidate") && (
-              <Link href="/onboarding" onClick={() => setProfileOpen(false)}>
-                Edit profile
-              </Link>
+              <>
+                <Link href="/profile" onClick={() => setProfileOpen(false)}>
+                  Edit profile
+                </Link>
+                <Link href="/settings" onClick={() => setProfileOpen(false)}>
+                  Account & security
+                </Link>
+              </>
             )}
             <button
               className="profile-sign-out"
-              onClick={() => {
-                signOut();
-                window.location.assign("/sign-in");
-              }}
+              onClick={() => signOut()}
               type="button"
             >
               Sign out
