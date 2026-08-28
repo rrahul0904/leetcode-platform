@@ -7,6 +7,7 @@ from sqlalchemy import Connection, Engine, text
 from .schemas import CandidateQuestionDetail, CatalogQuestion, Page, PublicExample
 
 CatalogSort = Literal["relevance", "title", "difficulty", "duration", "newest"]
+CompletionStatus = Literal["not_started", "attempted", "passed"]
 
 
 class PublishedQuestionNotFoundError(Exception):
@@ -67,8 +68,21 @@ class PublishedCatalogRepository:
                 "WHERE qct.question_version_id=v.id AND cst.slug=:company_style)"
             )
             parameters["company_style"] = company_style
-        if completion_status and completion_status != "not_started":
+
+        candidate_submission = (
+            "SELECT 1 FROM submissions sub "
+            "WHERE sub.question_version_id=v.id "
+            "AND sub.candidate_id = NULLIF(current_setting('rigor.user_id', true), '')::uuid"
+        )
+        if completion_status == "not_started":
+            conditions.append(f"NOT EXISTS ({candidate_submission})")
+        elif completion_status == "attempted":
+            conditions.append(f"EXISTS ({candidate_submission})")
+        elif completion_status == "passed":
+            conditions.append(f"EXISTS ({candidate_submission} AND sub.status='passed')")
+        elif completion_status:
             conditions.append("false")
+
         if bookmarked is not None:
             bookmark_exists = (
                 "EXISTS (SELECT 1 FROM candidate_question_bookmarks b "
