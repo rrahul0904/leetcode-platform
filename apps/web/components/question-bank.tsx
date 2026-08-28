@@ -46,6 +46,8 @@ export function QuestionBank() {
   const track = searchParams.get("track") ?? "";
   const skill = searchParams.get("skill") ?? "";
   const difficulty = searchParams.get("difficulty") ?? "";
+  const role = searchParams.get("role") ?? "";
+  const companyStyle = searchParams.get("company_style") ?? "";
   const completionStatus = searchParams.get("completion") ?? "";
   const sort = searchParams.get("sort") ?? "relevance";
   const bookmarkedOnly = searchParams.get("bookmarked") === "true";
@@ -71,14 +73,24 @@ export function QuestionBank() {
       track,
       skill,
       difficulty,
-      role: "",
-      companyStyle: "",
+      role,
+      companyStyle,
       completionStatus,
       sort,
       page,
       pageSize,
     }),
-    [deferredQuery, track, skill, difficulty, completionStatus, sort, page],
+    [
+      deferredQuery,
+      track,
+      skill,
+      difficulty,
+      role,
+      companyStyle,
+      completionStatus,
+      sort,
+      page,
+    ],
   );
 
   const questions = useQuery({
@@ -94,6 +106,8 @@ export function QuestionBank() {
       track: null,
       skill: null,
       difficulty: null,
+      role: null,
+      company_style: null,
       completion: null,
       sort: null,
       bookmarked: null,
@@ -202,6 +216,28 @@ export function QuestionBank() {
                   </option>
                 ))}
               </select>
+            </label>
+            <label>
+              <span className="sr-only">Role level</span>
+              <select
+                value={role}
+                onChange={(event) => replaceParams({ role: event.target.value })}
+              >
+                <option value="">All role levels</option>
+                <option value="senior">Senior</option>
+                <option value="staff">Staff</option>
+                <option value="principal">Principal</option>
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Company style</span>
+              <input
+                value={companyStyle}
+                onChange={(event) =>
+                  replaceParams({ company_style: event.target.value })
+                }
+                placeholder="Company-style slug"
+              />
             </label>
             <label>
               <span className="sr-only">Completion status</span>
