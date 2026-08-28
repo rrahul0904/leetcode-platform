@@ -2,6 +2,9 @@ name: Bootstrap and deploy SkillsForge AI
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - agent/vercel-clean-skillforge
 
 permissions:
   contents: read
