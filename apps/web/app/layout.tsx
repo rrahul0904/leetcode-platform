@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { AuthGate } from "@/components/auth-gate";
 import { QueryProvider } from "@/components/query-provider";
-import { AuthProvider, authMode } from "@/lib/auth";
+import { AuthProvider } from "@/lib/auth";
 
 import "./globals.css";
 import "./cinematic.css";
@@ -27,6 +27,13 @@ export const metadata: Metadata = {
     "AI-powered technical interview preparation with persistent practice, secure code execution, evidence-driven progress, and role-focused learning paths.",
 };
 
+function productionAuthMode() {
+  return (
+    process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE ??
+    (process.env.NODE_ENV === "production" ? "clerk" : "local")
+  );
+}
+
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   const application = (
     <QueryProvider>
@@ -39,7 +46,11 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html lang="en">
       <body>
-        {authMode === "clerk" ? <ClerkProvider>{application}</ClerkProvider> : application}
+        {productionAuthMode() === "clerk" ? (
+          <ClerkProvider>{application}</ClerkProvider>
+        ) : (
+          application
+        )}
       </body>
     </html>
   );
