@@ -21,7 +21,7 @@ export type BookmarkItem = {
   created_at: string;
 };
 
-export type BookmarkedCatalogFilters = {
+export type CandidateCatalogFilters = {
   query: string;
   track: string;
   skill: string;
@@ -67,23 +67,9 @@ async function engagementRequest<T>(
   return (await response.json()) as T;
 }
 
-export function getQuestionEngagement(slug: string, signal?: AbortSignal) {
-  return engagementRequest<QuestionEngagement>(
-    `/api/v1/questions/${encodeURIComponent(slug)}/engagement`,
-    signal ? { signal } : {},
-  );
-}
-
-export function listCandidateBookmarks(signal?: AbortSignal) {
-  return engagementRequest<BookmarkItem[]>(
-    "/api/v1/candidate/bookmarks",
-    signal ? { signal } : {},
-  );
-}
-
-export function getBookmarkedQuestions(
-  filters: BookmarkedCatalogFilters,
-  signal?: AbortSignal,
+function candidateCatalogParams(
+  filters: CandidateCatalogFilters,
+  bookmarked?: boolean,
 ) {
   const params = new URLSearchParams({
     page: String(filters.page ?? 1),
@@ -99,10 +85,41 @@ export function getBookmarkedQuestions(
   if (filters.completionStatus) {
     params.set("completion_status", filters.completionStatus);
   }
+  if (bookmarked !== undefined) params.set("bookmarked", String(bookmarked));
+  return params;
+}
+
+export function getCandidateQuestions(
+  filters: CandidateCatalogFilters,
+  signal?: AbortSignal,
+  bookmarked?: boolean,
+) {
+  const params = candidateCatalogParams(filters, bookmarked);
   return engagementRequest<CatalogQuestionPage>(
-    `/api/v1/candidate/bookmarked-questions?${params.toString()}`,
+    `/api/v1/candidate/questions?${params.toString()}`,
     signal ? { signal } : {},
   );
+}
+
+export function getQuestionEngagement(slug: string, signal?: AbortSignal) {
+  return engagementRequest<QuestionEngagement>(
+    `/api/v1/questions/${encodeURIComponent(slug)}/engagement`,
+    signal ? { signal } : {},
+  );
+}
+
+export function listCandidateBookmarks(signal?: AbortSignal) {
+  return engagementRequest<BookmarkItem[]>(
+    "/api/v1/candidate/bookmarks",
+    signal ? { signal } : {},
+  );
+}
+
+export function getBookmarkedQuestions(
+  filters: CandidateCatalogFilters,
+  signal?: AbortSignal,
+) {
+  return getCandidateQuestions(filters, signal, true);
 }
 
 export function bookmarkQuestion(slug: string) {
