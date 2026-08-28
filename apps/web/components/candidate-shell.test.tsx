@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 describe("candidate AppShell", () => {
-  it("exposes the focused SkillForge candidate navigation", async () => {
+  it("exposes the focused SkillsForge AI candidate navigation", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ ok: true, status: 200 }),
@@ -54,7 +54,7 @@ describe("candidate AppShell", () => {
     ).toHaveAttribute("href", "/question-bank");
 
     await waitFor(() =>
-      expect(screen.getByTitle("SkillForge API: Connected")).toBeInTheDocument(),
+      expect(screen.getByTitle("SkillsForge AI API: Connected")).toBeInTheDocument(),
     );
   });
 });
