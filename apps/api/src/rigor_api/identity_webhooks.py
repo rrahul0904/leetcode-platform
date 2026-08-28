@@ -152,8 +152,6 @@ def process_clerk_event(
                     display_name=EXCLUDED.display_name,
                     email_verified=EXCLUDED.email_verified,
                     auth_provider='clerk',
-                    status='active',
-                    deleted_at=NULL,
                     updated_at=CURRENT_TIMESTAMP
                 RETURNING id
                 """
@@ -169,7 +167,10 @@ def process_clerk_event(
             text(
                 """
                 INSERT INTO user_roles(user_id, role_slug)
-                VALUES (:user_id, 'candidate')
+                SELECT :user_id, 'candidate'
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM user_roles WHERE user_id=:user_id
+                )
                 ON CONFLICT DO NOTHING
                 """
             ),
