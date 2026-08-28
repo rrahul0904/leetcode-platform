@@ -25,6 +25,7 @@ import {
   createRuntimePracticeSession,
   getCompletedSubmission,
   getExecution,
+  getExecutionCapability,
   isTerminalExecution,
   queueRunExecution,
   queueSubmitExecution,
@@ -43,13 +44,6 @@ import {
 function formatTime(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   return `${String(minutes).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-}
-
-export function runtimeForTrack(track: string): SubmissionRuntime {
-  const normalized = track.trim().toLowerCase();
-  return normalized.includes("sql") || normalized.includes("database")
-    ? "postgresql18"
-    : "python3.13";
 }
 
 function languageForRuntime(runtime: SubmissionRuntime): WorkspaceLanguage {
@@ -118,7 +112,7 @@ function ResultPanel({
           </strong>
           <span>
             {completedWithoutEvidence
-              ? "SkillForge will not mark this run as passed without at least one evaluated test."
+              ? "SkillsForge AI will not mark this run as passed without at least one evaluated test."
               : result?.candidate_message ??
                 (execution.error
                   ? `Execution could not complete (${execution.error}).`
@@ -188,8 +182,13 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
     queryKey: ["published-question", slug],
     queryFn: ({ signal }) => getPublishedQuestion(slug, signal),
   });
-  const runtime = runtimeForTrack(question.data?.track ?? "");
-  const language = languageForRuntime(runtime);
+  const capability = useQuery({
+    queryKey: ["execution-capability", slug],
+    queryFn: ({ signal }) => getExecutionCapability(slug, signal),
+  });
+  const runtime = capability.data?.runtime ?? null;
+  const language: WorkspaceLanguage =
+    runtime === "postgresql18" ? "sql" : "python";
   const [session, setSession] = useState<PracticeSession | null>(null);
   const [source, setSource] = useState("");
   const [elapsed, setElapsed] = useState(0);
@@ -240,8 +239,6 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
   function restoreExecution(sessionId: string) {
     const storageKey = executionStorageKey(sessionId);
     const raw = window.localStorage.getItem(storageKey);
-    // Old builds stored execution recovery by slug. Do not restore that value into
-    // a potentially newer question version; remove it once the durable session is known.
     window.localStorage.removeItem(`rigor.active-execution:${slug}`);
     if (!raw) return;
     try {
@@ -261,7 +258,12 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
   }
 
   const sessionMutation = useMutation({
-    mutationFn: () => createRuntimePracticeSession(slug, runtime),
+    mutationFn: () => {
+      if (!runtime) {
+        throw new Error("Published question has no executable runtime.");
+      }
+      return createRuntimePracticeSession(slug, runtime);
+    },
     onSuccess: (created) => {
       setSession(created);
       setSource(created.draft_code);
@@ -315,6 +317,9 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
 
   const submitMutation = useMutation({
     mutationFn: async () => {
+      if (!runtime) {
+        throw new Error("Published question has no executable runtime.");
+      }
       setSaveState("Saving…");
       try {
         const saved = await autosavePracticeSession(session!.id, {
@@ -325,8 +330,6 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
         lastSavedElapsed.current = saved.elapsed_seconds;
         setSaveState("Saved");
       } catch {
-        // The immutable submission carries the source independently, so a draft-save
-        // outage must not turn a valid submission retry into data loss.
         setSaveState("Save unavailable");
       }
       const key =
@@ -369,10 +372,18 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
   });
 
   useEffect(() => {
-    if (!question.data || initialized.current) return;
+    if (
+      !question.data ||
+      !capability.data ||
+      capability.data.availability !== "runnable" ||
+      !runtime ||
+      initialized.current
+    ) {
+      return;
+    }
     initialized.current = true;
     sessionMutation.mutate();
-  }, [question.data, sessionMutation]);
+  }, [capability.data, question.data, runtime, sessionMutation]);
 
   useEffect(() => {
     elapsedRef.current = elapsed;
@@ -473,26 +484,61 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
     return () => window.clearInterval(persistenceTimer);
   }, [activeKind, session, source, submission]);
 
-  if (question.isLoading) {
+  if (question.isLoading || capability.isLoading) {
     return (
       <div className="page-content">
         <LoadingState label="Preparing practice workspace" />
       </div>
     );
   }
-  if (question.isError || !question.data) {
+  if (
+    question.isError ||
+    !question.data ||
+    capability.isError ||
+    !capability.data
+  ) {
     return (
       <div className="page-content">
-        <ErrorState retry={() => void question.refetch()} />
+        <ErrorState
+          retry={() => {
+            void question.refetch();
+            void capability.refetch();
+          }}
+        />
       </div>
     );
   }
 
   const item = question.data;
+  if (capability.data.availability !== "runnable" || !runtime) {
+    return (
+      <div className="page-content">
+        <Link className="back-link" href={`/question-bank/${slug}`}>
+          <ArrowLeft size={15} /> Back to question
+        </Link>
+        <section className="panel section-block">
+          <span className="eyebrow">HOSTED PRACTICE</span>
+          <h1>Interactive execution is not enabled for this question.</h1>
+          <p className="lead-copy">
+            {capability.data.reason ??
+              "This published question is available for guided study but does not yet have a deterministic runnable contract."}
+          </p>
+          <p>
+            SkillsForge AI will not show a Run or Submit experience until the published
+            question version has a supported runtime and deterministic evaluation tests.
+          </p>
+          <Link className="button button--primary" href={`/question-bank/${slug}`}>
+            Return to question
+          </Link>
+        </section>
+      </div>
+    );
+  }
+
   const execution = executionQuery.data ?? lastExecution;
   const busy =
     !session || runMutation.isPending || submitMutation.isPending || Boolean(activeExecutionId);
-  const starterSource = item.starter_code ?? "";
+  const starterSource = capability.data.starter_source;
 
   function updateSource(nextSource: string) {
     setSource(nextSource);
@@ -514,7 +560,9 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
         <div className="practice-timer">
           <Clock3 size={16} />
           <strong>{formatTime(elapsed)}</strong>
-          <span>{saveState} · {executionNotice}</span>
+          <span>
+            {saveState} · {executionNotice}
+          </span>
         </div>
       </header>
       <div className="practice-layout">
@@ -556,7 +604,7 @@ export function PracticeWorkspace({ slug }: { slug: string }) {
         </section>
         <section className="editor-pane">
           <ControlledCodeEditor
-            language={language}
+            language={languageForRuntime(runtime)}
             source={source}
             starterSource={starterSource}
             disabled={Boolean(submission)}
