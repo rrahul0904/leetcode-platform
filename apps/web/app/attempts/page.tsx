@@ -1,5 +1,5 @@
-import { AttemptHistory } from "@/components/attempt-history";
+import { redirect } from "next/navigation";
 
 export default function AttemptsPage() {
-  return <AttemptHistory />;
+  redirect("/progress");
 }
