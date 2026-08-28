@@ -1,3 +1,5 @@
-import { LearningPaths } from "@/components/learning-paths";
+import { redirect } from "next/navigation";
 
-export default function LearningPathsPage() { return <LearningPaths />; }
+export default function LearningPathsPage() {
+  redirect("/progress");
+}
