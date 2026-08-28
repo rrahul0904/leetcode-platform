@@ -28,6 +28,7 @@ class PublishedCatalogRepository:
         skill: str | None,
         difficulty: str | None,
         role: str | None,
+        question_type: str | None,
         company_style: str | None,
         completion_status: str | None,
         sort: CatalogSort,
@@ -55,6 +56,9 @@ class PublishedCatalogRepository:
         if role:
             conditions.append("v.expected_seniority = :role")
             parameters["role"] = role
+        if question_type:
+            conditions.append("v.structured_content->>'question_type' = :question_type")
+            parameters["question_type"] = question_type
         if skill:
             conditions.append(
                 "EXISTS (SELECT 1 FROM question_skills qs JOIN skills s ON s.id=qs.skill_id "
