@@ -3,7 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
-from sqlalchemy import text
+from sqlalchemy import Connection, text
 
 from .database import DatabaseEngine, principal_transaction
 from .practice import PracticeSessionRepository
@@ -13,7 +13,7 @@ from .submissions import CandidateReadPrincipal, _submission
 router = APIRouter(prefix="/api/v1", tags=["candidate-submissions"])
 
 
-def _owned_submission_id(connection, submission_id: UUID) -> UUID:
+def _owned_submission_id(connection: Connection, submission_id: UUID) -> UUID:
     value = connection.execute(
         text(
             """
