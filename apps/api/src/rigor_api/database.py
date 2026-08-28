@@ -70,19 +70,17 @@ def principal_transaction(
 ) -> Generator[Connection]:
     """Open a transaction whose RLS identity cannot leak through the pool.
 
-    External identities never synchronize authorization state here. PostgreSQL
-    ``user_roles`` is authoritative. Only the controlled local OIDC development
-    provider may bootstrap/synchronize its deterministic test roles.
+    ``ensure_user`` refreshes identity metadata and, only for the controlled local
+    OIDC development provider, bootstraps deterministic test roles. External
+    identity never mutates PostgreSQL authorization state through this path.
     """
 
     with engine.begin() as connection:
         # Local import keeps the low-level database module independent while
         # guaranteeing the persisted user id and RLS context share a transaction.
-        from .persistence import ensure_user, synchronize_local_user_roles
+        from .persistence import ensure_user
 
         principal_user_id = ensure_user(connection, principal)
-        if principal.authentication_provider == "local-oidc":
-            synchronize_local_user_roles(connection, principal, principal_user_id)
         set_principal_context(connection, principal, principal_user_id)
         yield connection
 
