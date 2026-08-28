@@ -26,6 +26,25 @@ import { getCandidateQuestions } from "@/lib/question-engagement-client";
 const pageSize = 12;
 type CatalogMode = "all" | "hosted" | "external";
 
+const questionTypes = [
+  ["", "All question types"],
+  ["python_coding", "Python coding"],
+  ["sql_coding", "SQL coding"],
+  ["data_modeling", "Data modeling"],
+  ["data_architecture", "Data architecture"],
+  ["distributed_systems", "Distributed systems"],
+  ["system_design", "System design"],
+  ["ml_system_design", "ML system design"],
+  ["genai_architecture", "GenAI architecture"],
+  ["ai_infrastructure", "AI infrastructure"],
+  ["ai_agents", "AI agents"],
+  ["ai_evaluation", "AI evaluation"],
+  ["ai_safety", "AI safety"],
+  ["behavioral", "Behavioral"],
+  ["technical_leadership", "Technical leadership"],
+  ["staff_principal_case", "Staff / principal case"],
+] as const;
+
 function catalogMode(value: string | null): CatalogMode {
   return value === "hosted" || value === "external" ? value : "all";
 }
@@ -47,6 +66,7 @@ export function QuestionBank() {
   const skill = searchParams.get("skill") ?? "";
   const difficulty = searchParams.get("difficulty") ?? "";
   const role = searchParams.get("role") ?? "";
+  const questionType = searchParams.get("question_type") ?? "";
   const companyStyle = searchParams.get("company_style") ?? "";
   const completionStatus = searchParams.get("completion") ?? "";
   const sort = searchParams.get("sort") ?? "relevance";
@@ -74,6 +94,7 @@ export function QuestionBank() {
       skill,
       difficulty,
       role,
+      questionType,
       companyStyle,
       completionStatus,
       sort,
@@ -86,6 +107,7 @@ export function QuestionBank() {
       skill,
       difficulty,
       role,
+      questionType,
       companyStyle,
       completionStatus,
       sort,
@@ -107,6 +129,7 @@ export function QuestionBank() {
       skill: null,
       difficulty: null,
       role: null,
+      question_type: null,
       company_style: null,
       completion: null,
       sort: null,
@@ -227,6 +250,21 @@ export function QuestionBank() {
                 <option value="senior">Senior</option>
                 <option value="staff">Staff</option>
                 <option value="principal">Principal</option>
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Question type</span>
+              <select
+                value={questionType}
+                onChange={(event) =>
+                  replaceParams({ question_type: event.target.value })
+                }
+              >
+                {questionTypes.map(([value, label]) => (
+                  <option value={value} key={value}>
+                    {label}
+                  </option>
+                ))}
               </select>
             </label>
             <label>
