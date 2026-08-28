@@ -52,6 +52,8 @@ REQUIRED_TABLES = (
     "identity_webhook_events",
     "login_events",
     "candidate_files",
+    "candidate_question_bookmarks",
+    "candidate_question_notes",
     "generated_reports",
     "data_export_requests",
     "deletion_requests",
