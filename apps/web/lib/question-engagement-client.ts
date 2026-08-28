@@ -27,6 +27,7 @@ export type CandidateCatalogFilters = {
   skill: string;
   difficulty: string;
   role: string;
+  questionType: string;
   companyStyle: string;
   completionStatus: string;
   sort: string;
@@ -81,6 +82,7 @@ function candidateCatalogParams(
   if (filters.skill) params.set("skill", filters.skill);
   if (filters.difficulty) params.set("difficulty", filters.difficulty);
   if (filters.role) params.set("role", filters.role);
+  if (filters.questionType) params.set("question_type", filters.questionType);
   if (filters.companyStyle) params.set("company_style", filters.companyStyle);
   if (filters.completionStatus) {
     params.set("completion_status", filters.completionStatus);
