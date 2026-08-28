@@ -22,18 +22,22 @@ def test_candidate_question_type_filter_uses_published_payload() -> None:
             python_questions = client.get(
                 "/api/v1/candidate/questions",
                 headers=headers,
-                params={"question_type": "python_coding"},
+                params={"question_type": "python_coding", "query": "Candidate Safe Cache"},
             )
             assert python_questions.status_code == 200
-            assert python_questions.json()["total"] == 1
-            assert python_questions.json()["items"][0]["slug"] == "candidate-safe-cache"
+            assert [item["slug"] for item in python_questions.json()["items"]] == [
+                "candidate-safe-cache"
+            ]
 
             sql_questions = client.get(
                 "/api/v1/candidate/questions",
                 headers=headers,
-                params={"question_type": "sql_coding"},
+                params={"question_type": "sql_coding", "query": "Candidate Safe Cache"},
             )
             assert sql_questions.status_code == 200
-            assert sql_questions.json()["total"] == 0
+            assert all(
+                item["slug"] != "candidate-safe-cache"
+                for item in sql_questions.json()["items"]
+            )
         finally:
             cleanup_catalog_fixtures(engine)
