@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { QueryProvider } from "./query-provider";
@@ -101,7 +101,7 @@ describe("QuestionBank", () => {
     );
     expect(screen.getByText("Check question details")).toBeInTheDocument();
     expect(screen.queryByText(/Workspace ready/i)).not.toBeInTheDocument();
-    expect(screen.getByText("Senior")).toBeInTheDocument();
+    expect(within(card).getByText("Senior")).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Attempted" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Passed" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Python coding" })).toBeInTheDocument();
