@@ -96,12 +96,22 @@ def test_candidate_cannot_read_another_candidates_submission_or_evidence(monkeyp
                     ) VALUES (
                         :submission_id, 1, 1, 1, 1, 1, 1,
                         'submission-isolation-test',
-                        '{"public_total":1,"public_passed":1,"hidden_total":1,"hidden_passed":1}'::jsonb,
+                        CAST(:deterministic_signals AS jsonb),
                         '{}'::jsonb
                     )
                     """
                 ),
-                {"submission_id": submission_id},
+                {
+                    "submission_id": submission_id,
+                    "deterministic_signals": json.dumps(
+                        {
+                            "public_total": 1,
+                            "public_passed": 1,
+                            "hidden_total": 1,
+                            "hidden_passed": 1,
+                        }
+                    ),
+                },
             )
             connection.execute(
                 text(
@@ -113,7 +123,7 @@ def test_candidate_cannot_read_another_candidates_submission_or_evidence(monkeyp
                     ) VALUES (
                         NULL, :candidate_id, :competency_id, 'CODING_SUBMISSION',
                         :source_id, 1, 0.8, 1, 'submission-isolation-test',
-                        CURRENT_TIMESTAMP, '{"proof":"candidate-a-only"}'::jsonb
+                        CURRENT_TIMESTAMP, CAST(:evidence AS jsonb)
                     )
                     """
                 ),
@@ -121,6 +131,7 @@ def test_candidate_cannot_read_another_candidates_submission_or_evidence(monkeyp
                     "candidate_id": candidate_id,
                     "competency_id": competency_id,
                     "source_id": str(submission_id),
+                    "evidence": json.dumps({"proof": "candidate-a-only"}),
                 },
             )
 
