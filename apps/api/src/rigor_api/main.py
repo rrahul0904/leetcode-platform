@@ -19,6 +19,7 @@ from .auth import authenticated_principal, token_validator
 from .execution_capability import router as execution_capability_router
 from .execution_routes import router as execution_router
 from .principal_auth import database_authoritative_principal
+from .question_engagement import router as question_engagement_router
 from .saas_routes import router as saas_router
 from .session_token_auth import session_token_validator
 
@@ -60,5 +61,6 @@ app.dependency_overrides[token_validator] = session_token_validator
 app.dependency_overrides[authenticated_principal] = database_authoritative_principal
 app.include_router(execution_capability_router)
 app.include_router(execution_router)
+app.include_router(question_engagement_router)
 app.include_router(attachment_solution_router)
 app.include_router(saas_router)
