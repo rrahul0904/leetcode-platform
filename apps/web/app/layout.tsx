@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { AuthGate } from "@/components/auth-gate";
 import { QueryProvider } from "@/components/query-provider";
-import { AuthProvider } from "@/lib/auth";
+import { AuthProvider, authMode } from "@/lib/auth";
 
 import "./globals.css";
 import "./cinematic.css";
@@ -35,11 +35,12 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
       </AuthProvider>
     </QueryProvider>
   );
-  const clerkEnabled = process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE === "clerk";
 
   return (
     <html lang="en">
-      <body>{clerkEnabled ? <ClerkProvider>{application}</ClerkProvider> : application}</body>
+      <body>
+        {authMode === "clerk" ? <ClerkProvider>{application}</ClerkProvider> : application}
+      </body>
     </html>
   );
 }
