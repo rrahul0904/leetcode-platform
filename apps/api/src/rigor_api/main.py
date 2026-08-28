@@ -1,4 +1,4 @@
-"""Explicit FastAPI serving composition for SkillForge AI.
+"""Explicit FastAPI serving composition for SkillsForge AI.
 
 The package initializer is intentionally side-effect free so CLI/library imports do
 not boot FastAPI or evaluate production-only settings. The historical API module
@@ -44,9 +44,9 @@ legacy_submissions.router.routes[:] = [
 from .legacy_main import *  # noqa: E402,F403
 from .legacy_main import app as app  # noqa: E402
 
-app.title = "SkillForge AI API"
+app.title = "SkillsForge AI API"
 app.description = (
-    "Production API for SkillForge AI technical learning, interview preparation, "
+    "Production API for SkillsForge AI technical learning, interview preparation, "
     "durable execution, identity, and candidate progress."
 )
 
@@ -55,7 +55,7 @@ app.description = (
 # wrapper and do not require a custom JWT template.
 app.dependency_overrides[token_validator] = session_token_validator
 
-# External identity proves who the user is. SkillForge PostgreSQL remains the
+# External identity proves who the user is. SkillsForge PostgreSQL remains the
 # authority for account status, roles, permissions, and organization membership.
 app.dependency_overrides[authenticated_principal] = database_authoritative_principal
 app.include_router(execution_capability_router)
