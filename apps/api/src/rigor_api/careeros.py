@@ -513,7 +513,7 @@ def _save_analysis(
     return UUID(str(row["id"])), row["created_at"]
 
 
-def _summary_from_row(row: Mapping[str, Any]) -> CareerJobSummary:
+def _summary_from_row(row: Mapping[Any, Any]) -> CareerJobSummary:
     latest_analysis_value = row["latest_analysis"]
     latest_analysis = (
         latest_analysis_value if isinstance(latest_analysis_value, Mapping) else {}
