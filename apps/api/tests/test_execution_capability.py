@@ -87,3 +87,27 @@ def test_sql_without_fixture_schema_is_hosted_only() -> None:
     assert capability.availability == "hosted"
     assert capability.runtime == "postgresql18"
     assert "isolated fixture schema" in (capability.reason or "")
+
+
+def test_first_party_sql_ddl_contract_is_runnable() -> None:
+    capability = _capability(
+        _payload(
+            {
+                "dialect": "postgresql",
+                "ddl": "CREATE TABLE events(id integer PRIMARY KEY);",
+                "seed_data": "INSERT INTO events(id) VALUES (1);",
+                "statement_timeout_ms": 3000,
+                "tests": [
+                    {"id": "public-1", "visibility": "public"},
+                    {"id": "hidden-1", "visibility": "hidden"},
+                ],
+            },
+            question_type="sql_coding",
+        )
+    )
+
+    assert capability.availability == "runnable"
+    assert capability.runtime == "postgresql18"
+    assert capability.public_test_count == 1
+    assert capability.hidden_test_count == 1
+    assert capability.reason is None
