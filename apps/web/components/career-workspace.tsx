@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { type FormEvent, useState } from "react";
 
 import {
   analyzeCareerJob,
@@ -35,13 +35,15 @@ export function CareerWorkspace() {
     setLoading(true);
     setError(null);
     try {
+      const jobTitle = form.job_title?.trim();
+      const company = form.company?.trim();
+      const sourceUrl = form.source_url?.trim();
       const result = await analyzeCareerJob({
-        ...form,
-        job_title: form.job_title?.trim() || undefined,
-        company: form.company?.trim() || undefined,
-        source_url: form.source_url?.trim() || undefined,
         resume_text: form.resume_text.trim(),
         job_description: form.job_description.trim(),
+        ...(jobTitle ? { job_title: jobTitle } : {}),
+        ...(company ? { company } : {}),
+        ...(sourceUrl ? { source_url: sourceUrl } : {}),
       });
       setAnalysis(result);
       window.requestAnimationFrame(() => {
@@ -187,14 +189,18 @@ export function CareerWorkspace() {
               <div className={styles.chips}>
                 {analysis.matched_skills.length ? (
                   analysis.matched_skills.map((skill) => (
-                    <span className={styles.chip} key={skill}>{skill}</span>
+                    <span className={styles.chip} key={skill}>
+                      {skill}
+                    </span>
                   ))
                 ) : (
                   <span className={styles.chip}>No explicit skill match yet</span>
                 )}
               </div>
               <ul className={styles.list}>
-                {analysis.strengths.map((strength) => <li key={strength}>{strength}</li>)}
+                {analysis.strengths.map((strength) => (
+                  <li key={strength}>{strength}</li>
+                ))}
               </ul>
             </article>
 
@@ -206,14 +212,18 @@ export function CareerWorkspace() {
               <div className={styles.chips}>
                 {analysis.missing_skills.length ? (
                   analysis.missing_skills.map((skill) => (
-                    <span className={`${styles.chip} ${styles.chipGap}`} key={skill}>{skill}</span>
+                    <span className={`${styles.chip} ${styles.chipGap}`} key={skill}>
+                      {skill}
+                    </span>
                   ))
                 ) : (
                   <span className={styles.chip}>No named-skill gap detected</span>
                 )}
               </div>
               <ul className={styles.list}>
-                {analysis.risks.map((risk) => <li key={risk}>{risk}</li>)}
+                {analysis.risks.map((risk) => (
+                  <li key={risk}>{risk}</li>
+                ))}
               </ul>
             </article>
           </div>
@@ -225,7 +235,9 @@ export function CareerWorkspace() {
             </p>
             <div className={styles.chips}>
               {analysis.priority_keywords.map((keyword) => (
-                <span className={styles.chip} key={keyword}>{keyword}</span>
+                <span className={styles.chip} key={keyword}>
+                  {keyword}
+                </span>
               ))}
             </div>
           </article>
