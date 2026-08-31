@@ -13,7 +13,7 @@ from .execution_routes import (
 )
 from .schemas import ReadinessCheck, ReadinessResponse
 
-EXPECTED_MIGRATION_VERSION = "20260828_0018"
+EXPECTED_MIGRATION_VERSION = "20260830_0019"
 REQUIRED_TABLES = (
     "users",
     "user_roles",
@@ -54,6 +54,9 @@ REQUIRED_TABLES = (
     "candidate_files",
     "candidate_question_bookmarks",
     "candidate_question_notes",
+    "career_documents",
+    "career_jobs",
+    "career_job_analyses",
     "generated_reports",
     "data_export_requests",
     "deletion_requests",
@@ -180,14 +183,5 @@ def readiness_report(engine: Engine, settings: Settings) -> ReadinessResponse:
                 detail="external_oidc" if settings.oidc_jwks_url else "jwks_missing",
             )
         )
-        checks.append(
-            ReadinessCheck(
-                name="private_storage",
-                status="ready" if settings.s3_upload_bucket else "not_ready",
-                detail=settings.s3_upload_bucket or "bucket_missing",
-            )
-        )
-    return ReadinessResponse(
-        status="ready" if all(check.status == "ready" for check in checks) else "not_ready",
-        checks=checks,
-    )
+    ready = all(check.status == "ready" for check in checks)
+    return ReadinessResponse(status="ready" if ready else "not_ready", checks=checks)
