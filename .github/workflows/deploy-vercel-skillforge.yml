@@ -170,15 +170,7 @@ jobs:
 
           uv run alembic upgrade head
 
-          actual_head="$(uv run python - <<'PY'
-import os
-from sqlalchemy import create_engine, text
-url = os.environ['RIGOR_DATABASE_URL']
-engine = create_engine(url)
-with engine.connect() as connection:
-    print(connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one())
-PY
-)"
+          actual_head="$(uv run python -c 'import os; from sqlalchemy import create_engine, text; engine=create_engine(os.environ["RIGOR_DATABASE_URL"]); connection=engine.connect(); print(connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()); connection.close()')"
           if [ "$actual_head" != "$EXPECTED_ALEMBIC_HEAD" ]; then
             echo "Unexpected production Alembic head: $actual_head"
             exit 1
