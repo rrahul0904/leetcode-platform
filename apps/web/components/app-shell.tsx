@@ -2,6 +2,7 @@
 
 import {
   BookOpen,
+  Briefcase,
   CircleGauge,
   FileCheck2,
   FileUp,
@@ -20,6 +21,7 @@ import { useAuth } from "@/lib/auth";
 
 const candidateNav = [
   ["Overview", "/", LayoutDashboard],
+  ["CareerOS", "/career", Briefcase],
   ["Question Bank", "/question-bank", BookOpen],
   ["Progress", "/progress", CircleGauge],
 ] as const;
