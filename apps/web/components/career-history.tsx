@@ -40,22 +40,32 @@ export function CareerHistory() {
   const [error, setError] = useState<string | null>(null);
   const [updatingJobId, setUpdatingJobId] = useState<string | null>(null);
 
-  const refresh = useCallback(async (signal?: AbortSignal) => {
+  const refresh = useCallback(async () => {
     try {
-      const result = await listCareerJobs(signal);
+      const result = await listCareerJobs();
       setJobs(result);
       setError(null);
     } catch (caught) {
-      if (signal?.aborted) return;
       setError(caught instanceof Error ? caught.message : "CareerOS history could not load.");
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     const controller = new AbortController();
-    void refresh(controller.signal);
+    void listCareerJobs(controller.signal)
+      .then((result) => {
+        setJobs(result);
+        setError(null);
+      })
+      .catch((caught: unknown) => {
+        if (controller.signal.aborted) return;
+        setError(caught instanceof Error ? caught.message : "CareerOS history could not load.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
 
     function onHistoryChanged() {
       void refresh();
@@ -125,7 +135,9 @@ export function CareerHistory() {
               {job.missing_skills.length > 0 && (
                 <div className={styles.chips} aria-label="Missing skills">
                   {job.missing_skills.slice(0, 5).map((skill) => (
-                    <span className={styles.chip} key={skill}>{skill}</span>
+                    <span className={styles.chip} key={skill}>
+                      {skill}
+                    </span>
                   ))}
                 </div>
               )}
@@ -142,7 +154,9 @@ export function CareerHistory() {
                   value={job.status}
                 >
                   {STATUSES.map((status) => (
-                    <option key={status.value} value={status.value}>{status.label}</option>
+                    <option key={status.value} value={status.value}>
+                      {status.label}
+                    </option>
                   ))}
                 </select>
               </div>
