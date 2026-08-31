@@ -102,7 +102,12 @@ def upgrade() -> None:
         sa.Column("source_url", sa.Text(), nullable=True),
         sa.Column("job_description", sa.Text(), nullable=False),
         sa.Column("job_description_sha256", sa.String(length=64), nullable=False),
-        sa.Column("status", sa.String(length=24), nullable=False, server_default="saved"),
+        sa.Column(
+            "status",
+            sa.String(length=24),
+            nullable=False,
+            server_default="saved",
+        ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -173,7 +178,10 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("CURRENT_TIMESTAMP"),
         ),
-        sa.CheckConstraint("fit_score BETWEEN 0 AND 100", name="ck_career_analysis_fit_score"),
+        sa.CheckConstraint(
+            "fit_score BETWEEN 0 AND 100",
+            name="ck_career_analysis_fit_score",
+        ),
     )
     op.create_index(
         "ix_career_job_analyses_job_created",
@@ -187,7 +195,7 @@ def upgrade() -> None:
     )
     owner_policy("career_job_analyses")
 
-    op.execute("GRANT SELECT, INSERT ON career_documents TO rigor_app")
+    op.execute("GRANT SELECT, INSERT, UPDATE ON career_documents TO rigor_app")
     op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON career_jobs TO rigor_app")
     op.execute("GRANT SELECT, INSERT, DELETE ON career_job_analyses TO rigor_app")
 
