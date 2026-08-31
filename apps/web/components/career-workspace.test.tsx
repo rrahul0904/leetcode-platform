@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CareerWorkspace } from "./career-workspace";
 
@@ -68,6 +68,10 @@ beforeEach(() => {
   vi.spyOn(window.crypto.subtle, "digest").mockResolvedValue(new Uint8Array(32).buffer);
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe("CareerWorkspace resume ingestion", () => {
   it("uploads, extracts, and analyzes an uploaded resume by document id", async () => {
     render(<CareerWorkspace />);
@@ -114,12 +118,17 @@ describe("CareerWorkspace resume ingestion", () => {
     render(<CareerWorkspace />);
 
     fireEvent.click(screen.getByRole("button", { name: "Paste text" }));
-    fireEvent.change(screen.getByLabelText("Resume"), {
-      target: {
-        value:
-          "Backend engineer with Python, PostgreSQL, Docker, AWS and production API ownership.",
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        "Paste your resume here. Include skills, projects, outcomes, and recent experience.",
+      ),
+      {
+        target: {
+          value:
+            "Backend engineer with Python, PostgreSQL, Docker, AWS and production API ownership.",
+        },
       },
-    });
+    );
     fireEvent.change(screen.getByLabelText("Job description"), {
       target: { value: JOB_DESCRIPTION },
     });
