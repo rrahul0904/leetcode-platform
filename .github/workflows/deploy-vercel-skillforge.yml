@@ -21,6 +21,7 @@ env:
   VERCEL_PROJECT_NAME: skillforge-interactive-demo
   PRODUCTION_URL: https://skillforge-interactive-demo.vercel.app
   EXPECTED_ALEMBIC_HEAD: 20260828_0018
+  EXPECTED_LAUNCH_PACKAGES: "50"
 
 jobs:
   deploy:
@@ -147,10 +148,18 @@ jobs:
       - name: Install locked Python workspace
         run: uv sync --frozen --all-packages
 
+      - name: Validate source-controlled launch corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$(uv run python scripts/validate_content.py)"
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | grep -q "$EXPECTED_LAUNCH_PACKAGES schema-complete package(s)"
+
       - name: Build production artifact before database changes
         run: vercel build --prod --token="$VERCEL_TOKEN"
 
-      - name: Migrate and seed existing managed PostgreSQL
+      - name: Migrate, seed, and stage launch content in existing managed PostgreSQL
         shell: bash
         run: |
           set -euo pipefail
@@ -178,6 +187,20 @@ jobs:
 
           seed_url="${POSTGRES_URL:-$raw_database_url}"
           RIGOR_SEED_DATABASE_URL="$seed_url" uv run python scripts/seed_database.py
+
+          # Synchronize only the canonical Git-authored packages. This is
+          # idempotent and preserves their review state; deployment never fakes
+          # technical/editorial approvals or publishes planning-manifest rows.
+          uv run python scripts/sync_content.py --mode sync --report reports/production-content-sync.json
+
+          staged_count="$(uv run python -c 'import os; from sqlalchemy import create_engine, text; engine=create_engine(os.environ["RIGOR_DATABASE_URL"]); connection=engine.connect(); print(connection.execute(text("SELECT count(*) FROM question_versions")).scalar_one()); connection.close()')"
+          published_count="$(uv run python -c 'import os; from sqlalchemy import create_engine, text; engine=create_engine(os.environ["RIGOR_DATABASE_URL"]); connection=engine.connect(); print(connection.execute(text("SELECT count(*) FROM questions WHERE current_published_version_id IS NOT NULL")).scalar_one()); connection.close()')"
+          echo "Staged question versions: $staged_count"
+          echo "Published candidate questions: $published_count"
+          if [ "$staged_count" -lt "$EXPECTED_LAUNCH_PACKAGES" ]; then
+            echo "Expected at least $EXPECTED_LAUNCH_PACKAGES validated launch versions."
+            exit 1
+          fi
 
       - name: Deploy production artifact into existing project
         id: deploy
