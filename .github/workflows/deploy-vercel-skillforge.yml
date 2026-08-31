@@ -20,7 +20,7 @@ env:
   VERCEL_PROJECT_ID: prj_fnbuYcKQeKrEq5Sax2uWdTg2SHqT
   VERCEL_PROJECT_NAME: skillforge-interactive-demo
   PRODUCTION_URL: https://skillforge-interactive-demo.vercel.app
-  EXPECTED_ALEMBIC_HEAD: 20260830_0019
+  EXPECTED_ALEMBIC_HEAD: 20260831_0020
   EXPECTED_LAUNCH_PACKAGES: "50"
 
 jobs:

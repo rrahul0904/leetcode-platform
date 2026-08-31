@@ -19,6 +19,7 @@ from .attachment_solution_routes import router as attachment_solution_router
 from .auth import authenticated_principal, token_validator
 from .bookmarked_catalog import router as bookmarked_catalog_router
 from .candidate_submission_routes import router as candidate_submission_router
+from .career_resume_routes import router as career_resume_router
 from .careeros import router as career_os_router
 from .execution_capability import router as execution_capability_router
 from .execution_routes import router as execution_router
@@ -73,5 +74,6 @@ app.include_router(candidate_submission_router)
 app.include_router(question_engagement_router)
 app.include_router(bookmarked_catalog_router)
 app.include_router(attachment_solution_router)
+app.include_router(career_resume_router)
 app.include_router(career_os_router)
 app.include_router(saas_router)

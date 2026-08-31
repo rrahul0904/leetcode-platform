@@ -139,11 +139,45 @@ def test_career_job_history_is_persistent_deduplicated_and_rls_isolated() -> Non
             assert second_body["document_id"] == first_body["document_id"]
             assert second_body["analysis_id"] != first_body["analysis_id"]
 
+            document_payload = {
+                "job_title": payload["job_title"],
+                "company": payload["company"],
+                "document_id": first_body["document_id"],
+                "job_description": payload["job_description"],
+            }
+            third = client.post(
+                "/api/v1/career/jobs/analyze",
+                headers=headers_a,
+                json=document_payload,
+            )
+            assert third.status_code == 200
+            third_body = third.json()
+            assert third_body["job_id"] == first_body["job_id"]
+            assert third_body["document_id"] == first_body["document_id"]
+            assert third_body["analysis_id"] not in {
+                first_body["analysis_id"],
+                second_body["analysis_id"],
+            }
+
+            foreign_document = client.post(
+                "/api/v1/career/jobs/analyze",
+                headers=headers_b,
+                json=document_payload,
+            )
+            assert foreign_document.status_code == 404
+
+            invalid_sources = client.post(
+                "/api/v1/career/jobs/analyze",
+                headers=headers_a,
+                json={**document_payload, "resume_text": payload["resume_text"]},
+            )
+            assert invalid_sources.status_code == 422
+
             jobs_a = client.get("/api/v1/career/jobs", headers=headers_a)
             assert jobs_a.status_code == 200
             assert len(jobs_a.json()) == 1
-            assert jobs_a.json()[0]["analysis_count"] == 2
-            assert jobs_a.json()[0]["latest_fit_score"] == second_body["fit_score"]
+            assert jobs_a.json()[0]["analysis_count"] == 3
+            assert jobs_a.json()[0]["latest_fit_score"] == third_body["fit_score"]
 
             jobs_b = client.get("/api/v1/career/jobs", headers=headers_b)
             assert jobs_b.status_code == 200
