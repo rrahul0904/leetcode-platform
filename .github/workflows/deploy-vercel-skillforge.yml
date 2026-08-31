@@ -1,24 +1,30 @@
-name: Bootstrap and deploy SkillsForge AI
+name: Deploy existing SkillForge production
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - agent/vercel-clean-skillforge
+    paths:
+      - .github/workflows/deploy-vercel-skillforge.yml
 
 permissions:
   contents: read
 
 concurrency:
-  group: skillsforge-ai-vercel-production
+  group: skillforge-interactive-demo-production
   cancel-in-progress: true
 
 env:
   VERCEL_ORG_ID: team_zmEezpOKGZy2sH5nqTfO44LD
-  VERCEL_PROJECT_NAME: skillsforge-ai
-  SOURCE_PROJECT_ID: prj_fnbuYcKQeKrEq5Sax2uWdTg2SHqT
-  PRODUCTION_URL: https://skillsforge-ai.vercel.app
+  VERCEL_PROJECT_ID: prj_fnbuYcKQeKrEq5Sax2uWdTg2SHqT
+  VERCEL_PROJECT_NAME: skillforge-interactive-demo
+  PRODUCTION_URL: https://skillforge-interactive-demo.vercel.app
+  EXPECTED_ALEMBIC_HEAD: 20260828_0018
 
 jobs:
   deploy:
-    name: Create, build, migrate, deploy, and verify SkillsForge AI
+    name: Build, migrate, deploy, and verify existing SkillForge project
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -32,7 +38,7 @@ jobs:
         run: |
           if [ -z "${VERCEL_TOKEN:-}" ]; then
             echo "VERCEL_TOKEN GitHub Actions secret is not configured."
-            echo "SkillsForge AI was not created or modified."
+            echo "The existing skillforge-interactive-demo project was not modified."
             exit 1
           fi
 
@@ -54,62 +60,42 @@ jobs:
       - name: Install pinned Vercel CLI
         run: npm install --global vercel@59.7.0
 
-      - name: Pull trusted production bootstrap values from the previous project
+      - name: Link the existing Vercel project
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p .vercel
           printf '{"orgId":"%s","projectId":"%s"}\n' \
-            "$VERCEL_ORG_ID" "$SOURCE_PROJECT_ID" > .vercel/project.json
-          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
-          cp .vercel/.env.production.local /tmp/skillsforge-source.env
-          rm -rf .vercel
+            "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
 
-      - name: Create or discover the skillsforge-ai Vercel project
-        id: project
-        shell: bash
-        run: |
-          set -euo pipefail
-          project_json="$(curl --silent --show-error \
+          project_json="$(curl --fail --silent --show-error \
             --header "Authorization: Bearer $VERCEL_TOKEN" \
-            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_NAME?teamId=$VERCEL_ORG_ID" || true)"
+            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID")"
+          actual_id="$(python -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"$project_json")"
+          actual_name="$(python -c 'import json,sys; print(json.load(sys.stdin)["name"])' <<<"$project_json")"
+          test "$actual_id" = "$VERCEL_PROJECT_ID"
+          test "$actual_name" = "$VERCEL_PROJECT_NAME"
+          echo "Deploying into existing Vercel project $actual_name ($actual_id)."
 
-          project_id="$(python -c 'import json,sys; data=json.loads(sys.stdin.read() or "{}"); print(data.get("id", ""))' <<<"$project_json")"
+      - name: Pull existing production environment
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
-          if [ -z "$project_id" ]; then
-            echo "Creating Vercel project $VERCEL_PROJECT_NAME"
-            project_json="$(curl --fail --silent --show-error \
-              --request POST \
-              --url "https://api.vercel.com/v11/projects?teamId=$VERCEL_ORG_ID" \
-              --header "Authorization: Bearer $VERCEL_TOKEN" \
-              --header "Content-Type: application/json" \
-              --data "{\"name\":\"$VERCEL_PROJECT_NAME\",\"skipGitConnectDuringLink\":true,\"oidcTokenConfig\":{\"enabled\":true,\"issuerMode\":\"team\"}}")"
-            project_id="$(python -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"$project_json")"
-          else
-            echo "Using existing Vercel project $VERCEL_PROJECT_NAME ($project_id)"
-          fi
-
-          mkdir -p .vercel
-          printf '{"orgId":"%s","projectId":"%s"}\n' \
-            "$VERCEL_ORG_ID" "$project_id" > .vercel/project.json
-          echo "project_id=$project_id" >> "$GITHUB_OUTPUT"
-
-      - name: Bootstrap required production environment without exposing secrets
+      - name: Align production Clerk and application URLs
         shell: bash
         run: |
           set -euo pipefail
           set -a
-          source /tmp/skillsforge-source.env
+          source .vercel/.env.production.local
           set +a
 
           if [ -z "${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}" ] || [ -z "${CLERK_SECRET_KEY:-}" ]; then
-            echo "The source project does not contain the required Clerk keys."
+            echo "Existing project is missing required Clerk keys."
             exit 1
           fi
 
           database_url="${RIGOR_DATABASE_URL:-${POSTGRES_URL:-}}"
           if [ -z "$database_url" ]; then
-            echo "The source project does not expose RIGOR_DATABASE_URL or POSTGRES_URL."
+            echo "Existing project is missing RIGOR_DATABASE_URL/POSTGRES_URL."
             exit 1
           fi
 
@@ -120,34 +106,26 @@ jobs:
           set_env() {
             key="$1"
             value="$2"
-            if [ -z "$value" ]; then
-              return 0
-            fi
             printf '%s' "$value" | vercel env add "$key" production --force --yes --token="$VERCEL_TOKEN" >/dev/null
           }
 
-          set_env NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"
-          set_env CLERK_SECRET_KEY "$CLERK_SECRET_KEY"
           set_env RIGOR_CLERK_ISSUER "$clerk_issuer"
           set_env RIGOR_CLERK_JWKS_URL "$clerk_jwks_url"
           set_env RIGOR_DATABASE_URL "$database_url"
           set_env POSTGRES_URL "${POSTGRES_URL:-$database_url}"
           set_env NEXT_PUBLIC_APP_URL "$PRODUCTION_URL"
           set_env RIGOR_ALLOWED_ORIGINS "[\"$PRODUCTION_URL\"]"
-          set_env RIGOR_SENTRY_DSN "${RIGOR_SENTRY_DSN:-${SENTRY_DSN:-}}"
 
-          # A Clerk webhook signing secret is endpoint-specific. Do not copy the old
-          # endpoint secret into the new project. Candidate sign-in remains functional
-          # through authenticated, lowest-privilege account reconciliation until the
-          # new /api/webhooks/clerk endpoint is registered in Clerk.
-          rm -f /tmp/skillsforge-source.env
+          # Preserve the existing Clerk webhook secret. It belongs to this same
+          # production project/endpoint and must not be replaced with a guessed value.
 
-      - name: Pull the new SkillsForge AI production environment
+      - name: Re-pull aligned production environment
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
       - name: Validate production environment
         shell: bash
         run: |
+          set -euo pipefail
           set -a
           source .vercel/.env.production.local
           set +a
@@ -160,13 +138,11 @@ jobs:
             RIGOR_CLERK_JWKS_URL \
             RIGOR_DATABASE_URL; do
             if [ -z "${!name:-}" ]; then
-              echo "Missing required SkillsForge AI production variable: $name"
+              echo "Missing required production variable: $name"
               missing=1
             fi
           done
-          if [ "$missing" -ne 0 ]; then
-            exit 1
-          fi
+          test "$missing" -eq 0
 
       - name: Install locked Python workspace
         run: uv sync --frozen --all-packages
@@ -174,13 +150,15 @@ jobs:
       - name: Build production artifact before database changes
         run: vercel build --prod --token="$VERCEL_TOKEN"
 
-      - name: Migrate and seed managed SkillsForge PostgreSQL
+      - name: Migrate and seed existing managed PostgreSQL
         shell: bash
         run: |
+          set -euo pipefail
           set -a
           source .vercel/.env.production.local
           set +a
 
+          raw_database_url="$RIGOR_DATABASE_URL"
           case "$RIGOR_DATABASE_URL" in
             postgres://*)
               export RIGOR_DATABASE_URL="postgresql+psycopg://${RIGOR_DATABASE_URL#postgres://}"
@@ -192,40 +170,63 @@ jobs:
 
           uv run alembic upgrade head
 
-          seed_url="${POSTGRES_URL:-${RIGOR_DATABASE_URL/postgresql+psycopg:/postgresql:}}"
+          actual_head="$(uv run python - <<'PY'
+import os
+from sqlalchemy import create_engine, text
+url = os.environ['RIGOR_DATABASE_URL']
+engine = create_engine(url)
+with engine.connect() as connection:
+    print(connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one())
+PY
+)"
+          if [ "$actual_head" != "$EXPECTED_ALEMBIC_HEAD" ]; then
+            echo "Unexpected production Alembic head: $actual_head"
+            exit 1
+          fi
+
+          seed_url="${POSTGRES_URL:-$raw_database_url}"
           RIGOR_SEED_DATABASE_URL="$seed_url" uv run python scripts/seed_database.py
 
-      - name: Deploy production artifact
+      - name: Deploy production artifact into existing project
         id: deploy
         shell: bash
         run: |
+          set -euo pipefail
           deployment_url="$(vercel deploy --prebuilt --prod --yes --token="$VERCEL_TOKEN")"
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
-          echo "Deployed $deployment_url"
+          echo "Deployed $deployment_url into $VERCEL_PROJECT_NAME"
 
       - name: Verify deployed landing page
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
         shell: bash
         run: |
-          curl --fail --silent --show-error --location "$DEPLOYMENT_URL/" >/tmp/skillsforge.html
-          grep -Eq "SkillForge|SkillsForge" /tmp/skillsforge.html
+          curl --fail --silent --show-error --location "$DEPLOYMENT_URL/" >/tmp/skillforge.html
+          grep -Eq "SkillForge|SkillsForge" /tmp/skillforge.html
 
-      - name: Verify Vercel BFF and API liveness
+      - name: Verify BFF liveness and readiness
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
         shell: bash
         run: |
+          set -euo pipefail
           curl --fail --silent --show-error "$DEPLOYMENT_URL/api/backend/livez" >/tmp/livez.json
           grep -q '"status":"ok"' /tmp/livez.json
 
-          status="$(curl --silent --output /tmp/auth.json --write-out '%{http_code}' "$DEPLOYMENT_URL/api/backend/api/v1/auth/me")"
-          if [ "$status" = "404" ]; then
-            echo "The deployed site does not contain the SkillsForge AI BFF route."
+          ready_status="$(curl --silent --output /tmp/readyz.json --write-out '%{http_code}' "$DEPLOYMENT_URL/api/backend/readyz")"
+          if [ "$ready_status" != "200" ]; then
+            echo "Production readiness failed with HTTP $ready_status"
+            cat /tmp/readyz.json
             exit 1
           fi
-          if [ "$status" != "401" ] && [ "$status" != "200" ]; then
-            echo "Unexpected anonymous BFF status: $status"
+
+          auth_status="$(curl --silent --output /tmp/auth.json --write-out '%{http_code}' "$DEPLOYMENT_URL/api/backend/api/v1/auth/me")"
+          if [ "$auth_status" = "404" ]; then
+            echo "The deployed site does not contain the SkillForge BFF route."
+            exit 1
+          fi
+          if [ "$auth_status" != "401" ] && [ "$auth_status" != "200" ]; then
+            echo "Unexpected anonymous BFF status: $auth_status"
             cat /tmp/auth.json
             exit 1
           fi
@@ -241,16 +242,17 @@ jobs:
             exit 1
           fi
 
-          if grep -Eq 'localhost:8002|127\.0\.0\.1:8002' /tmp/skillsforge.html; then
+          if grep -Eq 'localhost:8002|127\.0\.0\.1:8002' /tmp/skillforge.html; then
             echo "Production HTML still contains a local API dependency."
             exit 1
           fi
 
-      - name: Verify canonical production hostname
+      - name: Verify stable existing production alias
         shell: bash
         run: |
           status="$(curl --silent --location --output /tmp/canonical.html --write-out '%{http_code}' "$PRODUCTION_URL/")"
           if [ "$status" != "200" ]; then
-            echo "Canonical SkillsForge AI hostname is not serving successfully: HTTP $status"
+            echo "Stable production alias is not serving successfully: HTTP $status"
             exit 1
           fi
+          grep -Eq "SkillForge|SkillsForge" /tmp/canonical.html
