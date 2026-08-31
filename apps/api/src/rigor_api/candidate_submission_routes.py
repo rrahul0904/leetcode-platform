@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import Connection, text
 
 from .database import DatabaseEngine, principal_transaction
-from .practice import PracticeSessionRepository
+from .practice import PracticeSessionNotFoundError, PracticeSessionRepository
 from .schemas import CandidateEvidence, CandidateSubmission
 from .submissions import CandidateReadPrincipal, _submission
 
@@ -75,7 +75,10 @@ def list_candidate_session_submissions(
     engine: DatabaseEngine,
 ) -> list[CandidateSubmission]:
     with principal_transaction(engine, principal) as connection:
-        PracticeSessionRepository(connection).get(session_id)
+        try:
+            PracticeSessionRepository(connection).get(session_id)
+        except PracticeSessionNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Practice session not found.") from exc
         ids = connection.execute(
             text(
                 """
