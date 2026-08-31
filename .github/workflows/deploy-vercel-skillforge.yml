@@ -19,7 +19,9 @@ env:
   VERCEL_ORG_ID: team_zmEezpOKGZy2sH5nqTfO44LD
   VERCEL_PROJECT_ID: prj_fnbuYcKQeKrEq5Sax2uWdTg2SHqT
   VERCEL_PROJECT_NAME: skillforge-interactive-demo
-  PRODUCTION_URL: https://skillforge-interactive-demo.vercel.app
+  TRANSITIONAL_PROJECT_URL: https://skillforge-interactive-demo.vercel.app
+  REQUESTED_CANONICAL_HOSTNAME: skillforge-interactive-demo-bmbpowee0-rrahul0904-5013s-projects.vercel.app
+  REQUESTED_CANONICAL_URL: https://skillforge-interactive-demo-bmbpowee0-rrahul0904-5013s-projects.vercel.app
   EXPECTED_ALEMBIC_HEAD: 20260828_0018
   EXPECTED_LAUNCH_PACKAGES: "50"
 
@@ -78,6 +80,22 @@ jobs:
           test "$actual_name" = "$VERCEL_PROJECT_NAME"
           echo "Deploying into existing Vercel project $actual_name ($actual_id)."
 
+      - name: Verify requested hostname ownership before any mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_json="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/$REQUESTED_CANONICAL_HOSTNAME?teamId=$VERCEL_ORG_ID")"
+          current_id="$(python -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"$current_json")"
+          current_project="$(python -c 'import json,sys; data=json.load(sys.stdin); print((data.get("project") or {}).get("id") or data.get("projectId") or "")' <<<"$current_json")"
+          if [ -n "$current_project" ] && [ "$current_project" != "$VERCEL_PROJECT_ID" ]; then
+            echo "Requested hostname is owned by another project: $current_project"
+            exit 1
+          fi
+          echo "Requested hostname currently resolves to deployment $current_id."
+          echo "No hostname or deployment has been deleted or released."
+
       - name: Pull existing production environment
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
@@ -114,11 +132,11 @@ jobs:
           set_env RIGOR_CLERK_JWKS_URL "$clerk_jwks_url"
           set_env RIGOR_DATABASE_URL "$database_url"
           set_env POSTGRES_URL "${POSTGRES_URL:-$database_url}"
-          set_env NEXT_PUBLIC_APP_URL "$PRODUCTION_URL"
-          set_env RIGOR_ALLOWED_ORIGINS "[\"$PRODUCTION_URL\"]"
+          set_env NEXT_PUBLIC_APP_URL "$REQUESTED_CANONICAL_URL"
+          set_env RIGOR_ALLOWED_ORIGINS "[\"$REQUESTED_CANONICAL_URL\",\"$TRANSITIONAL_PROJECT_URL\"]"
 
           # Preserve the existing Clerk webhook secret. It belongs to this same
-          # production project/endpoint and must not be replaced with a guessed value.
+          # project/endpoint and must never be replaced with a guessed value.
 
       - name: Re-pull aligned production environment
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
@@ -159,7 +177,7 @@ jobs:
       - name: Build production artifact before database changes
         run: vercel build --prod --token="$VERCEL_TOKEN"
 
-      - name: Migrate, seed, and stage launch content in existing managed PostgreSQL
+      - name: Migrate, seed, and publish audited launch content
         shell: bash
         run: |
           set -euo pipefail
@@ -177,9 +195,29 @@ jobs:
               ;;
           esac
 
+          current_head="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT version_num FROM alembic_version")).scalar_one()); c.close(); e.dispose()')"
+          case "$current_head" in
+            20260801_0012|20260801_0013|20260801_0014|20260802_0015|20260824_0016|20260826_0017|20260828_0018)
+              echo "Production migration preflight accepted current head: $current_head"
+              ;;
+            *)
+              echo "Refusing to migrate unexpected production Alembic head: $current_head"
+              exit 1
+              ;;
+          esac
+
+          identity_counts="$(uv run python -c 'import os,json; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); row=c.execute(text("SELECT count(*) AS total, count(*) FILTER (WHERE identity_subject LIKE :clerk) AS clerk_like, count(*) FILTER (WHERE identity_subject LIKE :local OR identity_subject LIKE :system OR identity_subject LIKE :author) AS local_or_system FROM users"), {"clerk":"user_%","local":"local-%","system":"system:%","author":"content-author:%"}).mappings().one(); print(json.dumps(dict(row))); c.close(); e.dispose()')"
+          echo "Existing identity preflight counts: $identity_counts"
+
           uv run alembic upgrade head
 
-          actual_head="$(uv run python -c 'import os; from sqlalchemy import create_engine, text; engine=create_engine(os.environ["RIGOR_DATABASE_URL"]); connection=engine.connect(); print(connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()); connection.close()')"
+          # 0017 predates production Clerk rollout and defaults legacy rows to
+          # local-oidc. Clerk user IDs are stable user_* subjects, so repair only
+          # that deterministic legacy case; first-login reconciliation remains
+          # authoritative for all other external identities.
+          uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.begin(); c.execute(text("UPDATE users SET auth_provider=\"clerk\", updated_at=CURRENT_TIMESTAMP WHERE identity_subject LIKE \"user_%\" AND auth_provider<>\"clerk\"")); c.commit(); e.dispose()'
+
+          actual_head="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT version_num FROM alembic_version")).scalar_one()); c.close(); e.dispose()')"
           if [ "$actual_head" != "$EXPECTED_ALEMBIC_HEAD" ]; then
             echo "Unexpected production Alembic head: $actual_head"
             exit 1
@@ -188,17 +226,26 @@ jobs:
           seed_url="${POSTGRES_URL:-$raw_database_url}"
           RIGOR_SEED_DATABASE_URL="$seed_url" uv run python scripts/seed_database.py
 
-          # Synchronize only the canonical Git-authored packages. This is
-          # idempotent and preserves their review state; deployment never fakes
-          # technical/editorial approvals or publishes planning-manifest rows.
-          uv run python scripts/sync_content.py --mode sync --report reports/production-content-sync.json
+          uv run python scripts/sync_content.py \
+            --mode sync \
+            --report reports/production-content-sync.json
 
-          staged_count="$(uv run python -c 'import os; from sqlalchemy import create_engine, text; engine=create_engine(os.environ["RIGOR_DATABASE_URL"]); connection=engine.connect(); print(connection.execute(text("SELECT count(*) FROM question_versions")).scalar_one()); connection.close()')"
-          published_count="$(uv run python -c 'import os; from sqlalchemy import create_engine, text; engine=create_engine(os.environ["RIGOR_DATABASE_URL"]); connection=engine.connect(); print(connection.execute(text("SELECT count(*) FROM questions WHERE current_published_version_id IS NOT NULL")).scalar_one()); connection.close()')"
+          RIGOR_ENVIRONMENT=production \
+          RIGOR_PRODUCTION_LAUNCH_BOOTSTRAP_ENABLED=true \
+          RIGOR_PRODUCTION_LAUNCH_BOOTSTRAP_REASON="Initial audited first-party SkillForge production launch from commit $GITHUB_SHA" \
+            uv run python scripts/publish_production_launch_catalog.py \
+            | tee reports/production-launch-bootstrap.json
+
+          staged_count="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT count(*) FROM question_versions")).scalar_one()); c.close(); e.dispose()')"
+          published_count="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT count(*) FROM questions q JOIN question_versions v ON v.id=q.current_published_version_id WHERE v.state=\"published\"::content_state")).scalar_one()); c.close(); e.dispose()')"
           echo "Staged question versions: $staged_count"
           echo "Published candidate questions: $published_count"
           if [ "$staged_count" -lt "$EXPECTED_LAUNCH_PACKAGES" ]; then
             echo "Expected at least $EXPECTED_LAUNCH_PACKAGES validated launch versions."
+            exit 1
+          fi
+          if [ "$published_count" -lt "$EXPECTED_LAUNCH_PACKAGES" ]; then
+            echo "Production Question Bank would be empty/incomplete; refusing deployment."
             exit 1
           fi
 
@@ -208,23 +255,25 @@ jobs:
         run: |
           set -euo pipefail
           deployment_url="$(vercel deploy --prebuilt --prod --yes --token="$VERCEL_TOKEN")"
+          deployment_host="${deployment_url#https://}"
+          deployment_host="${deployment_host%/}"
+          deployment_json="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/$deployment_host?teamId=$VERCEL_ORG_ID")"
+          deployment_id="$(python -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"$deployment_json")"
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
-          echo "Deployed $deployment_url into $VERCEL_PROJECT_NAME"
+          echo "id=$deployment_id" >> "$GITHUB_OUTPUT"
+          echo "Deployed $deployment_url ($deployment_id) into $VERCEL_PROJECT_NAME"
 
-      - name: Verify deployed landing page
-        env:
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
-        shell: bash
-        run: |
-          curl --fail --silent --show-error --location "$DEPLOYMENT_URL/" >/tmp/skillforge.html
-          grep -Eq "SkillForge|SkillsForge" /tmp/skillforge.html
-
-      - name: Verify BFF liveness and readiness
+      - name: Verify new deployment before hostname reassignment
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
         shell: bash
         run: |
           set -euo pipefail
+          curl --fail --silent --show-error --location "$DEPLOYMENT_URL/" >/tmp/skillforge.html
+          grep -Eq "SkillForge|SkillsForge" /tmp/skillforge.html
+
           curl --fail --silent --show-error "$DEPLOYMENT_URL/api/backend/livez" >/tmp/livez.json
           grep -q '"status":"ok"' /tmp/livez.json
 
@@ -246,28 +295,76 @@ jobs:
             exit 1
           fi
 
-      - name: Reject localhost production dependencies
-        env:
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
-        shell: bash
-        run: |
           headers="$(curl --silent --show-error --head "$DEPLOYMENT_URL/")"
           if printf '%s\n' "$headers" | grep -Ei '^content-security-policy:' | grep -Eq 'localhost|127\.0\.0\.1'; then
             echo "Production CSP still exposes a localhost dependency."
             exit 1
           fi
-
           if grep -Eq 'localhost:8002|127\.0\.0\.1:8002' /tmp/skillforge.html; then
             echo "Production HTML still contains a local API dependency."
             exit 1
           fi
 
-      - name: Verify stable existing production alias
+      - name: Assign the exact requested hostname without deleting the old deployment
+        env:
+          DEPLOYMENT_ID: ${{ steps.deploy.outputs.id }}
         shell: bash
         run: |
-          status="$(curl --silent --location --output /tmp/canonical.html --write-out '%{http_code}' "$PRODUCTION_URL/")"
+          set -euo pipefail
+          alias_status="$(curl --silent --show-error \
+            --output /tmp/requested-alias.json \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header 'Content-Type: application/json' \
+            --data "{\"alias\":\"$REQUESTED_CANONICAL_HOSTNAME\",\"redirect\":null}" \
+            "https://api.vercel.com/v2/deployments/$DEPLOYMENT_ID/aliases?teamId=$VERCEL_ORG_ID")"
+
+          if [ "$alias_status" != "200" ]; then
+            echo "EXACT HOSTNAME BLOCKED BY VERCEL PLATFORM/API CONSTRAINT"
+            echo "Requested hostname: $REQUESTED_CANONICAL_HOSTNAME"
+            echo "Vercel alias API HTTP status: $alias_status"
+            cat /tmp/requested-alias.json
+            echo "The old deployment was not deleted or released."
+            exit 1
+          fi
+
+          assigned="$(python -c 'import json,sys; print(json.load(sys.stdin).get("alias", ""))' </tmp/requested-alias.json)"
+          if [ "$assigned" != "$REQUESTED_CANONICAL_HOSTNAME" ]; then
+            echo "Vercel returned an unexpected alias: $assigned"
+            exit 1
+          fi
+          cat /tmp/requested-alias.json
+
+      - name: Verify exact requested production URL
+        env:
+          DEPLOYMENT_ID: ${{ steps.deploy.outputs.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --location --output /tmp/canonical.html --write-out '%{http_code}' "$REQUESTED_CANONICAL_URL/")"
           if [ "$status" != "200" ]; then
-            echo "Stable production alias is not serving successfully: HTTP $status"
+            echo "Requested production URL is not serving successfully: HTTP $status"
             exit 1
           fi
           grep -Eq "SkillForge|SkillsForge" /tmp/canonical.html
+
+          curl --fail --silent --show-error "$REQUESTED_CANONICAL_URL/api/backend/livez" >/tmp/canonical-livez.json
+          grep -q '"status":"ok"' /tmp/canonical-livez.json
+
+          ready_status="$(curl --silent --output /tmp/canonical-readyz.json --write-out '%{http_code}' "$REQUESTED_CANONICAL_URL/api/backend/readyz")"
+          if [ "$ready_status" != "200" ]; then
+            echo "Requested production URL readiness failed: HTTP $ready_status"
+            cat /tmp/canonical-readyz.json
+            exit 1
+          fi
+
+          canonical_json="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/$REQUESTED_CANONICAL_HOSTNAME?teamId=$VERCEL_ORG_ID")"
+          canonical_id="$(python -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"$canonical_json")"
+          if [ "$canonical_id" != "$DEPLOYMENT_ID" ]; then
+            echo "Requested hostname still resolves to deployment $canonical_id, expected $DEPLOYMENT_ID"
+            exit 1
+          fi
+          echo "Exact requested production hostname now resolves to $DEPLOYMENT_ID."
