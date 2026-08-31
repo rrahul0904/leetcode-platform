@@ -61,7 +61,7 @@ export async function analyzeCareerJob(
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     body: JSON.stringify(input),
-    signal,
+    ...(signal ? { signal } : {}),
   });
 
   if (!response.ok) {
