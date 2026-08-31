@@ -4,8 +4,9 @@ import hashlib
 import json
 import re
 from collections import Counter
+from collections.abc import Mapping
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -28,6 +29,16 @@ CareerJobStatus = Literal[
     "rejected",
     "withdrawn",
 ]
+CAREER_JOB_STATUSES = {
+    "saved",
+    "tailored",
+    "applied",
+    "screen",
+    "interview",
+    "offer",
+    "rejected",
+    "withdrawn",
+}
 SCORING_VERSION = "deterministic-v1"
 _CURRENT_USER_SQL = "NULLIF(current_setting('rigor.user_id', true), '')::uuid"
 
@@ -364,6 +375,12 @@ def _require_candidate(principal: AuthenticatedPrincipal) -> None:
         raise HTTPException(status_code=403, detail="CareerOS is available to candidate accounts")
 
 
+def _career_job_status(value: object) -> CareerJobStatus:
+    if not isinstance(value, str) or value not in CAREER_JOB_STATUSES:
+        raise RuntimeError("invalid CareerOS job status stored in database")
+    return cast(CareerJobStatus, value)
+
+
 def _save_resume_document(connection: Connection, resume_text: str) -> UUID:
     row = connection.execute(
         text(
@@ -382,7 +399,10 @@ def _save_resume_document(connection: Connection, resume_text: str) -> UUID:
     return UUID(str(row["id"]))
 
 
-def _find_or_create_job(connection: Connection, payload: CareerJobAnalysisInput) -> tuple[UUID, str]:
+def _find_or_create_job(
+    connection: Connection,
+    payload: CareerJobAnalysisInput,
+) -> tuple[UUID, CareerJobStatus]:
     description_sha = _sha256(payload.job_description)
     params = {
         "job_title": payload.job_title,
@@ -422,7 +442,7 @@ def _find_or_create_job(connection: Connection, payload: CareerJobAnalysisInput)
             ),
             {**params, "job_id": existing["id"]},
         )
-        return UUID(str(existing["id"])), str(existing["status"])
+        return UUID(str(existing["id"])), _career_job_status(existing["status"])
 
     created = connection.execute(
         text(
@@ -450,7 +470,7 @@ def _find_or_create_job(connection: Connection, payload: CareerJobAnalysisInput)
         ),
         params,
     ).mappings().one()
-    return UUID(str(created["id"])), str(created["status"])
+    return UUID(str(created["id"])), _career_job_status(created["status"])
 
 
 def _save_analysis(
@@ -493,22 +513,24 @@ def _save_analysis(
     return UUID(str(row["id"])), row["created_at"]
 
 
-def _summary_from_row(row: object) -> CareerJobSummary:
-    mapping = row
-    latest_analysis = mapping["latest_analysis"] or {}
+def _summary_from_row(row: Mapping[str, Any]) -> CareerJobSummary:
+    latest_analysis_value = row["latest_analysis"]
+    latest_analysis = (
+        latest_analysis_value if isinstance(latest_analysis_value, Mapping) else {}
+    )
     return CareerJobSummary(
-        id=UUID(str(mapping["id"])),
-        job_title=mapping["job_title"],
-        company=mapping["company"],
-        source_url=mapping["source_url"],
-        status=mapping["status"],
-        latest_fit_score=mapping["latest_fit_score"],
+        id=UUID(str(row["id"])),
+        job_title=row["job_title"],
+        company=row["company"],
+        source_url=row["source_url"],
+        status=_career_job_status(row["status"]),
+        latest_fit_score=row["latest_fit_score"],
         matched_skills=list(latest_analysis.get("matched_skills", [])),
         missing_skills=list(latest_analysis.get("missing_skills", [])),
-        analysis_count=int(mapping["analysis_count"]),
-        last_analyzed_at=mapping["last_analyzed_at"],
-        created_at=mapping["created_at"],
-        updated_at=mapping["updated_at"],
+        analysis_count=int(row["analysis_count"]),
+        last_analyzed_at=row["last_analyzed_at"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
     )
 
 
