@@ -188,7 +188,10 @@ def _build_questions(
                     f"Walk me through a project where you used {skill}. "
                     "What did you personally own, what trade-offs did you make, and what changed?"
                 ),
-                coaching_note="Use a concrete example with scope, decisions, measurable impact, and lessons learned.",
+                coaching_note=(
+                    "Use a concrete example with scope, decisions, measurable impact, "
+                    "and lessons learned."
+                ),
             )
         )
 
@@ -201,7 +204,10 @@ def _build_questions(
                     f"This role emphasizes {skill}, but it is not explicit in your resume. "
                     "What adjacent experience would let you become productive with it quickly?"
                 ),
-                coaching_note="Do not bluff. Bridge from a neighboring skill and describe a credible learning plan.",
+                coaching_note=(
+                    "Do not bluff. Bridge from a neighboring skill and describe a credible "
+                    "learning plan."
+                ),
             )
         )
 
@@ -211,10 +217,14 @@ def _build_questions(
             category="system-design",
             focus="architecture",
             question=(
-                f"For {title}, design a production system that must scale while remaining reliable. "
-                "How would you decompose it, store data, observe failures, and evolve it safely?"
+                f"For {title}, design a production system that must scale while remaining "
+                "reliable. How would you decompose it, store data, observe failures, and "
+                "evolve it safely?"
             ),
-            coaching_note="Clarify requirements first, state assumptions, then discuss components and trade-offs.",
+            coaching_note=(
+                "Clarify requirements first, state assumptions, then discuss components "
+                "and trade-offs."
+            ),
         )
     )
     questions.append(
@@ -225,7 +235,9 @@ def _build_questions(
                 "Tell me about a high-impact problem you owned when requirements were ambiguous. "
                 "How did you decide what to do, align people, and measure whether it worked?"
             ),
-            coaching_note="Structure the answer as situation, task, actions, result, and reflection.",
+            coaching_note=(
+                "Structure the answer as situation, task, actions, result, and reflection."
+            ),
         )
     )
     return questions[:8]
@@ -247,7 +259,10 @@ def analyze_job(payload: CareerJobAnalysisInput) -> CareerJobAnalysis:
     fit_score = max(0, min(100, fit_score))
 
     strengths = [
-        f"Your resume contains direct evidence for {skill}, which is explicitly requested in the job description."
+        (
+            f"Your resume contains direct evidence for {skill}, which is explicitly "
+            "requested in the job description."
+        )
         for skill in matched[:4]
     ]
     if not strengths:
@@ -262,17 +277,19 @@ def analyze_job(payload: CareerJobAnalysisInput) -> CareerJobAnalysis:
     ]
     if not risks and job_skills:
         risks.append(
-            "No major named-skill gap was detected; validate depth, recency, and measurable impact during interview preparation."
+            "No major named-skill gap was detected; validate depth, recency, and measurable "
+            "impact during interview preparation."
         )
     elif not job_skills:
         risks.append(
-            "The job description contains few recognizable technical skills, so this score relies more heavily on language overlap."
+            "The job description contains few recognizable technical skills, so this score "
+            "relies more heavily on language overlap."
         )
 
     explanation = (
-        f"Fit is weighted 72% toward explicit skill coverage ({skill_coverage}%) and 28% toward "
-        f"priority job-language overlap ({language_overlap}%). The analysis found {len(matched)} matched "
-        f"and {len(missing)} missing named skills."
+        f"Fit is weighted 72% toward explicit skill coverage ({skill_coverage}%) and 28% "
+        f"toward priority job-language overlap ({language_overlap}%). The analysis found "
+        f"{len(matched)} matched and {len(missing)} missing named skills."
     )
 
     return CareerJobAnalysis(
