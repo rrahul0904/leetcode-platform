@@ -27,6 +27,7 @@ from rigor_api.execution_capability import _capability  # noqa: E402
 REQUESTED_HOSTNAME = (
     "skillforge-interactive-demo-bmbpowee0-rrahul0904-5013s-projects.vercel.app"
 )
+CLASS_PYTHON_HOSTED_IDS = {"PY-0001", "PY-0003", "PY-0004"}
 
 
 def test_production_launch_allowlist_is_exactly_the_first_party_launch_50() -> None:
@@ -83,15 +84,26 @@ def test_launch_execution_availability_matches_real_content_contract() -> None:
 
     python_ids = {identifier for identifier in identifiers if identifier.startswith("PY-")}
     sql_ids = {identifier for identifier in identifiers if identifier.startswith("SQL-")}
-    hosted_ids = identifiers - python_ids - sql_ids
+    architecture_ids = identifiers - python_ids - sql_ids
+    runnable_python_ids = python_ids - CLASS_PYTHON_HOSTED_IDS
+    hosted_ids = architecture_ids | CLASS_PYTHON_HOSTED_IDS
 
-    assert {identifier for identifier in python_ids if availability[identifier] == "runnable"} == (
-        python_ids
-    )
-    assert {identifier for identifier in sql_ids if availability[identifier] == "runnable"} == sql_ids
-    assert {identifier for identifier in hosted_ids if availability[identifier] == "hosted"} == (
-        hosted_ids
-    )
+    assert len(runnable_python_ids) == 17
+    assert len(sql_ids) == 10
+    assert len(hosted_ids) == 23
+    assert {
+        identifier
+        for identifier in runnable_python_ids
+        if availability[identifier] == "runnable"
+    } == runnable_python_ids
+    assert {
+        identifier for identifier in sql_ids if availability[identifier] == "runnable"
+    } == sql_ids
+    assert {
+        identifier for identifier in hosted_ids if availability[identifier] == "hosted"
+    } == hosted_ids
+    assert sum(value == "runnable" for value in availability.values()) == 27
+    assert sum(value == "hosted" for value in availability.values()) == 23
 
 
 def test_production_launch_bootstrap_is_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:
