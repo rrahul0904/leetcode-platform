@@ -14,7 +14,9 @@ from publish_production_launch_catalog import (  # noqa: E402
     EXPECTED_LAUNCH_PACKAGES,
     launch_ids,
     require_bootstrap_authorization,
+    validate_rights,
 )
+from rigor_api.content_sync import discover_package_directories, validate_all  # noqa: E402
 
 REQUESTED_HOSTNAME = (
     "skillforge-interactive-demo-bmbpowee0-rrahul0904-5013s-projects.vercel.app"
@@ -27,10 +29,26 @@ def test_production_launch_allowlist_is_exactly_the_first_party_launch_50() -> N
     assert EXPECTED_LAUNCH_PACKAGES == 50
     assert len(identifiers) == EXPECTED_LAUNCH_PACKAGES
     assert len(set(identifiers)) == EXPECTED_LAUNCH_PACKAGES
-    assert {identifier.split("-", 1)[0] for identifier in identifiers} >= {
-        "PY",
-        "SQL",
-        "SD",
+    assert len({identifier for identifier in identifiers if identifier.startswith("PY-")}) == 20
+    assert len({identifier for identifier in identifiers if identifier.startswith("SQL-")}) == 10
+    assert len({identifier for identifier in identifiers if not identifier.startswith(("PY-", "SQL-"))}) == 20
+    assert {f"PY-{index:04d}" for index in range(1, 21)} <= identifiers
+    assert {f"SQL-{index:04d}" for index in range(1, 11)} <= identifiers
+
+
+def test_all_50_launch_packages_pass_release_validation_and_rights() -> None:
+    identifiers = launch_ids()
+    content_root = ROOT / "content"
+    directories = {
+        directory.name: directory for directory in discover_package_directories(content_root)
+    }
+
+    assert identifiers <= directories.keys()
+    results = validate_all(content_root, set(identifiers))
+    assert len(results) == EXPECTED_LAUNCH_PACKAGES
+    assert [result.question_id for result in results if result.status == "invalid"] == []
+    assert {validate_rights(directories[identifier]) for identifier in identifiers} == {
+        "RIGOR-FIRST-PARTY-1.0"
     }
 
 
