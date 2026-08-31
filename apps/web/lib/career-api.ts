@@ -93,6 +93,12 @@ function requestHeaders() {
   };
 }
 
+function notifyHistoryChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("careeros:history-changed"));
+  }
+}
+
 async function parseResponse<T>(response: Response, fallback: string): Promise<T> {
   if (!response.ok) {
     if (response.status === 401 && typeof window !== "undefined") {
@@ -120,7 +126,9 @@ export async function analyzeCareerJob(
     body: JSON.stringify(input),
     ...(signal ? { signal } : {}),
   });
-  return parseResponse<CareerSavedAnalysis>(response, "CareerOS analysis failed");
+  const result = await parseResponse<CareerSavedAnalysis>(response, "CareerOS analysis failed");
+  notifyHistoryChanged();
+  return result;
 }
 
 export async function listCareerJobs(signal?: AbortSignal): Promise<CareerJobSummary[]> {
@@ -141,5 +149,10 @@ export async function updateCareerJobStatus(
     headers: requestHeaders(),
     body: JSON.stringify({ status }),
   });
-  return parseResponse<CareerJobSummary>(response, "CareerOS status update failed");
+  const result = await parseResponse<CareerJobSummary>(
+    response,
+    "CareerOS status update failed",
+  );
+  notifyHistoryChanged();
+  return result;
 }
