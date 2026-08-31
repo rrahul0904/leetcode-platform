@@ -6,11 +6,11 @@ import re
 from collections import Counter
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Any, Literal, Self, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import Connection, text
 
 from .auth import authenticated_principal
@@ -41,6 +41,21 @@ CAREER_JOB_STATUSES = {
 }
 SCORING_VERSION = "deterministic-v1"
 _CURRENT_USER_SQL = "NULLIF(current_setting('rigor.user_id', true), '')::uuid"
+
+
+class CareerJobAnalysisRequest(BaseModel):
+    job_title: str | None = Field(default=None, max_length=160)
+    company: str | None = Field(default=None, max_length=160)
+    source_url: str | None = Field(default=None, max_length=2000)
+    resume_text: str | None = Field(default=None, min_length=40, max_length=100_000)
+    document_id: UUID | None = None
+    job_description: str = Field(min_length=40, max_length=100_000)
+
+    @model_validator(mode="after")
+    def validate_resume_source(self) -> Self:
+        if (self.resume_text is None) == (self.document_id is None):
+            raise ValueError("Provide exactly one of resume_text or document_id")
+        return self
 
 
 class CareerJobAnalysisInput(BaseModel):
@@ -534,17 +549,57 @@ def _summary_from_row(row: Mapping[Any, Any]) -> CareerJobSummary:
     )
 
 
+def _analysis_input(
+    payload: CareerJobAnalysisRequest,
+    resume_text: str,
+) -> CareerJobAnalysisInput:
+    return CareerJobAnalysisInput(
+        job_title=payload.job_title,
+        company=payload.company,
+        source_url=payload.source_url,
+        resume_text=resume_text,
+        job_description=payload.job_description,
+    )
+
+
 @router.post("/jobs/analyze", response_model=CareerSavedAnalysis)
 def analyze_career_job(
-    payload: CareerJobAnalysisInput,
+    payload: CareerJobAnalysisRequest,
     principal: Annotated[AuthenticatedPrincipal, Depends(authenticated_principal)],
     engine: DatabaseEngine,
 ) -> CareerSavedAnalysis:
     _require_candidate(principal)
-    analysis = analyze_job(payload)
+
+    if payload.document_id is not None:
+        with principal_transaction(engine, principal) as connection:
+            stored_resume_text = connection.execute(
+                text(
+                    f"""
+                    SELECT raw_text
+                    FROM career_documents
+                    WHERE id=:document_id
+                      AND user_id={_CURRENT_USER_SQL}
+                      AND kind='resume'
+                    """
+                ),
+                {"document_id": payload.document_id},
+            ).scalar_one_or_none()
+        if stored_resume_text is None:
+            raise HTTPException(status_code=404, detail="CareerOS resume document not found")
+        document_id = payload.document_id
+        resume_text = str(stored_resume_text)
+    else:
+        if payload.resume_text is None:
+            raise HTTPException(status_code=422, detail="Resume source is required")
+        document_id = None
+        resume_text = payload.resume_text
+
+    analysis_input = _analysis_input(payload, resume_text)
+    analysis = analyze_job(analysis_input)
     with principal_transaction(engine, principal) as connection:
-        document_id = _save_resume_document(connection, payload.resume_text)
-        job_id, job_status = _find_or_create_job(connection, payload)
+        if document_id is None:
+            document_id = _save_resume_document(connection, resume_text)
+        job_id, job_status = _find_or_create_job(connection, analysis_input)
         analysis_id, created_at = _save_analysis(
             connection,
             job_id=job_id,
