@@ -19,6 +19,7 @@ from .attachment_solution_routes import router as attachment_solution_router
 from .auth import authenticated_principal, token_validator
 from .bookmarked_catalog import router as bookmarked_catalog_router
 from .candidate_submission_routes import router as candidate_submission_router
+from .careeros import router as career_os_router
 from .execution_capability import router as execution_capability_router
 from .execution_routes import router as execution_router
 from .principal_auth import database_authoritative_principal
@@ -55,7 +56,7 @@ from .legacy_main import app as app  # noqa: E402
 app.title = "SkillsForge AI API"
 app.description = (
     "Production API for SkillsForge AI technical learning, interview preparation, "
-    "durable execution, identity, and candidate progress."
+    "CareerOS job-fit intelligence, durable execution, identity, and candidate progress."
 )
 
 # Resolve the lifespan-created base validator at request time. Local OIDC keeps the
@@ -72,4 +73,5 @@ app.include_router(candidate_submission_router)
 app.include_router(question_engagement_router)
 app.include_router(bookmarked_catalog_router)
 app.include_router(attachment_solution_router)
+app.include_router(career_os_router)
 app.include_router(saas_router)
