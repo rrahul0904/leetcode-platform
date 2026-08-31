@@ -59,7 +59,9 @@ def source_revision() -> str:
 
 def require_bootstrap_authorization(environment: str) -> str:
     if environment.strip().lower() != "production":
-        raise RuntimeError("Production launch bootstrap is only allowed in RIGOR_ENVIRONMENT=production")
+        raise RuntimeError(
+            "Production launch bootstrap is only allowed in RIGOR_ENVIRONMENT=production"
+        )
     if os.getenv("RIGOR_PRODUCTION_LAUNCH_BOOTSTRAP_ENABLED", "").strip().lower() != "true":
         raise RuntimeError("RIGOR_PRODUCTION_LAUNCH_BOOTSTRAP_ENABLED=true is required")
     reason = os.getenv("RIGOR_PRODUCTION_LAUNCH_BOOTSTRAP_REASON", "").strip()
@@ -179,8 +181,8 @@ def publish_launch_set(
             )
         if state != "awaiting_technical_review":
             raise RuntimeError(
-                f"{identifier}: bootstrap accepts only awaiting_technical_review or already-published "
-                f"versions; found {state}"
+                f"{identifier}: bootstrap accepts only awaiting_technical_review or "
+                f"already-published versions; found {state}"
             )
 
         idempotency_key = (
