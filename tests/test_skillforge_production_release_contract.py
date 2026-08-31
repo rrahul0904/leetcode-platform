@@ -31,7 +31,12 @@ def test_production_launch_allowlist_is_exactly_the_first_party_launch_50() -> N
     assert len(set(identifiers)) == EXPECTED_LAUNCH_PACKAGES
     assert len({identifier for identifier in identifiers if identifier.startswith("PY-")}) == 20
     assert len({identifier for identifier in identifiers if identifier.startswith("SQL-")}) == 10
-    assert len({identifier for identifier in identifiers if not identifier.startswith(("PY-", "SQL-"))}) == 20
+    architecture_ids = {
+        identifier
+        for identifier in identifiers
+        if not identifier.startswith(("PY-", "SQL-"))
+    }
+    assert len(architecture_ids) == 20
     assert {f"PY-{index:04d}" for index in range(1, 21)} <= identifiers
     assert {f"SQL-{index:04d}" for index in range(1, 11)} <= identifiers
 
