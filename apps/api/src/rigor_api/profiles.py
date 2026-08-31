@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from uuid import UUID
 
 from sqlalchemy import Engine, text
 
+from .persistence import audit_event, ensure_user
 from .schemas import AuthenticatedPrincipal, CandidateProfile, CandidateProfileInput
 
 
@@ -19,7 +19,9 @@ class ProfileRepository:
 
     def get(self, principal: AuthenticatedPrincipal) -> CandidateProfile:
         with self.engine.begin() as connection:
-            user_id = self._ensure_user(connection, principal)
+            # Identity metadata may be refreshed, but external request claims must
+            # never rewrite PostgreSQL-authoritative application roles.
+            user_id = ensure_user(connection, principal)
             row = (
                 connection.execute(
                     text(
@@ -47,7 +49,7 @@ class ProfileRepository:
         profile: CandidateProfileInput,
     ) -> CandidateProfile:
         with self.engine.begin() as connection:
-            user_id = self._ensure_user(connection, principal)
+            user_id = ensure_user(connection, principal)
             values = profile.model_dump(mode="json")
             row = (
                 connection.execute(
@@ -101,59 +103,16 @@ class ProfileRepository:
                 .mappings()
                 .one()
             )
-            connection.execute(
-                text(
-                    """
-                    INSERT INTO audit_events (
-                        actor_user_id, action, resource_type, resource_id, details, correlation_id
-                    ) VALUES (
-                        :user_id, 'profile.saved', 'candidate_profile', :resource_id,
-                        CAST(:details AS jsonb), :correlation_id
-                    )
-                    """
-                ),
-                {
-                    "user_id": user_id,
-                    "resource_id": principal.subject_id,
-                    "details": json.dumps({"completion_state": "complete"}),
-                    "correlation_id": principal.correlation_id,
-                },
+            audit_event(
+                connection,
+                principal,
+                user_id,
+                action="profile.saved",
+                resource_type="candidate_profile",
+                resource_id=principal.subject_id,
+                details={"completion_state": "complete"},
             )
             return self._to_profile(principal, dict(row))
-
-    def _ensure_user(self, connection: Any, principal: AuthenticatedPrincipal) -> UUID:
-        user_id = connection.execute(
-            text(
-                """
-                INSERT INTO users (
-                    identity_subject, email, display_name, email_verified, last_login_at
-                ) VALUES (
-                    :subject, :email, :display_name, true, CURRENT_TIMESTAMP
-                )
-                ON CONFLICT (identity_subject) DO UPDATE SET
-                    email = EXCLUDED.email,
-                    display_name = EXCLUDED.display_name,
-                    email_verified = true,
-                    last_login_at = CURRENT_TIMESTAMP,
-                    updated_at = CURRENT_TIMESTAMP
-                RETURNING id
-                """
-            ),
-            {
-                "subject": principal.subject_id,
-                "email": principal.email,
-                "display_name": principal.display_name,
-            },
-        ).scalar_one()
-        connection.execute(
-            text("DELETE FROM user_roles WHERE user_id = :user_id"), {"user_id": user_id}
-        )
-        for role in principal.roles:
-            connection.execute(
-                text("INSERT INTO user_roles (user_id, role_slug) VALUES (:user_id, :role)"),
-                {"user_id": user_id, "role": role.value},
-            )
-        return UUID(str(user_id))
 
     @staticmethod
     def _to_profile(principal: AuthenticatedPrincipal, values: dict[str, Any]) -> CandidateProfile:

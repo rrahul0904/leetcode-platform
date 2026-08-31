@@ -22,10 +22,17 @@ import "./curriculum-experience.css";
 import "./editorial-experience.css";
 
 export const metadata: Metadata = {
-  title: "SkillForge AI — Technical Interview Platform",
+  title: "SkillsForge AI — Technical Interview Platform",
   description:
-    "AI-powered technical interview preparation for data engineering, software engineering, system design, and senior engineering roles.",
+    "AI-powered technical interview preparation with persistent practice, secure code execution, evidence-driven progress, and role-focused learning paths.",
 };
+
+function productionAuthMode() {
+  return (
+    process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE ??
+    (process.env.NODE_ENV === "production" ? "clerk" : "local")
+  );
+}
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   const application = (
@@ -35,11 +42,16 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
       </AuthProvider>
     </QueryProvider>
   );
-  const clerkEnabled = process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE === "clerk";
 
   return (
     <html lang="en">
-      <body>{clerkEnabled ? <ClerkProvider>{application}</ClerkProvider> : application}</body>
+      <body>
+        {productionAuthMode() === "clerk" ? (
+          <ClerkProvider>{application}</ClerkProvider>
+        ) : (
+          application
+        )}
+      </body>
     </html>
   );
 }

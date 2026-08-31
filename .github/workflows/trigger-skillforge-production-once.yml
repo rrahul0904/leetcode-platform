@@ -1,0 +1,29 @@
+name: Trigger SkillForge production release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/vercel-clean-skillforge
+    paths:
+      - .github/workflows/trigger-skillforge-production-once.yml
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    name: Dispatch existing-project production workflow
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch production workflow at this branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run deploy-vercel-skillforge.yml \
+            --repo "${{ github.repository }}" \
+            --ref "${{ github.ref_name }}"
+          echo "Dispatched deploy-vercel-skillforge.yml for ${{ github.ref_name }}."
+          echo "The target workflow remains fail-closed if VERCEL_TOKEN or production readiness is missing."

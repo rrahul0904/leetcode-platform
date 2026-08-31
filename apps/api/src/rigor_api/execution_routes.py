@@ -23,6 +23,7 @@ from .execution_api import (
     queue_submit,
 )
 from .schemas import AuthenticatedPrincipal, PracticeRunRequest, PracticeSubmitRequest
+from .vercel_sandbox_runtime import dispatch_vercel_execution
 
 router = APIRouter(prefix="/api/v1", tags=["execution"])
 TERMINAL_STATUSES = {
@@ -38,6 +39,7 @@ INFRASTRUCTURE_ERROR_CATEGORIES = {
     "sandbox_missing_after_lease_expiry",
     "trusted_result_validation_failed",
     "unsupported_execution_language",
+    "vercel_sandbox_infrastructure_error",
 }
 
 
@@ -85,6 +87,8 @@ def _execution_metadata(
     principal: AuthenticatedPrincipal,
     execution_id: UUID,
 ) -> dict[str, object]:
+    """Read candidate-visible metadata with explicit ownership plus PostgreSQL RLS."""
+
     with principal_transaction(engine, principal) as connection:
         row = (
             connection.execute(
@@ -94,6 +98,9 @@ def _execution_metadata(
                            created_at, memory_peak_bytes
                     FROM execution_requests
                     WHERE id=:execution_id
+                      AND candidate_id=NULLIF(
+                        current_setting('rigor.user_id', true), ''
+                      )::uuid
                     """
                 ),
                 {"execution_id": execution_id},
@@ -175,8 +182,9 @@ def queue_run_for_question(
     engine: DatabaseEngine,
     idempotency_key: IdempotencyHeader,
 ) -> CanonicalExecutionAccepted:
-    """Create a durable RUN without executing candidate source in FastAPI."""
+    """Create a durable RUN and execute it outside FastAPI in Vercel Sandbox."""
     accepted = queue_run(request, principal, engine, idempotency_key, slug)
+    dispatch_vercel_execution(engine, accepted.execution_id)
     return _accepted_contract(accepted, engine=engine, principal=principal)
 
 
@@ -187,8 +195,9 @@ def queue_submit_for_question(
     engine: DatabaseEngine,
     idempotency_key: IdempotencyHeader,
 ) -> CanonicalExecutionAccepted:
-    """Create a durable SUBMIT backed by the same execution service as Run."""
+    """Create a durable SUBMIT and execute it outside FastAPI in Vercel Sandbox."""
     accepted = queue_submit(request, principal, engine, idempotency_key, slug)
+    dispatch_vercel_execution(engine, accepted.execution_id)
     return _accepted_contract(accepted, engine=engine, principal=principal)
 
 
@@ -197,6 +206,9 @@ def get_candidate_execution(
     principal: CandidateReadPrincipal,
     engine: DatabaseEngine,
 ) -> CanonicalExecutionView:
+    # Explicitly establish candidate ownership before reading the richer internal
+    # execution snapshot. Trusted workers still use ExecutionRepository directly.
+    _execution_metadata(engine, principal, execution_id)
     view = get_execution(execution_id, principal, engine)
     return _view_contract(view, engine=engine, principal=principal)
 
@@ -206,6 +218,9 @@ def cancel_candidate_execution(
     principal: CandidateWritePrincipal,
     engine: DatabaseEngine,
 ) -> CanonicalExecutionView:
+    # Never let cancellation reach the worker-facing repository until the public
+    # candidate boundary has proven ownership independently of RLS.
+    _execution_metadata(engine, principal, execution_id)
     current = get_execution(execution_id, principal, engine)
     if current.status in TERMINAL_STATUSES:
         return _view_contract(current, engine=engine, principal=principal)

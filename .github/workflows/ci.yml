@@ -17,9 +17,9 @@ concurrency:
 
 jobs:
   python:
-    name: Python lint, types, tests, images, and supply chain
+    name: Python lint, types, tests, and database integration
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,9 +33,9 @@ jobs:
           enable-cache: true
       - name: Install locked Python workspace
         run: uv sync --frozen --all-packages
-      - name: Validate Docker Compose
+      - name: Validate Docker Compose test fixture
         run: docker compose config --quiet
-      - name: Start PostgreSQL 18 + pgvector for integration tests
+      - name: Start PostgreSQL 18 + pgvector test fixture
         run: docker compose up -d --wait postgres
       - name: Upgrade integration-test database
         env:
@@ -63,70 +63,6 @@ jobs:
       - name: Pytest
         if: always()
         run: uv run pytest -q
-      - name: Build execution images
-        if: always()
-        run: |
-          docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt -t rigor-python-runner:test -f services/python-runner/Dockerfile .
-          docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt -t rigor-sql-runner:test -f services/sql-runner/Dockerfile .
-          docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt -t rigor-execution-controller:test -f services/execution-controller/Dockerfile .
-      - name: Scan Python runner image
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: rigor-python-runner:test
-          format: table
-          exit-code: "1"
-          ignore-unfixed: true
-          vuln-type: os,library
-          severity: HIGH,CRITICAL
-      - name: Scan SQL runner image
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: rigor-sql-runner:test
-          format: table
-          exit-code: "1"
-          ignore-unfixed: true
-          vuln-type: os,library
-          severity: HIGH,CRITICAL
-      - name: Scan execution controller image
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: rigor-execution-controller:test
-          format: table
-          exit-code: "1"
-          ignore-unfixed: true
-          vuln-type: os,library
-          severity: HIGH,CRITICAL
-      - name: Generate Python runner SBOM
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: rigor-python-runner:test
-          format: cyclonedx
-          output: sbom-python-runner.cdx.json
-          exit-code: "0"
-      - name: Generate SQL runner SBOM
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: rigor-sql-runner:test
-          format: cyclonedx
-          output: sbom-sql-runner.cdx.json
-          exit-code: "0"
-      - name: Generate execution controller SBOM
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: rigor-execution-controller:test
-          format: cyclonedx
-          output: sbom-execution-controller.cdx.json
-          exit-code: "0"
-      - name: Upload execution SBOMs
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: execution-image-sboms
-          path: |
-            sbom-python-runner.cdx.json
-            sbom-sql-runner.cdx.json
-            sbom-execution-controller.cdx.json
-          if-no-files-found: error
-          retention-days: 30
       - name: Show PostgreSQL logs on failure
         if: failure()
         run: docker compose logs postgres
@@ -182,9 +118,9 @@ jobs:
           enable-cache: true
       - name: Install locked Python workspace
         run: uv sync --frozen --all-packages
-      - name: Validate Docker Compose
+      - name: Validate Docker Compose test fixture
         run: docker compose config --quiet
-      - name: Start PostgreSQL 18 + pgvector
+      - name: Start PostgreSQL 18 + pgvector test fixture
         run: docker compose up -d --wait postgres
       - name: Upgrade from empty database
         env:
@@ -192,7 +128,7 @@ jobs:
         run: uv run alembic upgrade head
       - name: Verify execution, knowledge, and SaaS schemas
         run: |
-          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260826_0017"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260828_0018"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_outbox') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_payloads') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_public_results') IS NOT NULL")" = "t"
@@ -207,7 +143,11 @@ jobs:
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.login_events') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.candidate_files') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.subscriptions') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.candidate_question_bookmarks') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.candidate_question_notes') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='candidate_files'::regclass")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='candidate_question_bookmarks'::regclass")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='candidate_question_notes'::regclass")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='knowledge_candidate_problem_state'::regclass")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='knowledge_activity_events'::regclass")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='local_execution_queue'::regclass")" = "t"

@@ -12,9 +12,18 @@ from .config import Settings
 from .schemas import AuthenticatedPrincipal
 
 
+def normalize_database_url(value: str) -> str:
+    """Use the installed psycopg v3 driver for standard managed-Postgres URLs."""
+    if value.startswith("postgres://"):
+        return f"postgresql+psycopg://{value.removeprefix('postgres://')}"
+    if value.startswith("postgresql://"):
+        return f"postgresql+psycopg://{value.removeprefix('postgresql://')}"
+    return value
+
+
 def create_database_engine(settings: Settings, database_url: str | None = None) -> Engine:
     return create_engine(
-        database_url or settings.database_url,
+        normalize_database_url(database_url or settings.database_url),
         pool_pre_ping=True,
         pool_size=5,
         max_overflow=5,
@@ -59,7 +68,13 @@ def principal_transaction(
     engine: Engine,
     principal: AuthenticatedPrincipal,
 ) -> Generator[Connection]:
-    """Open a transaction whose RLS identity cannot leak through the pool."""
+    """Open a transaction whose RLS identity cannot leak through the pool.
+
+    ``ensure_user`` refreshes identity metadata and, only for the controlled local
+    OIDC development provider, bootstraps deterministic test roles. External
+    identity never mutates PostgreSQL authorization state through this path.
+    """
+
     with engine.begin() as connection:
         # Local import keeps the low-level database module independent while
         # guaranteeing the persisted user id and RLS context share a transaction.

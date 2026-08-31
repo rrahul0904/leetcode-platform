@@ -1,5 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "./app-shell";
 
@@ -16,8 +16,17 @@ vi.mock("@/lib/auth", () => ({
   }),
 }));
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe("AppShell", () => {
-  it("shows a focused role-specific navigation", () => {
+  it("shows a focused role-specific navigation", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200 }),
+    );
+
     render(
       <AppShell>
         <div>Content page</div>
@@ -36,5 +45,9 @@ describe("AppShell", () => {
     expect(
       within(navigation).queryByRole("link", { name: "Learning paths" }),
     ).not.toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(screen.getByTitle("Rigor API: Connected")).toBeInTheDocument(),
+    );
   });
 });

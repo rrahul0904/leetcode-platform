@@ -2,13 +2,15 @@
 
 import { useQuery } from "@tanstack/react-query";
 import {
+  Bookmark,
   ChevronLeft,
   ChevronRight,
   Search,
   SlidersHorizontal,
 } from "lucide-react";
 import Link from "next/link";
-import { useDeferredValue, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useDeferredValue, useMemo } from "react";
 
 import { ExternalCatalog } from "@/components/external-practice";
 import {
@@ -18,61 +20,135 @@ import {
   PageHeader,
 } from "@/components/page-ui";
 import { QuestionCard, QuestionCardSkeleton } from "@/components/question-card";
-import { getPublishedQuestions } from "@/lib/api";
 import { difficulties, tracks } from "@/lib/product-data";
+import { getCandidateQuestions } from "@/lib/question-engagement-client";
 
 const pageSize = 12;
+type CatalogMode = "all" | "hosted" | "external";
+
+const questionTypes = [
+  ["", "All question types"],
+  ["python_coding", "Python coding"],
+  ["sql_coding", "SQL coding"],
+  ["data_modeling", "Data modeling"],
+  ["data_architecture", "Data architecture"],
+  ["distributed_systems", "Distributed systems"],
+  ["system_design", "System design"],
+  ["ml_system_design", "ML system design"],
+  ["genai_architecture", "GenAI architecture"],
+  ["ai_infrastructure", "AI infrastructure"],
+  ["ai_agents", "AI agents"],
+  ["ai_evaluation", "AI evaluation"],
+  ["ai_safety", "AI safety"],
+  ["behavioral", "Behavioral"],
+  ["technical_leadership", "Technical leadership"],
+  ["staff_principal_case", "Staff / principal case"],
+] as const;
+
+function catalogMode(value: string | null): CatalogMode {
+  return value === "hosted" || value === "external" ? value : "all";
+}
+
+function pageNumber(value: string | null) {
+  const parsed = Number(value ?? "1");
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
 
 export function QuestionBank() {
-  const [mode, setMode] = useState<"all" | "hosted" | "external">("all");
-  const [query, setQuery] = useState("");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const mode = catalogMode(searchParams.get("mode"));
+  const query = searchParams.get("q") ?? "";
   const deferredQuery = useDeferredValue(query);
-  const [track, setTrack] = useState("");
-  const [difficulty, setDifficulty] = useState("");
-  const [sort, setSort] = useState("relevance");
-  const [page, setPage] = useState(1);
+  const track = searchParams.get("track") ?? "";
+  const skill = searchParams.get("skill") ?? "";
+  const difficulty = searchParams.get("difficulty") ?? "";
+  const role = searchParams.get("role") ?? "";
+  const questionType = searchParams.get("question_type") ?? "";
+  const companyStyle = searchParams.get("company_style") ?? "";
+  const completionStatus = searchParams.get("completion") ?? "";
+  const sort = searchParams.get("sort") ?? "relevance";
+  const bookmarkedOnly = searchParams.get("bookmarked") === "true";
+  const page = pageNumber(searchParams.get("page"));
+
+  function replaceParams(
+    updates: Record<string, string | null>,
+    options: { resetPage?: boolean } = { resetPage: true },
+  ) {
+    const next = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (!value) next.delete(key);
+      else next.set(key, value);
+    }
+    if (options.resetPage !== false) next.delete("page");
+    const suffix = next.toString();
+    router.replace(suffix ? `${pathname}?${suffix}` : pathname, { scroll: false });
+  }
+
   const filters = useMemo(
     () => ({
       query: deferredQuery,
       track,
-      skill: "",
+      skill,
       difficulty,
-      role: "",
-      companyStyle: "",
-      completionStatus: "",
+      role,
+      questionType,
+      companyStyle,
+      completionStatus,
       sort,
       page,
       pageSize,
     }),
-    [deferredQuery, track, difficulty, sort, page],
+    [
+      deferredQuery,
+      track,
+      skill,
+      difficulty,
+      role,
+      questionType,
+      companyStyle,
+      completionStatus,
+      sort,
+      page,
+    ],
   );
+
   const questions = useQuery({
-    queryKey: ["published-questions", filters],
-    queryFn: ({ signal }) => getPublishedQuestions(filters, signal),
+    queryKey: ["candidate-questions", bookmarkedOnly ? "bookmarked" : "all", filters],
+    queryFn: ({ signal }) =>
+      getCandidateQuestions(filters, signal, bookmarkedOnly ? true : undefined),
     enabled: mode !== "external",
   });
 
-  function updateFilter(update: () => void) {
-    update();
-    setPage(1);
-  }
   function clearFilters() {
-    setQuery("");
-    setTrack("");
-    setDifficulty("");
-    setSort("relevance");
-    setPage(1);
+    replaceParams({
+      q: null,
+      track: null,
+      skill: null,
+      difficulty: null,
+      role: null,
+      question_type: null,
+      company_style: null,
+      completion: null,
+      sort: null,
+      bookmarked: null,
+      page: null,
+    });
   }
+
   const totalPages = questions.data
     ? Math.max(1, Math.ceil(questions.data.total / pageSize))
     : 1;
+  const showExternal = mode !== "hosted" && !bookmarkedOnly;
 
   return (
     <div className="page-content">
       <PageHeader
         eyebrow="QUESTION BANK"
         title="Choose work that changes your readiness."
-        description="Hosted execution exercises, source-backed interview references, and architecture prompts—organized around evidence, not volume."
+        description="Published SkillsForge AI questions are backed by your authenticated candidate catalog. Filters remain in the URL so the same view survives refresh and can be shared."
       />
       <div className="catalog-tabs" role="tablist" aria-label="Practice type">
         {(
@@ -90,14 +166,13 @@ export function QuestionBank() {
             className={
               mode === value ? "catalog-tab catalog-tab--active" : "catalog-tab"
             }
-            onClick={() => setMode(value)}
+            onClick={() =>
+              replaceParams({ mode: value === "all" ? null : value })
+            }
           >
             {label}
           </button>
         ))}
-        <Link className="catalog-tab" href="/simulation-lab" role="tab">
-          Simulations
-        </Link>
         <Link className="catalog-tab" href="/mock-interviews" role="tab">
           Mock Interviews
         </Link>
@@ -110,13 +185,14 @@ export function QuestionBank() {
           <EvidenceNote>
             <strong>Candidate-safe publication boundary.</strong>
             <span>
-              Hosted cards expose public prompts, examples, constraints, and
-              starter code only. Hidden tests, solutions, rubrics, and
-              interviewer guidance stay server-side.
+              Hosted cards expose public prompts, examples, constraints, and starter
+              source only. Candidate completion and bookmark state come from PostgreSQL.
             </span>
           </EvidenceNote>
           {mode === "all" && (
-            <h2 className="catalog-section-title">Hosted questions</h2>
+            <h2 className="catalog-section-title">
+              {bookmarkedOnly ? "Bookmarked questions" : "Hosted questions"}
+            </h2>
           )}
           <section className="catalog-toolbar" aria-label="Question filters">
             <label className="search-field">
@@ -124,9 +200,7 @@ export function QuestionBank() {
               <span className="sr-only">Search question bank</span>
               <input
                 value={query}
-                onChange={(event) =>
-                  updateFilter(() => setQuery(event.target.value))
-                }
+                onChange={(event) => replaceParams({ q: event.target.value })}
                 placeholder="Search skills, systems, or objectives"
               />
             </label>
@@ -134,9 +208,7 @@ export function QuestionBank() {
               <span className="sr-only">Track</span>
               <select
                 value={track}
-                onChange={(event) =>
-                  updateFilter(() => setTrack(event.target.value))
-                }
+                onChange={(event) => replaceParams({ track: event.target.value })}
               >
                 {tracks.map(([value, label]) => (
                   <option value={value} key={value}>
@@ -146,11 +218,19 @@ export function QuestionBank() {
               </select>
             </label>
             <label>
+              <span className="sr-only">Skill</span>
+              <input
+                value={skill}
+                onChange={(event) => replaceParams({ skill: event.target.value })}
+                placeholder="Skill slug"
+              />
+            </label>
+            <label>
               <span className="sr-only">Difficulty</span>
               <select
                 value={difficulty}
                 onChange={(event) =>
-                  updateFilter(() => setDifficulty(event.target.value))
+                  replaceParams({ difficulty: event.target.value })
                 }
               >
                 {difficulties.map((value) => (
@@ -161,12 +241,61 @@ export function QuestionBank() {
               </select>
             </label>
             <label>
+              <span className="sr-only">Role level</span>
+              <select
+                value={role}
+                onChange={(event) => replaceParams({ role: event.target.value })}
+              >
+                <option value="">All role levels</option>
+                <option value="senior">Senior</option>
+                <option value="staff">Staff</option>
+                <option value="principal">Principal</option>
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Question type</span>
+              <select
+                value={questionType}
+                onChange={(event) =>
+                  replaceParams({ question_type: event.target.value })
+                }
+              >
+                {questionTypes.map(([value, label]) => (
+                  <option value={value} key={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Company style</span>
+              <input
+                value={companyStyle}
+                onChange={(event) =>
+                  replaceParams({ company_style: event.target.value })
+                }
+                placeholder="Company-style slug"
+              />
+            </label>
+            <label>
+              <span className="sr-only">Completion status</span>
+              <select
+                value={completionStatus}
+                onChange={(event) =>
+                  replaceParams({ completion: event.target.value })
+                }
+              >
+                <option value="">Any completion state</option>
+                <option value="not_started">Not started</option>
+                <option value="attempted">Attempted</option>
+                <option value="passed">Passed</option>
+              </select>
+            </label>
+            <label>
               <span className="sr-only">Sort</span>
               <select
                 value={sort}
-                onChange={(event) =>
-                  updateFilter(() => setSort(event.target.value))
-                }
+                onChange={(event) => replaceParams({ sort: event.target.value })}
               >
                 <option value="relevance">Relevance</option>
                 <option value="title">Title</option>
@@ -175,8 +304,21 @@ export function QuestionBank() {
                 <option value="newest">Newest</option>
               </select>
             </label>
+            <label className="status-chip">
+              <input
+                type="checkbox"
+                checked={bookmarkedOnly}
+                onChange={(event) =>
+                  replaceParams({
+                    bookmarked: event.target.checked ? "true" : null,
+                  })
+                }
+              />
+              <Bookmark size={14} /> Bookmarked only
+            </label>
             <button
               className="button button--ghost button--icon"
+              type="button"
               onClick={clearFilters}
             >
               <SlidersHorizontal size={16} /> Reset
@@ -185,7 +327,9 @@ export function QuestionBank() {
           <div className="catalog-summary">
             <span>
               {questions.data
-                ? `${questions.data.total.toLocaleString()} published questions`
+                ? `${questions.data.total.toLocaleString()} ${
+                    bookmarkedOnly ? "bookmarked" : "published"
+                  } questions`
                 : "Reading catalog…"}
             </span>
             <span>
@@ -204,8 +348,16 @@ export function QuestionBank() {
           )}
           {questions.data?.items.length === 0 && (
             <EmptyState
-              title="No published questions match these filters."
-              description="Try broader filters. Authored drafts remain unavailable until independent review and publication are complete."
+              title={
+                bookmarkedOnly
+                  ? "No bookmarked questions match these filters."
+                  : "No published questions match these filters."
+              }
+              description={
+                bookmarkedOnly
+                  ? "Bookmark a published question or broaden the current filters."
+                  : "Try broader filters. Authored drafts remain unavailable until independent review and publication are complete."
+              }
               action={
                 <button className="button button--dark" onClick={clearFilters}>
                   Clear filters
@@ -225,22 +377,29 @@ export function QuestionBank() {
               <button
                 className="button button--ghost"
                 disabled={page === 1}
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
+                onClick={() =>
+                  replaceParams(
+                    { page: String(Math.max(1, page - 1)) },
+                    { resetPage: false },
+                  )
+                }
               >
                 <ChevronLeft size={16} /> Previous
               </button>
               <span>
                 {((page - 1) * pageSize + 1).toLocaleString()}–
-                {Math.min(
-                  page * pageSize,
-                  questions.data.total,
-                ).toLocaleString()}{" "}
-                of {questions.data.total.toLocaleString()}
+                {Math.min(page * pageSize, questions.data.total).toLocaleString()} of{" "}
+                {questions.data.total.toLocaleString()}
               </span>
               <button
                 className="button button--dark"
                 disabled={!questions.data.has_next}
-                onClick={() => setPage((value) => value + 1)}
+                onClick={() =>
+                  replaceParams(
+                    { page: String(page + 1) },
+                    { resetPage: false },
+                  )
+                }
               >
                 Next <ChevronRight size={16} />
               </button>
@@ -248,7 +407,7 @@ export function QuestionBank() {
           )}
         </>
       )}
-      {mode !== "hosted" && (
+      {showExternal && (
         <section className={mode === "all" ? "section-block" : undefined}>
           {mode === "all" && (
             <h2 className="catalog-section-title">External practice</h2>

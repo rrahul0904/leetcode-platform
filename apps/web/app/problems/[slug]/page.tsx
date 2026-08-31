@@ -1,10 +1,10 @@
-import { PersistentKnowledgeProblemWorkspace } from "@/components/persistent-knowledge-problem-workspace";
+import { redirect } from "next/navigation";
 
-export default async function KnowledgeProblemPage({
+export default async function ProblemPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  return <PersistentKnowledgeProblemWorkspace slug={slug} />;
+  redirect(`/question-bank/${encodeURIComponent(slug)}`);
 }

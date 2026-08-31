@@ -1,3 +1,5 @@
-import { MockInterviews } from "@/components/mock-interviews";
+import { redirect } from "next/navigation";
 
-export default function MockInterviewsPage() { return <MockInterviews />; }
+export default function MockInterviewsPage() {
+  redirect("/question-bank");
+}

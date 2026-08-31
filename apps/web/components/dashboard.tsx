@@ -4,95 +4,59 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   BookOpen,
+  CircleGauge,
   FileCheck2,
-  Link2,
-  Route,
   ShieldCheck,
-  Sparkles,
+  Target,
 } from "lucide-react";
 import Link from "next/link";
 
+import { ErrorState, LoadingState, SectionHeading } from "@/components/page-ui";
 import {
-  EvidenceNote,
-  ErrorState,
-  LoadingState,
-  SectionHeading,
-} from "@/components/page-ui";
-import {
-  getPracticeSummary,
+  ApiError,
+  getCandidateCompetencies,
+  getCandidateReadiness,
+  getNextAction,
   getProfile,
   getPublishedQuestions,
+  getSubmissions,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { titleCaseSlug } from "@/lib/product-data";
 
-const candidateDestinations = [
-  [
-    "Explore the bank",
-    "Browse published hosted questions and the full external practice catalog.",
-    "/question-bank",
-    BookOpen,
-  ],
-  [
-    "External practice",
-    "Search source-backed references and continue to their canonical source.",
-    "/external-practice",
-    Link2,
-  ],
-  [
-    "Choose a path",
-    "Turn target-role intent into a transparent, staged preparation plan.",
-    "/learning-paths",
-    Route,
-  ],
-  [
-    "Configure a mock",
-    "Build a timed interview agenda before AI interviewing is connected.",
-    "/mock-interviews",
-    Sparkles,
-  ],
-] as const;
+function percent(value: number) {
+  return `${Math.round(value * 100)}%`;
+}
 
-const administratorDestinations = [
-  [
-    "Manage content",
-    "Create, import, and inspect the question library.",
-    "/admin/questions",
-    BookOpen,
-  ],
-  [
-    "Review queue",
-    "Assign reviewers and move approved questions toward publication.",
-    "/content-review",
-    FileCheck2,
-  ],
-  [
-    "Manage sources",
-    "Review source rights before enabling any connector.",
-    "/admin/sources",
-    ShieldCheck,
-  ],
-] as const;
-
-export function Dashboard() {
+function CandidateOverview() {
   const { principal } = useAuth();
-  const isCandidate = principal?.roles.includes("candidate") ?? false;
-  const isAdministrator =
-    principal?.roles.includes("platform-administrator") ?? false;
-  const destinations = isAdministrator
-    ? administratorDestinations
-    : candidateDestinations;
-  const stats = useQuery({
-    queryKey: ["practice-summary"],
-    queryFn: ({ signal }) => getPracticeSummary(signal),
-  });
   const profile = useQuery({
     queryKey: ["candidate-profile"],
     queryFn: ({ signal }) => getProfile(signal),
-    enabled: isCandidate,
+    retry: false,
+  });
+  const readiness = useQuery({
+    queryKey: ["candidate-readiness"],
+    queryFn: ({ signal }) => getCandidateReadiness(signal),
+    retry: false,
+  });
+  const competencies = useQuery({
+    queryKey: ["candidate-competencies"],
+    queryFn: ({ signal }) => getCandidateCompetencies(signal),
+    retry: false,
+  });
+  const submissions = useQuery({
+    queryKey: ["submissions"],
+    queryFn: ({ signal }) => getSubmissions(signal),
+    retry: false,
+  });
+  const nextAction = useQuery({
+    queryKey: ["next-action"],
+    queryFn: ({ signal }) => getNextAction(signal),
+    retry: false,
   });
   const questions = useQuery({
-    queryKey: ["published-questions", "dashboard-sample"],
+    queryKey: ["published-questions", "overview"],
     queryFn: ({ signal }) =>
       getPublishedQuestions(
         {
@@ -104,254 +68,309 @@ export function Dashboard() {
           companyStyle: "",
           completionStatus: "",
           sort: "newest",
-          pageSize: 5,
+          pageSize: 4,
         },
         signal,
       ),
   });
 
+  const profileMissing =
+    profile.isError && profile.error instanceof ApiError && profile.error.status === 404;
+  const hasEvidence = (readiness.data?.evidence_count ?? 0) > 0;
+  const recentSubmissions = submissions.data?.slice(0, 4) ?? [];
+  const skillEvidence = competencies.data?.filter((item) => item.evidence_count > 0) ?? [];
+  const firstName = principal?.display_name?.split(/\s+/)[0] || "Candidate";
+
+  if (profile.isLoading) {
+    return (
+      <div className="page-content">
+        <LoadingState label="Loading your SkillsForge AI profile" />
+      </div>
+    );
+  }
+
+  if (profile.isError && !profileMissing) {
+    return (
+      <div className="page-content">
+        <ErrorState retry={() => void profile.refetch()} />
+      </div>
+    );
+  }
+
+  if (profileMissing) {
+    return (
+      <div className="page-content">
+        <section className="hero hero--dashboard">
+          <div>
+            <span className="eyebrow">WELCOME TO SKILLSFORGE AI</span>
+            <h1>Build your preparation plan before we score readiness.</h1>
+            <p>
+              Choose your target role, interview timeline, study capacity, and preferred
+              practice language. SkillsForge AI will not invent progress before you have
+              real submission evidence.
+            </p>
+            <div className="hero-actions">
+              <Link className="button button--primary" href="/onboarding">
+                Complete onboarding <ArrowRight size={16} />
+              </Link>
+              <Link className="button button--ghost" href="/question-bank">
+                Preview question bank
+              </Link>
+            </div>
+          </div>
+          <div className="release-gate">
+            <span>READINESS</span>
+            <strong>—</strong>
+            <p>No readiness score exists until deterministic practice evidence exists.</p>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="page-content">
       <section className="hero hero--dashboard">
         <div>
-          <span className="eyebrow">
-            {isAdministrator ? "CONTENT OVERVIEW" : "INTERVIEW PRACTICE"}
-          </span>
-          <h1>
-            {isAdministrator
-              ? "Manage the question library."
-              : "Prepare with a clear plan."}
-          </h1>
+          <span className="eyebrow">OVERVIEW</span>
+          <h1>Welcome back, {firstName}.</h1>
           <p>
-            {isAdministrator
-              ? "Create, review, and publish high-quality interview questions from one workspace."
-              : "Choose a path, practice published questions, and track real progress."}
+            {profile.data?.target_roles.length
+              ? `Preparing for ${profile.data.target_roles.join(", ")}.`
+              : "Your preparation plan is ready for a target role."}{" "}
+            Progress below is based on persisted submission evidence, not activity theater.
           </p>
           <div className="hero-actions">
-            <Link
-              className="button button--primary"
-              href={isAdministrator ? "/admin/questions" : "/question-bank"}
-            >
-              {isAdministrator ? "Manage content" : "Browse questions"}{" "}
-              <ArrowRight size={16} />
-            </Link>
-            <Link
-              className="button button--ghost"
-              href={isAdministrator ? "/content-review" : "/learning-paths"}
-            >
-              {isAdministrator ? "Open review queue" : "Choose a learning path"}
+            {nextAction.data ? (
+              <Link className="button button--primary" href={nextAction.data.href}>
+                Continue practicing <ArrowRight size={16} />
+              </Link>
+            ) : (
+              <Link className="button button--primary" href="/question-bank">
+                Choose a question <ArrowRight size={16} />
+              </Link>
+            )}
+            <Link className="button button--ghost" href="/progress">
+              View progress
             </Link>
           </div>
         </div>
         <div className="release-gate">
-          <span>PUBLISHED HOSTED QUESTIONS</span>
-          <strong>
-            {stats.data?.published_hosted_questions ?? 0}
-            <small> live</small>
-          </strong>
+          <span>OVERALL READINESS</span>
+          <strong>{hasEvidence ? percent(readiness.data!.overall.score) : "—"}</strong>
           <div className="progress-track">
             <i
               style={{
-                width: stats.data?.published_hosted_questions ? "100%" : "0%",
+                width: hasEvidence ? percent(readiness.data!.overall.score) : "0%",
               }}
             />
           </div>
-          <p>Continuous growth has no final question-count ceiling.</p>
+          <p>
+            {hasEvidence
+              ? `${readiness.data!.evidence_count} evidence records · ${percent(readiness.data!.overall.confidence)} confidence`
+              : "No evidence yet. Complete a deterministic submission to establish readiness."}
+          </p>
         </div>
       </section>
 
-      {stats.isError && <ErrorState retry={() => void stats.refetch()} />}
-      {!stats.data && !stats.isError && (
-        <LoadingState label="Reading content evidence" />
-      )}
-      {stats.data && (
-        <>
-          <section className="status-strip" aria-label="Question bank status">
-            {[
-              [
-                "External references",
-                stats.data.external_references,
-                "canonical source links",
-                "accent",
-              ],
-              [
-                "Hosted records",
-                stats.data.hosted_records,
-                "original question packages",
-                "",
-              ],
-              [
-                "Awaiting review",
-                stats.data.awaiting_review,
-                "technical or editorial",
-                "",
-              ],
-              [
-                "Published hosted",
-                stats.data.published_hosted_questions,
-                "candidate-ready",
-                "",
-              ],
-              [
-                "Approved sources",
-                stats.data.approved_sources,
-                "collection permitted",
-                "",
-              ],
-            ].map(([label, value, note, accent]) => (
-              <div
-                className={`stat ${accent ? "stat--accent" : ""}`}
-                key={label}
-              >
-                <span>{label}</span>
-                <strong>{Number(value).toLocaleString()}</strong>
-                <small>{note}</small>
-              </div>
-            ))}
-          </section>
-        </>
-      )}
-      <EvidenceNote tone="warning">
-        <strong>
-          Hosted questions and external references are counted separately.
-        </strong>
-        <span>
-          Only independently reviewed, currently published hosted versions
-          appear as candidate practice.
-        </span>
-      </EvidenceNote>
-      {stats.data && (
-        <section className="panel source-counts section-block">
-          <SectionHeading
-            eyebrow="POSTGRESQL CATALOG"
-            title="References by source"
-            aside={
-              <span className="status-chip">
-                Last collection{" "}
-                {stats.data.last_successful_collection
-                  ? new Date(
-                      stats.data.last_successful_collection,
-                    ).toLocaleString()
-                  : "not run"}
-              </span>
-            }
-          />
-          <div className="source-count-grid">
-            {stats.data.source_counts.map((source) => (
-              <Link href={`/external-practice`} key={source.source_id}>
-                <span>{source.source_name}</span>
-                <strong>{source.reference_count.toLocaleString()}</strong>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-      {profile.data && (
-        <section className="personalization-strip">
-          <div>
-            <span>PRIMARY TARGET</span>
-            <strong>{profile.data.target_roles[0]}</strong>
-          </div>
-          <div>
-            <span>STUDY CAPACITY</span>
-            <strong>{profile.data.weekly_study_hours} hours / week</strong>
-          </div>
-          <div>
-            <span>INTENSITY</span>
-            <strong>{profile.data.preparation_intensity}</strong>
-          </div>
-          <div>
-            <span>INTERVIEW DATE</span>
-            <strong>{profile.data.interview_date ?? "Not provided"}</strong>
-          </div>
-          <Link href="/onboarding">
-            Edit profile <ArrowRight size={14} />
-          </Link>
-        </section>
-      )}
-      {isCandidate && profile.isError && (
-        <section className="assignment-ready">
-          <Route size={20} />
-          <div>
-            <strong>Personalize your preparation plan</strong>
-            <p>Add your target role and study schedule when you are ready.</p>
-          </div>
-          <Link className="button button--ghost" href="/onboarding">
-            Set up profile
-          </Link>
-        </section>
-      )}
+      <section className="status-strip" aria-label="Candidate evidence summary">
+        <div className="stat stat--accent">
+          <span>Submissions</span>
+          <strong>{submissions.data?.length ?? 0}</strong>
+          <small>durable evaluated attempts</small>
+        </div>
+        <div className="stat">
+          <span>Skills with evidence</span>
+          <strong>{skillEvidence.length}</strong>
+          <small>measured competencies</small>
+        </div>
+        <div className="stat">
+          <span>Confidence</span>
+          <strong>{hasEvidence ? percent(readiness.data!.overall.confidence) : "—"}</strong>
+          <small>evidence confidence</small>
+        </div>
+        <div className="stat">
+          <span>Study capacity</span>
+          <strong>{profile.data?.weekly_study_hours ?? 0}h</strong>
+          <small>per week</small>
+        </div>
+      </section>
 
       <section className="dashboard-grid section-block">
         <div className="panel panel--wide">
-          <SectionHeading eyebrow="NEXT STEP" title="What do you want to do?" />
-          <div className="destination-grid">
-            {destinations.map(([title, description, href, Icon]) => (
-              <Link className="destination-card" href={href} key={href}>
-                <Icon size={21} />
-                <strong>{title}</strong>
-                <p>{description}</p>
-                <span>
-                  Open <ArrowRight size={14} />
-                </span>
+          <SectionHeading eyebrow="RECOMMENDED NEXT" title="What to practice next" />
+          {nextAction.isLoading && <LoadingState label="Ranking your next action" />}
+          {nextAction.data ? (
+            <div className="assignment-ready">
+              <Target size={20} />
+              <div>
+                <strong>{nextAction.data.title}</strong>
+                <p>
+                  {nextAction.data.reasons.length
+                    ? nextAction.data.reasons.join(" · ")
+                    : "Recommended from your current evidence and target role."}
+                </p>
+              </div>
+              <Link className="button button--primary" href={nextAction.data.href}>
+                Open next <ArrowRight size={15} />
               </Link>
-            ))}
-          </div>
+            </div>
+          ) : (
+            !nextAction.isLoading && (
+              <div className="assignment-ready">
+                <BookOpen size={20} />
+                <div>
+                  <strong>Choose your first evidence-producing question</strong>
+                  <p>
+                    Recommendations become more specific after SkillsForge AI has real
+                    evaluation evidence.
+                  </p>
+                </div>
+                <Link className="button button--ghost" href="/question-bank">
+                  Open question bank
+                </Link>
+              </div>
+            )
+          )}
         </div>
+
         <div className="panel">
-          <SectionHeading eyebrow="GOVERNANCE" title="Release evidence" />
-          <div className="evidence-list">
+          <SectionHeading eyebrow="TARGET" title="Interview plan" />
+          <dl className="metadata-list">
             <div>
-              <ShieldCheck size={17} />
-              <span>
-                <strong>12 publication gates</strong>
-                <small>4 evidenced on the first draft</small>
-              </span>
+              <dt>Role</dt>
+              <dd>{profile.data?.target_roles[0] ?? "Not selected"}</dd>
             </div>
             <div>
-              <FileCheck2 size={17} />
-              <span>
-                <strong>Independent approvals</strong>
-                <small>technical + editorial required</small>
-              </span>
+              <dt>Interview date</dt>
+              <dd>{profile.data?.interview_date ?? "Not provided"}</dd>
             </div>
             <div>
-              <BookOpen size={17} />
-              <span>
-                <strong>Immutable versions</strong>
-                <small>candidate history keeps its source</small>
-              </span>
+              <dt>Intensity</dt>
+              <dd>{titleCaseSlug(profile.data?.preparation_intensity ?? "focused")}</dd>
             </div>
-          </div>
-          <Link className="text-link" href="/quality-gates">
-            Inspect quality gates <ArrowRight size={14} />
+          </dl>
+          <Link className="text-link" href="/profile">
+            Edit profile <ArrowRight size={14} />
           </Link>
         </div>
       </section>
 
+      <section className="dashboard-grid section-block">
+        <div className="panel panel--wide">
+          <SectionHeading eyebrow="RECENT ACTIVITY" title="Evaluated submissions" />
+          {submissions.isLoading && <LoadingState label="Loading submissions" />}
+          {recentSubmissions.length === 0 && !submissions.isLoading ? (
+            <p>
+              No evaluated submissions yet. Runs are iteration; submissions create durable
+              readiness evidence.
+            </p>
+          ) : (
+            <div className="compact-list">
+              {recentSubmissions.map((submission) => (
+                <Link href={`/question-bank/${submission.question_slug}`} key={submission.id}>
+                  <span className="question-id">
+                    {Math.round(submission.evaluation.overall_score * 100)}%
+                  </span>
+                  <strong>{submission.question_title}</strong>
+                  <small>
+                    {submission.status} · {submission.runtime} ·{" "}
+                    {new Date(submission.completed_at).toLocaleDateString()}
+                  </small>
+                  <ArrowRight size={15} />
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="panel">
+          <SectionHeading eyebrow="SKILL COVERAGE" title="Evidence-backed skills" />
+          {skillEvidence.length === 0 ? (
+            <p>No competency evidence has been recorded yet.</p>
+          ) : (
+            <div className="evidence-list">
+              {skillEvidence.slice(0, 5).map((skill) => (
+                <div key={skill.competency_id}>
+                  <CircleGauge size={17} />
+                  <span>
+                    <strong>{skill.name}</strong>
+                    <small>
+                      {percent(skill.score)} · {skill.evidence_count} evidence records ·{" "}
+                      {skill.trend.replaceAll("_", " ")}
+                    </small>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <Link className="text-link" href="/progress">
+            Inspect all progress <ArrowRight size={14} />
+          </Link>
+        </div>
+      </section>
+
+      {hasEvidence && readiness.data && (
+        <section className="dashboard-grid section-block">
+          <div className="panel">
+            <SectionHeading eyebrow="STRONGEST AREAS" title="Current strengths" />
+            {readiness.data.strongest_areas.length ? (
+              <div className="evidence-list">
+                {readiness.data.strongest_areas.slice(0, 4).map((skill) => (
+                  <div key={skill.competency_id}>
+                    <ShieldCheck size={17} />
+                    <span>
+                      <strong>{skill.name}</strong>
+                      <small>{percent(skill.score)} readiness</small>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>More evidence is needed before strengths are ranked.</p>
+            )}
+          </div>
+          <div className="panel">
+            <SectionHeading eyebrow="WEAK AREAS" title="Critical gaps" />
+            {readiness.data.critical_gaps.length ? (
+              <div className="evidence-list">
+                {readiness.data.critical_gaps.slice(0, 4).map((skill) => (
+                  <div key={skill.competency_id}>
+                    <Target size={17} />
+                    <span>
+                      <strong>{skill.name}</strong>
+                      <small>{percent(skill.score)} readiness</small>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>No critical gap is justified by the current evidence.</p>
+            )}
+          </div>
+        </section>
+      )}
+
       <section className="panel section-block">
         <SectionHeading
-          eyebrow="HOSTED CATALOG"
-          title="Recently published questions"
+          eyebrow="QUESTION BANK"
+          title="Recently published practice"
           aside={
             <Link className="text-link" href="/question-bank">
               View all <ArrowRight size={14} />
             </Link>
           }
         />
+        {questions.isLoading && <LoadingState label="Loading published questions" />}
+        {questions.isError && <ErrorState retry={() => void questions.refetch()} />}
         {questions.data?.items.length === 0 && (
-          <p>No independently reviewed hosted questions are published yet.</p>
+          <p>No independently reviewed questions are published yet.</p>
         )}
         {questions.data && (
           <div className="compact-list">
             {questions.data.items.map((question) => (
-              <Link
-                href={`/question-bank/${question.slug}`}
-                key={question.slug}
-              >
-                <span className="question-id">
-                  v{question.publication_version}
-                </span>
+              <Link href={`/question-bank/${question.slug}`} key={question.slug}>
+                <span className="question-id">v{question.publication_version}</span>
                 <strong>{question.title}</strong>
                 <small>
                   {titleCaseSlug(question.track)} · {question.difficulty} ·{" "}
@@ -365,4 +384,40 @@ export function Dashboard() {
       </section>
     </div>
   );
+}
+
+function ManagementOverview() {
+  return (
+    <div className="page-content">
+      <section className="hero hero--dashboard">
+        <div>
+          <span className="eyebrow">RIGOR PLATFORM ADMIN</span>
+          <h1>Govern SkillsForge AI content and evidence.</h1>
+          <p>
+            Candidate experience remains separate from content administration. Use the
+            management workspace for source review, publication, and release governance.
+          </p>
+          <div className="hero-actions">
+            <Link className="button button--primary" href="/admin/questions">
+              Manage content <ArrowRight size={16} />
+            </Link>
+            <Link className="button button--ghost" href="/content-review">
+              Review queue
+            </Link>
+          </div>
+        </div>
+        <div className="release-gate">
+          <span>BOUNDARY</span>
+          <strong>RIGOR</strong>
+          <p>Internal governance and administration for the SkillsForge AI product.</p>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export function Dashboard() {
+  const { principal } = useAuth();
+  const isCandidate = principal?.roles.includes("candidate") ?? false;
+  return isCandidate ? <CandidateOverview /> : <ManagementOverview />;
 }

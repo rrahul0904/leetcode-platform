@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 
 export const dynamic = "force-dynamic";
 
@@ -6,24 +6,128 @@ type RouteContext = {
   params: Promise<{ path: string[] }>;
 };
 
+type ClerkEmailAddress = {
+  id: string;
+  emailAddress: string;
+  verification?: { status?: string | null } | null;
+};
+
 function backendOrigin(): string {
   const value = process.env.RIGOR_BACKEND_ORIGIN?.trim().replace(/\/+$/, "");
-  if (!value || !value.startsWith("https://")) {
-    throw new Error("RIGOR_BACKEND_ORIGIN must be an HTTPS origin in Clerk mode.");
+  if (!value) {
+    throw new Error("RIGOR_BACKEND_ORIGIN is not configured.");
+  }
+  if (!value.startsWith("https://") && !value.startsWith("http://")) {
+    throw new Error("RIGOR_BACKEND_ORIGIN must be an HTTP(S) origin.");
+  }
+  if (
+    process.env.VERCEL_ENV === "production" &&
+    value.startsWith("http://") &&
+    !value.includes(".vercel.internal")
+  ) {
+    throw new Error(
+      "RIGOR_BACKEND_ORIGIN must use HTTPS in production unless Vercel supplies an internal service URL.",
+    );
   }
   return value;
 }
 
-async function proxyRequest(request: Request, context: RouteContext): Promise<Response> {
-  const { isAuthenticated, getToken } = await auth();
-  if (!isAuthenticated) {
-    return Response.json({ detail: "Authentication required" }, { status: 401 });
-  }
+function forwardedHeaders(request: Request, token: string) {
+  const headers = new Headers(request.headers);
+  headers.delete("cookie");
+  headers.delete("host");
+  headers.delete("content-length");
+  headers.set("authorization", `Bearer ${token}`);
+  headers.set("x-skillforge-client", "vercel-bff");
+  return headers;
+}
 
-  const template = process.env.CLERK_JWT_TEMPLATE?.trim() || "skillforge-api";
-  const token = await getToken({ template });
+async function fetchUpstream(
+  target: URL,
+  request: Request,
+  token: string,
+  body?: ArrayBuffer,
+) {
+  return fetch(target, {
+    method: request.method,
+    headers: forwardedHeaders(request, token),
+    ...(body ? { body } : {}),
+    redirect: "manual",
+    cache: "no-store",
+  });
+}
+
+function candidateDisplayName(user: Awaited<ReturnType<typeof currentUser>>) {
+  if (!user) return null;
+  const fullName = [user.firstName, user.lastName]
+    .filter((part): part is string => Boolean(part?.trim()))
+    .join(" ")
+    .trim();
+  return fullName || user.username || null;
+}
+
+function primaryVerifiedEmail(
+  user: NonNullable<Awaited<ReturnType<typeof currentUser>>>,
+) {
+  const addresses = user.emailAddresses as ClerkEmailAddress[];
+  const primary = addresses.find(
+    (address) => address.id === user.primaryEmailAddressId,
+  );
+  const selected = primary ?? addresses[0];
+  if (!selected?.emailAddress) return null;
+  const verified = selected.verification?.status === "verified";
+  return { email: selected.emailAddress, verified };
+}
+
+async function reconcileCandidate(token: string) {
+  const user = await currentUser();
+  if (!user) return false;
+  const email = primaryVerifiedEmail(user);
+  const displayName =
+    candidateDisplayName(user) ?? email?.email ?? "SkillForge Candidate";
+  if (!email?.verified) return false;
+
+  const response = await fetch(
+    new URL("/api/v1/identity/reconcile", `${backendOrigin()}/`),
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "X-SkillForge-Client": "vercel-bff-reconcile",
+      },
+      body: JSON.stringify({
+        subject: user.id,
+        email: email.email,
+        email_verified: true,
+        display_name: displayName,
+      }),
+      cache: "no-store",
+    },
+  );
+  return response.ok;
+}
+
+function isIdentityBootstrapPath(path: string[]) {
+  return path.join("/") === "api/v1/auth/me";
+}
+
+async function sessionToken() {
+  const { isAuthenticated, getToken } = await auth();
+  if (!isAuthenticated) return null;
+
+  const template = process.env.CLERK_JWT_TEMPLATE?.trim();
+  return template ? getToken({ template }) : getToken();
+}
+
+async function proxyRequest(
+  request: Request,
+  context: RouteContext,
+): Promise<Response> {
+  const token = await sessionToken();
   if (!token) {
-    return Response.json({ detail: "Unable to mint API token" }, { status: 401 });
+    return Response.json({ detail: "Authentication required" }, { status: 401 });
   }
 
   const { path } = await context.params;
@@ -32,23 +136,17 @@ async function proxyRequest(request: Request, context: RouteContext): Promise<Re
   );
   target.search = new URL(request.url).search;
 
-  const headers = new Headers(request.headers);
-  headers.delete("cookie");
-  headers.delete("host");
-  headers.delete("content-length");
-  headers.set("authorization", `Bearer ${token}`);
-  headers.set("x-skillforge-client", "vercel-bff");
-
   const body = ["GET", "HEAD"].includes(request.method)
     ? undefined
     : await request.arrayBuffer();
-  const upstream = await fetch(target, {
-    method: request.method,
-    headers,
-    ...(body ? { body } : {}),
-    redirect: "manual",
-    cache: "no-store",
-  });
+  let upstream = await fetchUpstream(target, request, token, body);
+
+  if (upstream.status === 401 && isIdentityBootstrapPath(path)) {
+    const reconciled = await reconcileCandidate(token);
+    if (reconciled) {
+      upstream = await fetchUpstream(target, request, token, body);
+    }
+  }
 
   const responseHeaders = new Headers(upstream.headers);
   responseHeaders.delete("set-cookie");

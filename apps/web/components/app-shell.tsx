@@ -2,35 +2,26 @@
 
 import {
   BookOpen,
-  Building2,
   CircleGauge,
   FileCheck2,
   FileUp,
-  Files,
   LayoutDashboard,
   Link2,
   Menu,
-  Newspaper,
   Radar,
-  Route,
   Search,
   X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { useAuth } from "@/lib/auth";
 
 const candidateNav = [
-  ["Learn", "/learning-paths", Route],
-  ["Problems", "/problems", BookOpen],
-  ["Companies", "/companies", Building2],
-  ["Mock exams", "/mock-interviews", FileCheck2],
-  ["System design", "/system-design-library", Radar],
-  ["Journal", "/journal", Newspaper],
-  ["Resources", "/resources", Files],
-  ["Readiness", "/progress", CircleGauge],
+  ["Overview", "/", LayoutDashboard],
+  ["Question Bank", "/question-bank", BookOpen],
+  ["Progress", "/progress", CircleGauge],
 ] as const;
 
 const administratorNav = [
@@ -54,9 +45,9 @@ const reviewerNav = [
 ] as const;
 
 type NavigationItem = readonly [string, string, typeof BookOpen];
+type ConnectionState = "checking" | "connected" | "degraded" | "offline";
 
 function isActive(pathname: string, href: string) {
-  if (href === "/problems" && pathname.startsWith("/practice/")) return true;
   return href === "/"
     ? pathname === "/"
     : pathname === href || pathname.startsWith(`${href}/`);
@@ -66,10 +57,25 @@ function labelFor(pathname: string, items: ReadonlyArray<NavigationItem>) {
   return items.find(([, href]) => isActive(pathname, href))?.[0] ?? "Workspace";
 }
 
+function connectionLabel(state: ConnectionState) {
+  switch (state) {
+    case "connected":
+      return "Connected";
+    case "degraded":
+      return "Degraded";
+    case "offline":
+      return "Offline";
+    default:
+      return "Checking";
+  }
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [connectionState, setConnectionState] =
+    useState<ConnectionState>("checking");
   const { principal, signOut } = useAuth();
   const isAdministrator = principal?.roles.includes("platform-administrator");
   const isAuthor = principal?.roles.includes("content-author");
@@ -90,6 +96,32 @@ export function AppShell({ children }: { children: ReactNode }) {
       .join("")
       .slice(0, 2)
       .toUpperCase() ?? "?";
+
+  useEffect(() => {
+    let active = true;
+
+    async function checkApi() {
+      try {
+        const response = await fetch("/api/backend/livez", {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        });
+        if (!active) return;
+        setConnectionState(
+          response.ok ? "connected" : response.status >= 500 ? "degraded" : "offline",
+        );
+      } catch {
+        if (active) setConnectionState("offline");
+      }
+    }
+
+    void checkApi();
+    const interval = window.setInterval(() => void checkApi(), 30_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   function profileMenu() {
     return (
@@ -113,19 +145,21 @@ export function AppShell({ children }: { children: ReactNode }) {
               {principal?.roles.join(" · ")}
             </p>
             <Link href="/progress" onClick={() => setProfileOpen(false)}>
-              View readiness
+              View progress
             </Link>
             {principal?.roles.includes("candidate") && (
-              <Link href="/onboarding" onClick={() => setProfileOpen(false)}>
-                Edit profile
-              </Link>
+              <>
+                <Link href="/profile" onClick={() => setProfileOpen(false)}>
+                  Edit profile
+                </Link>
+                <Link href="/settings" onClick={() => setProfileOpen(false)}>
+                  Account & security
+                </Link>
+              </>
             )}
             <button
               className="profile-sign-out"
-              onClick={() => {
-                signOut();
-                window.location.assign("/sign-in");
-              }}
+              onClick={() => signOut()}
               type="button"
             >
               Sign out
@@ -153,14 +187,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="candidate-global-header">
           <Link className="candidate-brand" href="/">
             <span>S</span>
-            <strong>SKILLFORGE AI</strong>
+            <strong>SKILLSFORGE AI</strong>
           </Link>
           <nav
             aria-label="Primary navigation"
             className={mobileNavOpen ? "candidate-global-nav is-open" : "candidate-global-nav"}
           >
             <div className="candidate-global-nav__mobile-heading">
-              <span>EXPLORE SKILLFORGE</span>
+              <span>EXPLORE SKILLSFORGE AI</span>
               <button
                 aria-label="Close navigation"
                 onClick={() => setMobileNavOpen(false)}
@@ -186,11 +220,18 @@ export function AppShell({ children }: { children: ReactNode }) {
             })}
           </nav>
           <div className="candidate-global-controls">
-            <Link aria-label="Search problems" href="/problems" title="Search problems">
+            <Link
+              aria-label="Search question bank"
+              href="/question-bank"
+              title="Search question bank"
+            >
               <Search size={16} />
             </Link>
-            <span className="candidate-connection" title="API connected">
-              <i /> Live
+            <span
+              className={`candidate-connection candidate-connection--${connectionState}`}
+              title={`SkillsForge AI API: ${connectionLabel(connectionState)}`}
+            >
+              <i /> {connectionLabel(connectionState)}
             </span>
             {profileMenu()}
             <button
@@ -206,8 +247,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main id="main-content" className="candidate-content">
           {children}
           <footer className="candidate-footer">
-            <span>SKILLFORGE AI · TECHNICAL INTERVIEW PLATFORM</span>
-            <span>DATABASE-BACKED CONTENT · ISOLATED EXECUTION</span>
+            <span>SKILLSFORGE AI · TECHNICAL INTERVIEW PREPARATION</span>
+            <span>DATABASE-BACKED CONTENT · EVIDENCE-DRIVEN PROGRESS</span>
           </footer>
         </main>
       </div>
@@ -247,10 +288,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
       <aside className={`sidebar ${mobileNavOpen ? "sidebar--open" : ""}`}>
         <Link className="brand" href="/" onClick={() => setMobileNavOpen(false)}>
-          <span className="brand__mark">S</span>
+          <span className="brand__mark">R</span>
           <span>
-            <strong>SKILLFORGE AI</strong>
-            <small>TECHNICAL INTERVIEW PLATFORM</small>
+            <strong>RIGOR</strong>
+            <small>SKILLSFORGE AI PLATFORM ADMIN</small>
           </span>
         </Link>
         <button
@@ -266,7 +307,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {renderManagementNav(managementNavigation)}
         </nav>
         <div className="sidebar-note">
-          <span>SKILLFORGE KNOWLEDGE BANK</span>
+          <span>RIGOR GOVERNANCE ENGINE</span>
           <strong>{isAdministrator ? "Content administration" : "Governed review"}</strong>
           <p>Imported sources remain connected to canonical problems and governed review.</p>
         </div>
@@ -286,15 +327,18 @@ export function AppShell({ children }: { children: ReactNode }) {
             <strong>{currentLabel}</strong>
           </div>
           <div className="topbar__right">
-            <span className="api-status">
-              <i /> Connected
+            <span
+              className={`api-status api-status--${connectionState}`}
+              title={`Rigor API: ${connectionLabel(connectionState)}`}
+            >
+              <i /> {connectionLabel(connectionState)}
             </span>
             {profileMenu()}
           </div>
         </header>
         {children}
         <footer className="site-footer">
-          <span>SkillForge AI · Independent technical interview preparation.</span>
+          <span>Rigor · SkillsForge AI platform governance and administration.</span>
           <span>Content states and readiness claims are evidence-gated.</span>
         </footer>
       </main>

@@ -93,7 +93,7 @@ class Settings(BaseSettings):
         if environment in {"production", "staging"} and adapter in local_only_adapters:
             raise ValueError(
                 f"{adapter} candidate execution is forbidden in staging and production. "
-                "Configure the isolated SQS-backed execution plane instead."
+                "Configure an approved isolated production execution adapter instead."
             )
         if (
             environment in {"production", "staging"}

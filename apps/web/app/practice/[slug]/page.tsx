@@ -1,4 +1,4 @@
-import { PracticeWorkspace } from "@/components/practice-workspace";
+import { SkillsForgePracticeWorkspace } from "@/components/skillsforge-practice-workspace";
 
 export default async function PracticePage({
   params,
@@ -6,5 +6,5 @@ export default async function PracticePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  return <PracticeWorkspace slug={slug} />;
+  return <SkillsForgePracticeWorkspace slug={slug} />;
 }

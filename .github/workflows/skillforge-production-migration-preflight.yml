@@ -1,0 +1,89 @@
+name: SkillForge production migration preflight
+
+on:
+  pull_request:
+  push:
+    branches:
+      - agent/vercel-clean-skillforge
+
+permissions:
+  contents: read
+
+concurrency:
+  group: skillforge-production-migration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  production-observed-upgrade:
+    name: PostgreSQL 18 legacy 0012 to production head
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install locked Python workspace
+        run: uv sync --frozen --all-packages
+
+      - name: Start PostgreSQL 18 + pgvector test fixture
+        run: docker compose up -d --wait postgres
+
+      - name: Upgrade only to the production-observed legacy revision
+        env:
+          RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
+        run: |
+          set -euo pipefail
+          uv run alembic upgrade 20260801_0012
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260801_0012"
+
+      - name: Seed legacy data canary before SaaS migrations
+        run: |
+          set -euo pipefail
+          docker compose exec -T postgres psql -U rigor -d rigor -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO users(identity_subject, email, display_name, email_verified)
+          VALUES (
+            'production-migration-canary',
+            'production-migration-canary@example.test',
+            'Production Migration Canary',
+            true
+          );
+          SQL
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT count(*) FROM users WHERE identity_subject='production-migration-canary'")" = "1"
+
+      - name: Upgrade legacy production shape to current head
+        env:
+          RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
+        run: |
+          set -euo pipefail
+          uv run alembic upgrade head
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260828_0018"
+
+      - name: Verify legacy data and new production schema survived
+        run: |
+          set -euo pipefail
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT count(*) FROM users WHERE identity_subject='production-migration-canary' AND email='production-migration-canary@example.test'")" = "1"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.user_preferences') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.identity_webhook_events') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.candidate_files') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.candidate_question_bookmarks') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.candidate_question_notes') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT status::text FROM users WHERE identity_subject='production-migration-canary'")" = "active"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT auth_provider FROM users WHERE identity_subject='production-migration-canary'")" = "oidc"
+
+      - name: Show PostgreSQL logs on failure
+        if: failure()
+        run: docker compose logs postgres
+
+      - name: Stop services
+        if: always()
+        run: docker compose down -v
