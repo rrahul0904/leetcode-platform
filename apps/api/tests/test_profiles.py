@@ -201,5 +201,11 @@ def test_external_profile_write_never_rewrites_database_role() -> None:
                 text("DELETE FROM candidate_profiles WHERE user_id=:user_id"),
                 {"user_id": user_id},
             )
-            connection.execute(text("DELETE FROM user_roles WHERE user_id=:user_id"), {"user_id": user_id})
-            connection.execute(text("DELETE FROM users WHERE id=:user_id"), {"user_id": user_id})
+            connection.execute(
+                text("DELETE FROM user_roles WHERE user_id=:user_id"),
+                {"user_id": user_id},
+            )
+            connection.execute(
+                text("DELETE FROM users WHERE id=:user_id"),
+                {"user_id": user_id},
+            )
