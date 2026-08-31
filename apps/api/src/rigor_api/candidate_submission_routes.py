@@ -41,12 +41,14 @@ def list_candidate_submissions(
         ids = connection.execute(
             text(
                 """
-                SELECT id
-                FROM submissions
-                WHERE candidate_id=NULLIF(
+                SELECT s.id
+                FROM submissions s
+                JOIN submission_results sr ON sr.submission_id=s.id
+                JOIN submission_evaluations se ON se.submission_id=s.id
+                WHERE s.candidate_id=NULLIF(
                     current_setting('rigor.user_id', true), ''
                 )::uuid
-                ORDER BY created_at DESC
+                ORDER BY s.created_at DESC
                 LIMIT 100
                 """
             )
@@ -82,13 +84,15 @@ def list_candidate_session_submissions(
         ids = connection.execute(
             text(
                 """
-                SELECT id
-                FROM submissions
-                WHERE practice_session_id=:session_id
-                  AND candidate_id=NULLIF(
+                SELECT s.id
+                FROM submissions s
+                JOIN submission_results sr ON sr.submission_id=s.id
+                JOIN submission_evaluations se ON se.submission_id=s.id
+                WHERE s.practice_session_id=:session_id
+                  AND s.candidate_id=NULLIF(
                     current_setting('rigor.user_id', true), ''
                   )::uuid
-                ORDER BY created_at DESC
+                ORDER BY s.created_at DESC
                 """
             ),
             {"session_id": session_id},
