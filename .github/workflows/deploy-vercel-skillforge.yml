@@ -215,7 +215,7 @@ jobs:
           # local-oidc. Clerk user IDs are stable user_* subjects, so repair only
           # that deterministic legacy case; first-login reconciliation remains
           # authoritative for all other external identities.
-          uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.begin(); c.execute(text("UPDATE users SET auth_provider=\"clerk\", updated_at=CURRENT_TIMESTAMP WHERE identity_subject LIKE \"user_%\" AND auth_provider<>\"clerk\"")); c.commit(); e.dispose()'
+          uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); c.execute(text("UPDATE users SET auth_provider=:provider, updated_at=CURRENT_TIMESTAMP WHERE identity_subject LIKE :pattern AND auth_provider<>:provider"), {"provider":"clerk","pattern":"user_%"}); c.commit(); c.close(); e.dispose()'
 
           actual_head="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT version_num FROM alembic_version")).scalar_one()); c.close(); e.dispose()')"
           if [ "$actual_head" != "$EXPECTED_ALEMBIC_HEAD" ]; then
@@ -237,7 +237,7 @@ jobs:
             | tee reports/production-launch-bootstrap.json
 
           staged_count="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT count(*) FROM question_versions")).scalar_one()); c.close(); e.dispose()')"
-          published_count="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT count(*) FROM questions q JOIN question_versions v ON v.id=q.current_published_version_id WHERE v.state=\"published\"::content_state")).scalar_one()); c.close(); e.dispose()')"
+          published_count="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT count(*) FROM questions q JOIN question_versions v ON v.id=q.current_published_version_id WHERE v.state=CAST(:state AS content_state)"), {"state":"published"}).scalar_one()); c.close(); e.dispose()')"
           echo "Staged question versions: $staged_count"
           echo "Published candidate questions: $published_count"
           if [ "$staged_count" -lt "$EXPECTED_LAUNCH_PACKAGES" ]; then
