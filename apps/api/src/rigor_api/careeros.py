@@ -1,16 +1,35 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from collections import Counter
+from datetime import datetime
 from typing import Annotated, Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import Connection, text
 
 from .auth import authenticated_principal
+from .database import DatabaseEngine, principal_transaction
 from .schemas import AuthenticatedPrincipal, Role
 
 router = APIRouter(prefix="/api/v1/career", tags=["career-os"])
+
+CareerJobStatus = Literal[
+    "saved",
+    "tailored",
+    "applied",
+    "screen",
+    "interview",
+    "offer",
+    "rejected",
+    "withdrawn",
+]
+SCORING_VERSION = "deterministic-v1"
+_CURRENT_USER_SQL = "NULLIF(current_setting('rigor.user_id', true), '')::uuid"
 
 
 class CareerJobAnalysisInput(BaseModel):
@@ -43,6 +62,34 @@ class CareerJobAnalysis(BaseModel):
     risks: list[str]
     interview_questions: list[CareerInterviewQuestion]
     scoring_explanation: str
+
+
+class CareerSavedAnalysis(CareerJobAnalysis):
+    job_id: UUID
+    document_id: UUID
+    analysis_id: UUID
+    status: CareerJobStatus
+    scoring_version: str
+    created_at: datetime
+
+
+class CareerJobSummary(BaseModel):
+    id: UUID
+    job_title: str | None
+    company: str | None
+    source_url: str | None
+    status: CareerJobStatus
+    latest_fit_score: int | None
+    matched_skills: list[str]
+    missing_skills: list[str]
+    analysis_count: int
+    last_analyzed_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class CareerJobStatusInput(BaseModel):
+    status: CareerJobStatus
 
 
 # Display name -> aliases. This is intentionally explicit and deterministic so users can
@@ -131,6 +178,10 @@ def _normalize(value: str) -> str:
     return re.sub(r"\s+", " ", value.casefold()).strip()
 
 
+def _sha256(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
 def _contains_alias(text: str, alias: str) -> bool:
     # Word-like boundaries prevent short aliases such as JS/TS/ML from matching inside
     # unrelated words while still supporting punctuation-heavy skills such as CI/CD.
@@ -139,11 +190,11 @@ def _contains_alias(text: str, alias: str) -> bool:
 
 
 def _extract_skills(value: str) -> list[str]:
-    text = _normalize(value)
+    normalized = _normalize(value)
     return [
         display_name
         for display_name, aliases in SKILL_ALIASES.items()
-        if any(_contains_alias(text, alias) for alias in aliases)
+        if any(_contains_alias(normalized, alias) for alias in aliases)
     ]
 
 
@@ -165,7 +216,6 @@ def _language_overlap(resume_text: str, job_description: str) -> int:
     job_counts = Counter(_tokens(job_description))
     if not job_counts:
         return 0
-    # Compare against the most informative recurring JD vocabulary, not every prose word.
     important = {token for token, _ in job_counts.most_common(60)}
     if not important:
         return 0
@@ -254,7 +304,6 @@ def analyze_job(payload: CareerJobAnalysisInput) -> CareerJobAnalysis:
     skill_coverage = (
         round(100 * len(matched) / len(job_skills)) if job_skills else language_overlap
     )
-    # Skills are the stronger signal when the JD contains explicit technology requirements.
     fit_score = round(0.72 * skill_coverage + 0.28 * language_overlap)
     fit_score = max(0, min(100, fit_score))
 
@@ -315,10 +364,286 @@ def _require_candidate(principal: AuthenticatedPrincipal) -> None:
         raise HTTPException(status_code=403, detail="CareerOS is available to candidate accounts")
 
 
-@router.post("/jobs/analyze", response_model=CareerJobAnalysis)
+def _save_resume_document(connection: Connection, resume_text: str) -> UUID:
+    row = connection.execute(
+        text(
+            f"""
+            INSERT INTO career_documents (
+                user_id, kind, title, raw_text, content_sha256
+            )
+            VALUES ({_CURRENT_USER_SQL}, 'resume', 'Resume', :raw_text, :content_sha256)
+            ON CONFLICT ON CONSTRAINT uq_career_documents_user_kind_sha256
+            DO UPDATE SET title=EXCLUDED.title
+            RETURNING id
+            """
+        ),
+        {"raw_text": resume_text, "content_sha256": _sha256(resume_text)},
+    ).mappings().one()
+    return UUID(str(row["id"]))
+
+
+def _find_or_create_job(connection: Connection, payload: CareerJobAnalysisInput) -> tuple[UUID, str]:
+    description_sha = _sha256(payload.job_description)
+    params = {
+        "job_title": payload.job_title,
+        "company": payload.company,
+        "source_url": payload.source_url,
+        "job_description": payload.job_description,
+        "description_sha": description_sha,
+    }
+    existing = connection.execute(
+        text(
+            f"""
+            SELECT id, status
+            FROM career_jobs
+            WHERE user_id={_CURRENT_USER_SQL}
+              AND job_description_sha256=:description_sha
+              AND COALESCE(job_title, '')=COALESCE(:job_title, '')
+              AND COALESCE(company, '')=COALESCE(:company, '')
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """
+        ),
+        params,
+    ).mappings().one_or_none()
+
+    if existing is not None:
+        connection.execute(
+            text(
+                f"""
+                UPDATE career_jobs
+                SET source_url=COALESCE(:source_url, source_url),
+                    job_description=:job_description,
+                    last_analyzed_at=CURRENT_TIMESTAMP,
+                    updated_at=CURRENT_TIMESTAMP
+                WHERE id=:job_id
+                  AND user_id={_CURRENT_USER_SQL}
+                """
+            ),
+            {**params, "job_id": existing["id"]},
+        )
+        return UUID(str(existing["id"])), str(existing["status"])
+
+    created = connection.execute(
+        text(
+            f"""
+            INSERT INTO career_jobs (
+                user_id,
+                job_title,
+                company,
+                source_url,
+                job_description,
+                job_description_sha256,
+                last_analyzed_at
+            )
+            VALUES (
+                {_CURRENT_USER_SQL},
+                :job_title,
+                :company,
+                :source_url,
+                :job_description,
+                :description_sha,
+                CURRENT_TIMESTAMP
+            )
+            RETURNING id, status
+            """
+        ),
+        params,
+    ).mappings().one()
+    return UUID(str(created["id"])), str(created["status"])
+
+
+def _save_analysis(
+    connection: Connection,
+    *,
+    job_id: UUID,
+    document_id: UUID,
+    analysis: CareerJobAnalysis,
+) -> tuple[UUID, datetime]:
+    row = connection.execute(
+        text(
+            f"""
+            INSERT INTO career_job_analyses (
+                user_id,
+                job_id,
+                document_id,
+                scoring_version,
+                fit_score,
+                analysis
+            )
+            VALUES (
+                {_CURRENT_USER_SQL},
+                :job_id,
+                :document_id,
+                :scoring_version,
+                :fit_score,
+                CAST(:analysis AS jsonb)
+            )
+            RETURNING id, created_at
+            """
+        ),
+        {
+            "job_id": job_id,
+            "document_id": document_id,
+            "scoring_version": SCORING_VERSION,
+            "fit_score": analysis.fit_score,
+            "analysis": json.dumps(analysis.model_dump(mode="json")),
+        },
+    ).mappings().one()
+    return UUID(str(row["id"])), row["created_at"]
+
+
+def _summary_from_row(row: object) -> CareerJobSummary:
+    mapping = row
+    latest_analysis = mapping["latest_analysis"] or {}
+    return CareerJobSummary(
+        id=UUID(str(mapping["id"])),
+        job_title=mapping["job_title"],
+        company=mapping["company"],
+        source_url=mapping["source_url"],
+        status=mapping["status"],
+        latest_fit_score=mapping["latest_fit_score"],
+        matched_skills=list(latest_analysis.get("matched_skills", [])),
+        missing_skills=list(latest_analysis.get("missing_skills", [])),
+        analysis_count=int(mapping["analysis_count"]),
+        last_analyzed_at=mapping["last_analyzed_at"],
+        created_at=mapping["created_at"],
+        updated_at=mapping["updated_at"],
+    )
+
+
+@router.post("/jobs/analyze", response_model=CareerSavedAnalysis)
 def analyze_career_job(
     payload: CareerJobAnalysisInput,
     principal: Annotated[AuthenticatedPrincipal, Depends(authenticated_principal)],
-) -> CareerJobAnalysis:
+    engine: DatabaseEngine,
+) -> CareerSavedAnalysis:
     _require_candidate(principal)
-    return analyze_job(payload)
+    analysis = analyze_job(payload)
+    with principal_transaction(engine, principal) as connection:
+        document_id = _save_resume_document(connection, payload.resume_text)
+        job_id, job_status = _find_or_create_job(connection, payload)
+        analysis_id, created_at = _save_analysis(
+            connection,
+            job_id=job_id,
+            document_id=document_id,
+            analysis=analysis,
+        )
+    return CareerSavedAnalysis(
+        **analysis.model_dump(),
+        job_id=job_id,
+        document_id=document_id,
+        analysis_id=analysis_id,
+        status=job_status,
+        scoring_version=SCORING_VERSION,
+        created_at=created_at,
+    )
+
+
+@router.get("/jobs", response_model=list[CareerJobSummary])
+def list_career_jobs(
+    principal: Annotated[AuthenticatedPrincipal, Depends(authenticated_principal)],
+    engine: DatabaseEngine,
+) -> list[CareerJobSummary]:
+    _require_candidate(principal)
+    with principal_transaction(engine, principal) as connection:
+        rows = connection.execute(
+            text(
+                f"""
+                SELECT
+                    j.id,
+                    j.job_title,
+                    j.company,
+                    j.source_url,
+                    j.status,
+                    j.last_analyzed_at,
+                    j.created_at,
+                    j.updated_at,
+                    latest.fit_score AS latest_fit_score,
+                    latest.analysis AS latest_analysis,
+                    COALESCE(counts.analysis_count, 0) AS analysis_count
+                FROM career_jobs j
+                LEFT JOIN LATERAL (
+                    SELECT a.fit_score, a.analysis
+                    FROM career_job_analyses a
+                    WHERE a.job_id=j.id
+                      AND a.user_id={_CURRENT_USER_SQL}
+                    ORDER BY a.created_at DESC
+                    LIMIT 1
+                ) latest ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT COUNT(*) AS analysis_count
+                    FROM career_job_analyses a
+                    WHERE a.job_id=j.id
+                      AND a.user_id={_CURRENT_USER_SQL}
+                ) counts ON TRUE
+                WHERE j.user_id={_CURRENT_USER_SQL}
+                ORDER BY COALESCE(j.last_analyzed_at, j.updated_at) DESC
+                LIMIT 100
+                """
+            )
+        ).mappings().all()
+    return [_summary_from_row(row) for row in rows]
+
+
+@router.patch("/jobs/{job_id}/status", response_model=CareerJobSummary)
+def update_career_job_status(
+    job_id: UUID,
+    payload: CareerJobStatusInput,
+    principal: Annotated[AuthenticatedPrincipal, Depends(authenticated_principal)],
+    engine: DatabaseEngine,
+) -> CareerJobSummary:
+    _require_candidate(principal)
+    with principal_transaction(engine, principal) as connection:
+        updated = connection.execute(
+            text(
+                f"""
+                UPDATE career_jobs
+                SET status=:status, updated_at=CURRENT_TIMESTAMP
+                WHERE id=:job_id
+                  AND user_id={_CURRENT_USER_SQL}
+                RETURNING id
+                """
+            ),
+            {"job_id": job_id, "status": payload.status},
+        ).scalar_one_or_none()
+        if updated is None:
+            raise HTTPException(status_code=404, detail="CareerOS job not found")
+
+        row = connection.execute(
+            text(
+                f"""
+                SELECT
+                    j.id,
+                    j.job_title,
+                    j.company,
+                    j.source_url,
+                    j.status,
+                    j.last_analyzed_at,
+                    j.created_at,
+                    j.updated_at,
+                    latest.fit_score AS latest_fit_score,
+                    latest.analysis AS latest_analysis,
+                    COALESCE(counts.analysis_count, 0) AS analysis_count
+                FROM career_jobs j
+                LEFT JOIN LATERAL (
+                    SELECT a.fit_score, a.analysis
+                    FROM career_job_analyses a
+                    WHERE a.job_id=j.id
+                      AND a.user_id={_CURRENT_USER_SQL}
+                    ORDER BY a.created_at DESC
+                    LIMIT 1
+                ) latest ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT COUNT(*) AS analysis_count
+                    FROM career_job_analyses a
+                    WHERE a.job_id=j.id
+                      AND a.user_id={_CURRENT_USER_SQL}
+                ) counts ON TRUE
+                WHERE j.id=:job_id
+                  AND j.user_id={_CURRENT_USER_SQL}
+                """
+            ),
+            {"job_id": job_id},
+        ).mappings().one()
+    return _summary_from_row(row)
