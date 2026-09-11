@@ -5,7 +5,7 @@ not boot FastAPI or evaluate production-only settings. The historical API module
 is retained as ``legacy_main`` while this serving entrypoint removes candidate-code
 execution and candidate-owned read routes from the legacy submissions router *before*
 it is included in the app, then installs the durable execution, ownership-hardened
-candidate reads, governed solution, and SaaS routers explicitly.
+candidate reads, governed solution, SaaS, and tutor routers explicitly.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ from .principal_auth import database_authoritative_principal
 from .question_engagement import router as question_engagement_router
 from .saas_routes import router as saas_router
 from .session_token_auth import session_token_validator
+from .tutor_routes import router as tutor_router
 
 _LEGACY_REPLACED_ENDPOINTS = {
     ("/api/v1/questions/{slug}/run", "run_question"),
@@ -55,7 +56,7 @@ from .legacy_main import app as app  # noqa: E402
 app.title = "SkillsForge AI API"
 app.description = (
     "Production API for SkillsForge AI technical learning, interview preparation, "
-    "durable execution, identity, and candidate progress."
+    "durable execution, identity, candidate progress, and adaptive tutoring."
 )
 
 # Resolve the lifespan-created base validator at request time. Local OIDC keeps the
@@ -73,3 +74,4 @@ app.include_router(question_engagement_router)
 app.include_router(bookmarked_catalog_router)
 app.include_router(attachment_solution_router)
 app.include_router(saas_router)
+app.include_router(tutor_router)
