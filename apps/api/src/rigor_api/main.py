@@ -32,6 +32,7 @@ from .principal_auth import database_authoritative_principal
 from .question_engagement import router as question_engagement_router
 from .saas_routes import router as saas_router
 from .session_token_auth import session_token_validator
+from .tutor_chat_routes import router as tutor_chat_router
 from .tutor_routes import router as tutor_router
 
 _LEGACY_REPLACED_ENDPOINTS = {
@@ -66,19 +67,10 @@ app.description = (
     "durable execution, identity, candidate progress, and adaptive tutoring."
 )
 
-# Resolve the lifespan-created base validator at request time. Local OIDC keeps the
-# original validator; external Clerk sessions use the standard session-token-aware
-# wrapper and do not require a custom JWT template.
 app.dependency_overrides[token_validator] = session_token_validator
-
-# External identity proves who the user is. SkillsForge PostgreSQL remains the
-# authority for account status, roles, permissions, and organization membership.
 app.dependency_overrides[authenticated_principal] = database_authoritative_principal
 app.include_router(execution_capability_router)
 
-# Register hardened candidate execution handlers directly on the serving app. Keeping
-# these routes explicit prevents legacy module wildcard imports from shadowing an
-# APIRouter object and silently dropping the secure run/submit boundary.
 app.add_api_route(
     "/api/v1/questions/{slug}/run",
     queue_run_for_question,
@@ -111,3 +103,4 @@ app.include_router(bookmarked_catalog_router)
 app.include_router(attachment_solution_router)
 app.include_router(saas_router)
 app.include_router(tutor_router)
+app.include_router(tutor_chat_router)
