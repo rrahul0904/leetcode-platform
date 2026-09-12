@@ -5,7 +5,7 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import Connection, text
 
 from .auth import require_permissions
@@ -15,6 +15,7 @@ from .tutor_coach import TutorCoachContext
 from .tutor_domain import (
     CandidateLevel,
     SafeCodeContext,
+    SafeWhiteboardContext,
     TutorContextSnapshot,
     TutorContextViolation,
     TutorIntervention,
@@ -98,6 +99,32 @@ def _session_context(connection: Connection, session_id: UUID) -> dict[str, Any]
     return values
 
 
+def _latest_whiteboard(
+    connection: Connection,
+    session_id: UUID,
+) -> SafeWhiteboardContext | None:
+    payload = connection.execute(
+        text(
+            f"""
+            SELECT payload
+            FROM tutor_events
+            WHERE session_id=:session_id
+              AND user_id={_CURRENT_USER_SQL}
+              AND event_type='whiteboard.snapshot'
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """
+        ),
+        {"session_id": session_id},
+    ).scalar_one_or_none()
+    if payload is None:
+        return None
+    try:
+        return SafeWhiteboardContext.model_validate(payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail="Stored whiteboard snapshot is invalid") from exc
+
+
 def _existing_response(
     connection: Connection,
     session_id: UUID,
@@ -169,7 +196,7 @@ def send_tutor_message(
     principal: TutorWritePrincipal,
     engine: DatabaseEngine,
 ) -> TutorMessageResponse:
-    """Coach from public workspace state plus aggregate, evidence-backed mastery."""
+    """Coach from safe workspace state plus aggregate, evidence-backed mastery."""
 
     user_key = f"{payload.idempotency_key}:user"
     assistant_key = f"{payload.idempotency_key}:assistant"
@@ -183,11 +210,15 @@ def send_tutor_message(
         surface = TutorSurface(str(context["surface"]))
         candidate_level = CandidateLevel(str(context["candidate_level"]))
         code = None
+        whiteboard = None
         if surface is TutorSurface.CODE:
             code = SafeCodeContext(
                 language=str(context["runtime"]),
                 source=str(context["draft_code"]),
             )
+        elif surface is TutorSurface.WHITEBOARD:
+            whiteboard = _latest_whiteboard(connection, session_id)
+
         snapshot = TutorContextSnapshot(
             mode=mode,
             surface=surface,
@@ -197,6 +228,7 @@ def send_tutor_message(
             ),
             public_problem_summary=str(context["problem_statement"]),
             code=code,
+            whiteboard=whiteboard,
             elapsed_seconds=int(context["elapsed_seconds"]),
             user_requested_help=True,
         )
@@ -229,12 +261,15 @@ def send_tutor_message(
             title=str(context["title"]),
             problem_statement=str(context["problem_statement"]),
             source=str(context["draft_code"]),
-            language=str(context["runtime"]),
+            language=(
+                "system-design" if surface is TutorSurface.WHITEBOARD else str(context["runtime"])
+            ),
             elapsed_seconds=int(context["elapsed_seconds"]),
             mode=mode,
             candidate_level=candidate_level,
             intervention=intervention,
             mastery=mastery,
+            whiteboard=whiteboard,
         )
         reply = build_tutor_provider_service().respond(coach_context)
 
