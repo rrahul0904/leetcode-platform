@@ -21,7 +21,9 @@ env:
   VERCEL_ORG_ID: team_zmEezpOKGZy2sH5nqTfO44LD
   VERCEL_PROJECT_ID: prj_fnbuYcKQeKrEq5Sax2uWdTg2SHqT
   VERCEL_PROJECT_NAME: skillforge-interactive-demo
-  PRODUCTION_URL: https://skillforge-interactive-demo.vercel.app
+  TRANSITIONAL_PROJECT_URL: https://skillforge-interactive-demo.vercel.app
+  REQUESTED_CANONICAL_HOSTNAME: skillforge-interactive-demo-bmbpowee0-rrahul0904-5013s-projects.vercel.app
+  REQUESTED_CANONICAL_URL: https://skillforge-interactive-demo-bmbpowee0-rrahul0904-5013s-projects.vercel.app
   EXPECTED_ALEMBIC_HEAD: 20260911_0019
   EXPECTED_LAUNCH_PACKAGES: "50"
 
@@ -82,6 +84,22 @@ jobs:
           test "$actual_name" = "$VERCEL_PROJECT_NAME"
           echo "Release target verified: $actual_name ($actual_id)."
 
+      - name: Verify requested hostname ownership before any mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_json="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/$REQUESTED_CANONICAL_HOSTNAME?teamId=$VERCEL_ORG_ID")"
+          current_id="$(python -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"$current_json")"
+          current_project="$(python -c 'import json,sys; data=json.load(sys.stdin); print((data.get("project") or {}).get("id") or data.get("projectId") or "")' <<<"$current_json")"
+          if [ -n "$current_project" ] && [ "$current_project" != "$VERCEL_PROJECT_ID" ]; then
+            echo "Requested hostname is owned by another project: $current_project"
+            exit 1
+          fi
+          echo "Requested hostname currently resolves to deployment $current_id."
+          echo "No hostname or deployment has been deleted or released."
+
       - name: Pull and validate existing production environment
         shell: bash
         run: |
@@ -125,10 +143,10 @@ jobs:
           set_env RIGOR_CLERK_JWKS_URL "$clerk_issuer/.well-known/jwks.json"
           set_env RIGOR_DATABASE_URL "$database_url"
           set_env POSTGRES_URL "${POSTGRES_URL:-$database_url}"
-          set_env NEXT_PUBLIC_APP_URL "$PRODUCTION_URL"
+          set_env NEXT_PUBLIC_APP_URL "$REQUESTED_CANONICAL_URL"
           set_env NEXT_PUBLIC_RIGOR_AUTH_MODE "clerk"
           set_env NEXT_PUBLIC_RIGOR_API_URL "/api/backend"
-          set_env RIGOR_ALLOWED_ORIGINS "[\"$PRODUCTION_URL\"]"
+          set_env RIGOR_ALLOWED_ORIGINS "[\"$REQUESTED_CANONICAL_URL\",\"$TRANSITIONAL_PROJECT_URL\"]"
 
       - name: Re-pull aligned production environment
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
@@ -240,67 +258,144 @@ jobs:
           gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status
 
       - name: Deploy prebuilt web artifact to production
-        id: vercel
+        id: deploy
         shell: bash
         run: |
           set -euo pipefail
           deployment_url="$(vercel deploy --prebuilt --prod --yes --token="$VERCEL_TOKEN")"
+          deployment_host="${deployment_url#https://}"
+          deployment_host="${deployment_host%/}"
+          deployment_json="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/$deployment_host?teamId=$VERCEL_ORG_ID")"
+          deployment_id="$(python -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"$deployment_json")"
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
-          echo "Vercel production deployment: $deployment_url"
+          echo "id=$deployment_id" >> "$GITHUB_OUTPUT"
+          echo "Vercel production deployment: $deployment_url ($deployment_id)"
 
-      - name: Verify end-to-end production stack
+      - name: Verify new deployment before hostname reassignment
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location "$DEPLOYMENT_URL/" >/tmp/skillforge-preview.html
+          grep -Eq "SkillForge|SkillsForge" /tmp/skillforge-preview.html
+
+          live_status="$(curl --silent --output /tmp/preview-livez.json --write-out '%{http_code}' "$DEPLOYMENT_URL/api/backend/livez")"
+          if [ "$live_status" != "200" ] || ! grep -q '"status":"ok"' /tmp/preview-livez.json; then
+            echo "New deployment backend health failed: HTTP $live_status"
+            cat /tmp/preview-livez.json || true
+            exit 1
+          fi
+
+          ready_status="$(curl --silent --output /tmp/preview-readyz.json --write-out '%{http_code}' "$DEPLOYMENT_URL/api/backend/readyz")"
+          if [ "$ready_status" != "200" ]; then
+            echo "New deployment readiness failed: HTTP $ready_status"
+            cat /tmp/preview-readyz.json
+            exit 1
+          fi
+
+          tutor_status="$(curl --silent --output /tmp/preview-tutor.json --write-out '%{http_code}' "$DEPLOYMENT_URL/api/backend/api/v1/tutor/capabilities")"
+          if [ "$tutor_status" != "401" ] && [ "$tutor_status" != "200" ]; then
+            echo "Tutor API is not reachable through the new deployment BFF: HTTP $tutor_status"
+            cat /tmp/preview-tutor.json
+            exit 1
+          fi
+
+      - name: Assign the exact requested hostname without deleting the old deployment
+        env:
+          DEPLOYMENT_ID: ${{ steps.deploy.outputs.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          alias_status="$(curl --silent --show-error \
+            --output /tmp/requested-alias.json \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header 'Content-Type: application/json' \
+            --data "{\"alias\":\"$REQUESTED_CANONICAL_HOSTNAME\",\"redirect\":null}" \
+            "https://api.vercel.com/v2/deployments/$DEPLOYMENT_ID/aliases?teamId=$VERCEL_ORG_ID")"
+
+          if [ "$alias_status" != "200" ]; then
+            echo "EXACT HOSTNAME BLOCKED BY VERCEL PLATFORM/API CONSTRAINT"
+            echo "Requested hostname: $REQUESTED_CANONICAL_HOSTNAME"
+            echo "Vercel alias API HTTP status: $alias_status"
+            cat /tmp/requested-alias.json
+            echo "The old deployment was not deleted or released."
+            exit 1
+          fi
+
+          assigned="$(python -c 'import json,sys; print(json.load(sys.stdin).get("alias", ""))' </tmp/requested-alias.json)"
+          if [ "$assigned" != "$REQUESTED_CANONICAL_HOSTNAME" ]; then
+            echo "Vercel returned an unexpected alias: $assigned"
+            exit 1
+          fi
+
+      - name: Verify exact requested production URL end to end
+        env:
+          DEPLOYMENT_ID: ${{ steps.deploy.outputs.id }}
         shell: bash
         run: |
           set -euo pipefail
 
-          # Give the production alias a short window to converge to the promoted deployment.
           live=0
           for attempt in $(seq 1 20); do
-            status="$(curl --silent --output /tmp/livez.json --write-out '%{http_code}' "$PRODUCTION_URL/api/backend/livez" || true)"
-            if [ "$status" = "200" ] && grep -q '"status":"ok"' /tmp/livez.json; then
+            status="$(curl --silent --location --output /tmp/canonical.html --write-out '%{http_code}' "$REQUESTED_CANONICAL_URL/" || true)"
+            health="$(curl --silent --output /tmp/canonical-livez.json --write-out '%{http_code}' "$REQUESTED_CANONICAL_URL/api/backend/livez" || true)"
+            if [ "$status" = "200" ] && [ "$health" = "200" ] && grep -q '"status":"ok"' /tmp/canonical-livez.json; then
               live=1
               break
             fi
             sleep 3
           done
           if [ "$live" -ne 1 ]; then
-            echo "Production BFF/backend never became live."
-            cat /tmp/livez.json || true
+            echo "Exact requested production URL did not become healthy."
+            cat /tmp/canonical-livez.json || true
             exit 1
           fi
 
-          curl --fail --silent --show-error --location "$PRODUCTION_URL/" >/tmp/skillforge.html
-          grep -Eq "SkillForge|SkillsForge" /tmp/skillforge.html
+          grep -Eq "SkillForge|SkillsForge" /tmp/canonical.html
 
-          ready_status="$(curl --silent --output /tmp/readyz.json --write-out '%{http_code}' "$PRODUCTION_URL/api/backend/readyz")"
+          ready_status="$(curl --silent --output /tmp/canonical-readyz.json --write-out '%{http_code}' "$REQUESTED_CANONICAL_URL/api/backend/readyz")"
           if [ "$ready_status" != "200" ]; then
-            echo "Production readiness failed with HTTP $ready_status"
-            cat /tmp/readyz.json
+            echo "Requested production URL readiness failed: HTTP $ready_status"
+            cat /tmp/canonical-readyz.json
             exit 1
           fi
 
-          auth_status="$(curl --silent --output /tmp/auth.json --write-out '%{http_code}' "$PRODUCTION_URL/api/backend/api/v1/auth/me")"
+          auth_status="$(curl --silent --output /tmp/canonical-auth.json --write-out '%{http_code}' "$REQUESTED_CANONICAL_URL/api/backend/api/v1/auth/me")"
           if [ "$auth_status" != "401" ] && [ "$auth_status" != "200" ]; then
             echo "Unexpected anonymous auth status: $auth_status"
-            cat /tmp/auth.json
+            cat /tmp/canonical-auth.json
             exit 1
           fi
 
-          tutor_status="$(curl --silent --output /tmp/tutor.json --write-out '%{http_code}' "$PRODUCTION_URL/api/backend/api/v1/tutor/capabilities")"
+          tutor_status="$(curl --silent --output /tmp/canonical-tutor.json --write-out '%{http_code}' "$REQUESTED_CANONICAL_URL/api/backend/api/v1/tutor/capabilities")"
           if [ "$tutor_status" != "401" ] && [ "$tutor_status" != "200" ]; then
-            echo "Tutor API is not reachable through the production BFF: HTTP $tutor_status"
-            cat /tmp/tutor.json
+            echo "Tutor API is not reachable through the exact production hostname: HTTP $tutor_status"
+            cat /tmp/canonical-tutor.json
             exit 1
           fi
 
-          headers="$(curl --silent --show-error --head "$PRODUCTION_URL/")"
+          headers="$(curl --silent --show-error --head "$REQUESTED_CANONICAL_URL/")"
           if printf '%s\n' "$headers" | grep -Ei '^content-security-policy:' | grep -Eq 'localhost|127\.0\.0\.1'; then
             echo "Production CSP still exposes a localhost dependency."
             exit 1
           fi
-          if grep -Eq 'localhost:8002|127\.0\.0\.1:8002' /tmp/skillforge.html; then
+          if grep -Eq 'localhost:8002|127\.0\.0\.1:8002' /tmp/canonical.html; then
             echo "Production HTML still contains a local API dependency."
             exit 1
           fi
 
-          echo "SkillForge production passed web, BFF, API readiness, auth, tutor, and CSP checks."
+          canonical_json="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/$REQUESTED_CANONICAL_HOSTNAME?teamId=$VERCEL_ORG_ID")"
+          canonical_id="$(python -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"$canonical_json")"
+          if [ "$canonical_id" != "$DEPLOYMENT_ID" ]; then
+            echo "Requested hostname still resolves to deployment $canonical_id, expected $DEPLOYMENT_ID"
+            exit 1
+          fi
+
+          echo "SkillForge production passed web, BFF, API readiness, auth, tutor, CSP, and exact-hostname checks."
