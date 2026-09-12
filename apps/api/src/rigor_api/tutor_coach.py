@@ -1,15 +1,21 @@
 """Provider-neutral Socratic coaching for the candidate tutor.
 
 The deterministic coach is the always-available baseline. It is intentionally
-solution-averse: it reasons from candidate-owned draft code plus the public problem
-statement and returns the next useful question or nudge instead of an answer key.
+solution-averse: it reasons from candidate-owned workspace state plus public problem
+context and returns the next useful question or nudge instead of an answer key.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .tutor_domain import CandidateLevel, InterventionKind, TutorIntervention, TutorMode
+from .tutor_domain import (
+    CandidateLevel,
+    InterventionKind,
+    SafeWhiteboardContext,
+    TutorIntervention,
+    TutorMode,
+)
 from .tutor_mastery import TutorMasterySnapshot, mastery_focus
 
 
@@ -25,6 +31,7 @@ class TutorCoachContext:
     candidate_level: CandidateLevel
     intervention: TutorIntervention
     mastery: TutorMasterySnapshot = field(default_factory=TutorMasterySnapshot)
+    whiteboard: SafeWhiteboardContext | None = None
 
 
 @dataclass(frozen=True)
@@ -55,14 +62,52 @@ def _source_signals(source: str) -> list[str]:
 
 
 def _mastery_guidance(context: TutorCoachContext) -> str:
-    """Turn evaluated learner evidence into a coaching emphasis, never a score write."""
-
     focus = mastery_focus(context.mastery)
     if focus is None or focus.mastery >= 0.75:
         return ""
     return (
         f" Your evaluated evidence for **{focus.name}** is still developing, so make that "
         "part of your reasoning explicit rather than skipping over it."
+    )
+
+
+def _whiteboard_reply(context: TutorCoachContext) -> str:
+    board = context.whiteboard
+    if board is None:
+        return "Describe the first requirement and the first component you would place on the board."
+
+    node_count = len(board.nodes)
+    edge_count = len(board.edges)
+    requirements = len(board.requirements)
+    notes = len(board.notes)
+    kinds = sorted({node.kind for node in board.nodes if node.kind})
+    kind_summary = ", ".join(kinds[:5]) if kinds else "untyped components"
+    mastery_guidance = _mastery_guidance(context)
+
+    if node_count < 2:
+        return (
+            "Start with the external contract before adding infrastructure. Add the primary client "
+            "or producer and the system boundary it calls, then write the most important latency, "
+            f"availability, or consistency requirement.{mastery_guidance}"
+        )
+    if requirements == 0:
+        return (
+            f"You have {node_count} components and {edge_count} connections, but no explicit "
+            "requirements yet. Which SLO or scale assumption would force this architecture to look "
+            f"different? Put that on the board before adding another component.{mastery_guidance}"
+        )
+    if node_count < 4:
+        return (
+            f"The board currently has {node_count} components across {kind_summary}. Trace one "
+            "end-to-end request and identify where state becomes durable, where backpressure can "
+            f"form, and what fails if that component is unavailable.{mastery_guidance}"
+        )
+
+    return (
+        f"I can see {node_count} components, {edge_count} connections, {requirements} requirements, "
+        f"and {notes} design notes. Pick the most stateful component and defend one trade-off: "
+        "consistency vs availability, synchronous vs asynchronous work, or scale-up vs partitioning. "
+        f"What breaks first at 10× load, and how would you know?{mastery_guidance}"
     )
 
 
@@ -107,6 +152,9 @@ def _intent(message: str) -> str:
 
 def deterministic_coach_reply(context: TutorCoachContext) -> TutorCoachReply:
     """Return a useful, non-solution-revealing response without external dependencies."""
+
+    if context.whiteboard is not None:
+        return TutorCoachReply(text=_whiteboard_reply(context))
 
     intent = _intent(context.message)
     language = context.language.casefold()
