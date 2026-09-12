@@ -82,7 +82,7 @@ jobs:
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='tutor_sessions'::regclass")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='tutor_events'::regclass")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT status::text FROM users WHERE identity_subject='production-migration-canary'")" = "active"
-          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT auth_provider FROM users WHERE identity_subject='production-migration-canary'")" = "oidc"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT auth_provider FROM users WHERE identity_subject='production-migration-canary'")" = "local-oidc"
 
       - name: Show PostgreSQL logs on failure
         if: failure()

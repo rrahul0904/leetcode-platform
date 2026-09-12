@@ -18,10 +18,12 @@ class ProfileRepository:
         self.engine = engine
 
     def get(self, principal: AuthenticatedPrincipal) -> CandidateProfile:
+        # Commit identity provisioning independently of profile existence. A first
+        # authenticated GET may legitimately return 404 before onboarding, but the
+        # user identity must still exist for subsequent self-scoped operations.
         with self.engine.begin() as connection:
-            # Identity metadata may be refreshed, but external request claims must
-            # never rewrite PostgreSQL-authoritative application roles.
             user_id = ensure_user(connection, principal)
+        with self.engine.connect() as connection:
             row = (
                 connection.execute(
                     text(
@@ -39,9 +41,9 @@ class ProfileRepository:
                 .mappings()
                 .one_or_none()
             )
-            if row is None:
-                raise ProfileNotFoundError
-            return self._to_profile(principal, dict(row))
+        if row is None:
+            raise ProfileNotFoundError
+        return self._to_profile(principal, dict(row))
 
     def put(
         self,
