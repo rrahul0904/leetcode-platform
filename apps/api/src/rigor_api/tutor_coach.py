@@ -63,8 +63,8 @@ def _sql_reply(context: TutorCoachContext, intent: str) -> str:
     if intent == "edge":
         return (
             "Try the query against four cases before changing it: no matching rows, duplicate join "
-            "keys, NULL values on the optional side of a join, and ties in any ordering/window rule. "
-            "Which one would change your current result shape?"
+            "keys, NULL values on the optional side of a join, and ties in any "
+            "ordering/window rule. Which one would change your current result shape?"
         )
     return (
         f"For **{title}**, describe the result grain in one sentence first: one row per *what*? "
@@ -156,10 +156,10 @@ def deterministic_coach_reply(context: TutorCoachContext) -> TutorCoachReply:
             )
         else:
             text = (
-                f"Your current draft suggests that {observation}. Before adding more code, name the "
-                "invariant each iteration/function call must preserve and identify the one line "
-                "that establishes or updates it. If you cannot point to that line, that is the next "
-                "thing to fix."
+                f"Your current draft suggests that {observation}. "
+                "Before adding more code, name the invariant each iteration/function call must "
+                "preserve and identify the one line that establishes or updates it. If you cannot "
+                "point to that line, that is the next thing to fix."
             )
         return TutorCoachReply(text=text)
 

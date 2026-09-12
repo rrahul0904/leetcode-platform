@@ -3,18 +3,18 @@ from __future__ import annotations
 import pytest
 
 from rigor_api.tutor_domain import (
+    assert_tutor_context_is_public,
     CandidateLevel,
+    decide_intervention,
     InterventionKind,
     SafeCodeContext,
     SafeWhiteboardContext,
+    teaching_mix,
     TutorContextSnapshot,
     TutorContextViolation,
     TutorMode,
     TutorSurface,
     WhiteboardNode,
-    assert_tutor_context_is_public,
-    decide_intervention,
-    teaching_mix,
 )
 
 

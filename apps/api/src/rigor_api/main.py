@@ -18,7 +18,12 @@ from . import submissions as legacy_submissions
 from .attachment_solution_routes import router as attachment_solution_router
 from .auth import authenticated_principal, token_validator
 from .bookmarked_catalog import router as bookmarked_catalog_router
-from .candidate_submission_routes import router as candidate_submission_router
+from .candidate_submission_routes import (
+    candidate_owned_evidence,
+    get_candidate_submission,
+    list_candidate_session_submissions,
+    list_candidate_submissions,
+)
 from .execution_capability import router as execution_capability_router
 from .execution_routes import (
     CanonicalExecutionAccepted,
@@ -71,6 +76,8 @@ app.dependency_overrides[token_validator] = session_token_validator
 app.dependency_overrides[authenticated_principal] = database_authoritative_principal
 app.include_router(execution_capability_router)
 
+# Candidate execution and reads are registered directly on the final app. This avoids
+# legacy wildcard-import name collisions silently dropping hardened APIRouter objects.
 app.add_api_route(
     "/api/v1/questions/{slug}/run",
     queue_run_for_question,
@@ -97,7 +104,26 @@ app.add_api_route(
     methods=["POST"],
     response_model=CanonicalExecutionView,
 )
-app.include_router(candidate_submission_router)
+app.add_api_route(
+    "/api/v1/submissions",
+    list_candidate_submissions,
+    methods=["GET"],
+)
+app.add_api_route(
+    "/api/v1/submissions/{submission_id}",
+    get_candidate_submission,
+    methods=["GET"],
+)
+app.add_api_route(
+    "/api/v1/practice-sessions/{session_id}/submissions",
+    list_candidate_session_submissions,
+    methods=["GET"],
+)
+app.add_api_route(
+    "/api/v1/me/evidence",
+    candidate_owned_evidence,
+    methods=["GET"],
+)
 app.include_router(question_engagement_router)
 app.include_router(bookmarked_catalog_router)
 app.include_router(attachment_solution_router)

@@ -39,7 +39,12 @@ def test_complexity_reply_uses_observable_draft_signals() -> None:
     reply = deterministic_coach_reply(
         _context(
             "what is my complexity?",
-            source="def solve(nums):\n    seen = {}\n    for value in nums:\n        seen[value] = True\n",
+            source=(
+                "def solve(nums):\n"
+                "    seen = {}\n"
+                "    for value in nums:\n"
+                "        seen[value] = True\n"
+            ),
         )
     )
 

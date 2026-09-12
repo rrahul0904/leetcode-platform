@@ -62,8 +62,6 @@ TEACHING_MIX: dict[CandidateLevel, TeachingMix] = {
     CandidateLevel.MID: TeachingMix(learn_share=0.50, practice_share=0.50),
     CandidateLevel.SENIOR: TeachingMix(learn_share=0.30, practice_share=0.70),
     CandidateLevel.STAFF: TeachingMix(learn_share=0.15, practice_share=0.85),
-    # Managers are evaluated more on reasoning, delivery and trade-offs than coding
-    # volume. Keep a practice-heavy split while the prompt layer changes the rubric.
     CandidateLevel.MANAGER: TeachingMix(learn_share=0.20, practice_share=0.80),
 }
 
@@ -176,9 +174,6 @@ def decide_intervention(snapshot: TutorContextSnapshot) -> TutorIntervention:
             should_speak=True,
         )
 
-    # Mock interviews should feel like an interviewer, not autocomplete. Stay quiet
-    # while the candidate is making progress; intervene only on a sustained stall or
-    # repeated observable failure.
     if snapshot.mode is TutorMode.MOCK:
         if snapshot.idle_seconds < 90 and snapshot.consecutive_failed_runs < 2:
             return TutorIntervention(
@@ -210,15 +205,19 @@ def decide_intervention(snapshot: TutorContextSnapshot) -> TutorIntervention:
                 should_speak=True,
             )
 
-    if snapshot.surface is TutorSurface.WHITEBOARD and snapshot.whiteboard is not None:
-        if len(snapshot.whiteboard.nodes) >= 4 and teaching_mix(
-            snapshot.candidate_level
-        ).practice_share >= 0.70:
-            return TutorIntervention(
-                kind=InterventionKind.TRADEOFF_CHALLENGE,
-                reason="senior candidate has enough architecture on the board for a trade-off probe",
-                should_speak=True,
-            )
+    if (
+        snapshot.surface is TutorSurface.WHITEBOARD
+        and snapshot.whiteboard is not None
+        and len(snapshot.whiteboard.nodes) >= 4
+        and teaching_mix(snapshot.candidate_level).practice_share >= 0.70
+    ):
+        return TutorIntervention(
+            kind=InterventionKind.TRADEOFF_CHALLENGE,
+            reason=(
+                "senior candidate has enough architecture on the board for a trade-off probe"
+            ),
+            should_speak=True,
+        )
 
     if snapshot.mode is TutorMode.LESSON:
         return TutorIntervention(
