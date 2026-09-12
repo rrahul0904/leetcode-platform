@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TutorDock } from "./tutor-dock";
@@ -39,6 +39,7 @@ const session = {
 };
 
 afterEach(() => {
+  cleanup();
   vi.clearAllMocks();
 });
 
