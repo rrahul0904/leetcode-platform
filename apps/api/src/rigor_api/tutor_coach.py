@@ -7,9 +7,10 @@ statement and returns the next useful question or nudge instead of an answer key
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .tutor_domain import CandidateLevel, InterventionKind, TutorIntervention, TutorMode
+from .tutor_mastery import TutorMasterySnapshot, mastery_focus
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,7 @@ class TutorCoachContext:
     mode: TutorMode
     candidate_level: CandidateLevel
     intervention: TutorIntervention
+    mastery: TutorMasterySnapshot = field(default_factory=TutorMasterySnapshot)
 
 
 @dataclass(frozen=True)
@@ -52,6 +54,18 @@ def _source_signals(source: str) -> list[str]:
     return signals[:3] or ["there is enough draft code to reason about the next step"]
 
 
+def _mastery_guidance(context: TutorCoachContext) -> str:
+    """Turn evaluated learner evidence into a coaching emphasis, never a score write."""
+
+    focus = mastery_focus(context.mastery)
+    if focus is None or focus.mastery >= 0.75:
+        return ""
+    return (
+        f" Your evaluated evidence for **{focus.name}** is still developing, so make that "
+        "part of your reasoning explicit rather than skipping over it."
+    )
+
+
 def _sql_reply(context: TutorCoachContext, intent: str) -> str:
     title = context.title or "this query"
     if intent == "complexity":
@@ -59,17 +73,20 @@ def _sql_reply(context: TutorCoachContext, intent: str) -> str:
             f"For **{title}**, reason about cost through row cardinality rather than Big-O alone. "
             "Which relation is largest, what does each join do to row count, and which filter can "
             "be applied earliest? Then check whether grouping, sorting, or a window step dominates."
+            + _mastery_guidance(context)
         )
     if intent == "edge":
         return (
             "Try the query against four cases before changing it: no matching rows, duplicate join "
             "keys, NULL values on the optional side of a join, and ties in any "
             "ordering/window rule. Which one would change your current result shape?"
+            + _mastery_guidance(context)
         )
     return (
         f"For **{title}**, describe the result grain in one sentence first: one row per *what*? "
         "Then walk each JOIN, filter, aggregation, or window clause and verify it preserves that "
         "grain. Make the smallest change that fixes the first place the grain stops matching."
+        + _mastery_guidance(context)
     )
 
 
@@ -99,6 +116,7 @@ def deterministic_coach_reply(context: TutorCoachContext) -> TutorCoachReply:
     signals = _source_signals(context.source)
     observation = "; ".join(signals)
     title = context.title or "this problem"
+    mastery_guidance = _mastery_guidance(context)
 
     if context.mode is TutorMode.MOCK and context.intervention.kind is InterventionKind.NUDGE:
         return TutorCoachReply(
@@ -124,6 +142,8 @@ def deterministic_coach_reply(context: TutorCoachContext) -> TutorCoachReply:
                 "Also state the expected lookup cost and the extra memory used by that structure."
             )
         parts.append("What time and space bounds do you get from that accounting?")
+        if mastery_guidance:
+            parts.append(mastery_guidance.strip())
         return TutorCoachReply(text=" ".join(parts))
 
     if intent == "edge":
@@ -133,6 +153,7 @@ def deterministic_coach_reply(context: TutorCoachContext) -> TutorCoachReply:
                 "values, an answer at the first/last position, and a case where no early shortcut "
                 "is available. Pick the case most likely to violate your current invariant and "
                 "trace the draft line by line on it."
+                f"{mastery_guidance}"
             )
         )
 
@@ -143,6 +164,7 @@ def deterministic_coach_reply(context: TutorCoachContext) -> TutorCoachReply:
                 "public example that fails, write down the state you expect immediately before the "
                 "wrong value appears, and compare it with the state your code actually creates. "
                 "Which variable first diverges?"
+                f"{mastery_guidance}"
             )
         )
 
@@ -161,7 +183,7 @@ def deterministic_coach_reply(context: TutorCoachContext) -> TutorCoachReply:
                 "preserve and identify the one line that establishes or updates it. If you cannot "
                 "point to that line, that is the next thing to fix."
             )
-        return TutorCoachReply(text=text)
+        return TutorCoachReply(text=text + mastery_guidance)
 
     senior_probe = ""
     if context.candidate_level in {
@@ -177,6 +199,6 @@ def deterministic_coach_reply(context: TutorCoachContext) -> TutorCoachReply:
         text=(
             f"I am following **{title}** with your current draft. Right now, {observation}. "
             "What invariant are you relying on, and what is the next state transition your code "
-            f"must make correctly?{senior_probe}"
+            f"must make correctly?{senior_probe}{mastery_guidance}"
         )
     )
