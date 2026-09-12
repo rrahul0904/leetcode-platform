@@ -17,6 +17,11 @@ vi.mock("@/lib/tutor-api", () => ({
   sendTutorMessage: (...args: unknown[]) => sendTutorMessage(...args),
 }));
 
+Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+  configurable: true,
+  value: vi.fn(),
+});
+
 const session = {
   id: "00000000-0000-0000-0000-000000000101",
   mode: "practice",
