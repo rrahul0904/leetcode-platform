@@ -11,7 +11,7 @@ from sqlalchemy import Connection, text
 from .auth import require_permissions
 from .database import DatabaseEngine, principal_transaction
 from .schemas import AuthenticatedPrincipal
-from .tutor_coach import TutorCoachContext, deterministic_coach_reply
+from .tutor_coach import TutorCoachContext
 from .tutor_domain import (
     CandidateLevel,
     SafeCodeContext,
@@ -23,6 +23,8 @@ from .tutor_domain import (
     assert_tutor_context_is_public,
     decide_intervention,
 )
+from .tutor_mastery import load_tutor_mastery_snapshot
+from .tutor_provider import build_tutor_provider_service
 
 router = APIRouter(prefix="/api/v1/tutor", tags=["tutor"])
 _CURRENT_USER_SQL = "NULLIF(current_setting('rigor.user_id', true), '')::uuid"
@@ -167,7 +169,7 @@ def send_tutor_message(
     principal: TutorWritePrincipal,
     engine: DatabaseEngine,
 ) -> TutorMessageResponse:
-    """Coach from public problem data and candidate-owned autosaved practice state."""
+    """Coach from public workspace state plus aggregate, evidence-backed mastery."""
 
     user_key = f"{payload.idempotency_key}:user"
     assistant_key = f"{payload.idempotency_key}:assistant"
@@ -202,20 +204,39 @@ def send_tutor_message(
             assert_tutor_context_is_public(snapshot.model_dump(mode="json"))
         except TutorContextViolation as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
         intervention = decide_intervention(snapshot)
-        reply = deterministic_coach_reply(
-            TutorCoachContext(
-                message=payload.message.strip(),
-                title=str(context["title"]),
-                problem_statement=str(context["problem_statement"]),
-                source=str(context["draft_code"]),
-                language=str(context["runtime"]),
-                elapsed_seconds=int(context["elapsed_seconds"]),
-                mode=mode,
-                candidate_level=candidate_level,
-                intervention=intervention,
-            )
+        mastery = load_tutor_mastery_snapshot(connection)
+        mastery_public_projection = {
+            "competencies": [
+                {
+                    "slug": item.slug,
+                    "name": item.name,
+                    "mastery": item.mastery,
+                    "confidence": item.confidence,
+                    "evidence_count": item.evidence_count,
+                }
+                for item in mastery.competencies
+            ]
+        }
+        try:
+            assert_tutor_context_is_public(mastery_public_projection)
+        except TutorContextViolation as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+        coach_context = TutorCoachContext(
+            message=payload.message.strip(),
+            title=str(context["title"]),
+            problem_statement=str(context["problem_statement"]),
+            source=str(context["draft_code"]),
+            language=str(context["runtime"]),
+            elapsed_seconds=int(context["elapsed_seconds"]),
+            mode=mode,
+            candidate_level=candidate_level,
+            intervention=intervention,
+            mastery=mastery,
         )
+        reply = build_tutor_provider_service().respond(coach_context)
 
         _insert_event(
             connection,
