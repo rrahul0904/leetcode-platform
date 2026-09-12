@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Self
 
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import AliasChoices, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     valkey_url: str = "redis://localhost:6381/0"
     execution_adapter: str = "LOCAL_FUNCTIONAL"
     ai_adapter: str = "DETERMINISTIC"
+    tutor_model: str = "gpt-5.2"
+    openai_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("RIGOR_OPENAI_API_KEY", "OPENAI_API_KEY"),
+    )
     content_root: Path = Field(default_factory=default_content_root)
     allowed_origins: list[str] = ["http://localhost:3001"]
     oidc_issuer: str = "http://localhost:8002/local-oidc"
