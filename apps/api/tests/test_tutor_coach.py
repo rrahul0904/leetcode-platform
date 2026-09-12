@@ -7,6 +7,7 @@ from rigor_api.tutor_domain import (
     TutorIntervention,
     TutorMode,
 )
+from rigor_api.tutor_mastery import TutorCompetencyMastery, TutorMasterySnapshot
 
 
 def _context(message: str, *, source: str = "") -> TutorCoachContext:
@@ -62,3 +63,26 @@ def test_sql_coach_adapts_to_query_reasoning() -> None:
 
     assert "NULL" in reply.text
     assert "join" in reply.text.lower()
+
+
+def test_coach_uses_trustworthy_mastery_weakness_as_guidance() -> None:
+    context = replace(
+        _context("review my approach", source="def solve(nums):\n    return len(nums)\n"),
+        mastery=TutorMasterySnapshot(
+            competencies=(
+                TutorCompetencyMastery(
+                    slug="complexity-analysis",
+                    name="Complexity Analysis",
+                    mastery=0.42,
+                    confidence=0.81,
+                    evidence_count=3,
+                    last_evidence_at=None,
+                ),
+            )
+        ),
+    )
+
+    reply = deterministic_coach_reply(context)
+
+    assert "Complexity Analysis" in reply.text
+    assert "evaluated evidence" in reply.text
