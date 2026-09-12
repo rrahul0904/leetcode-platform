@@ -47,32 +47,32 @@ const LEVEL_LABELS: Record<CandidateLevel, string> = {
 };
 
 function eventMessages(events: TutorEvent[]): ChatMessage[] {
-  return events.flatMap((event) => {
+  const messages: ChatMessage[] = [];
+  for (const event of events) {
     const text = event.payload.message;
-    if (typeof text !== "string") return [];
+    if (typeof text !== "string") continue;
     if (event.event_type === "message.user") {
-      return [{ id: event.id, role: "user" as const, text }];
+      messages.push({ id: event.id, role: "user", text });
+      continue;
     }
     if (event.event_type === "message.assistant") {
       const provider =
         typeof event.payload.provider === "string" ? event.payload.provider : "tutor";
       const model = typeof event.payload.model === "string" ? event.payload.model : "";
-      return [
-        {
-          id: event.id,
-          role: "assistant" as const,
-          text,
-          meta: [provider, model].filter(Boolean).join(" · "),
-        },
-      ];
+      messages.push({
+        id: event.id,
+        role: "assistant",
+        text,
+        meta: [provider, model].filter(Boolean).join(" · "),
+      });
     }
-    return [];
-  });
+  }
+  return messages;
 }
 
 export function TutorDock({ slug }: { slug: string }) {
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [session, setSession] = useState<TutorSession | null>(null);
   const [level, setLevel] = useState<CandidateLevel>("mid");
@@ -88,7 +88,6 @@ export function TutorDock({ slug }: { slug: string }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
     void listTutorSessions(controller.signal)
       .then(async (sessions) => {
         const active = sessions.find(
