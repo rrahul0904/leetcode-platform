@@ -182,7 +182,7 @@ def get_tutor_capabilities(_principal: TutorReadPrincipal) -> TutorCapabilities:
     """Return server-authoritative rollout state for candidate tutor features."""
 
     return TutorCapabilities(
-        text_sessions=False,
+        text_sessions=True,
         code_context=True,
         whiteboard_context=True,
         adaptive_interventions=True,
