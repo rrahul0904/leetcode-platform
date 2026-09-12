@@ -20,7 +20,14 @@ from .auth import authenticated_principal, token_validator
 from .bookmarked_catalog import router as bookmarked_catalog_router
 from .candidate_submission_routes import router as candidate_submission_router
 from .execution_capability import router as execution_capability_router
-from .execution_routes import router as hardened_execution_router
+from .execution_routes import (
+    CanonicalExecutionAccepted,
+    CanonicalExecutionView,
+    cancel_candidate_execution,
+    get_candidate_execution,
+    queue_run_for_question,
+    queue_submit_for_question,
+)
 from .principal_auth import database_authoritative_principal
 from .question_engagement import router as question_engagement_router
 from .saas_routes import router as saas_router
@@ -68,7 +75,36 @@ app.dependency_overrides[token_validator] = session_token_validator
 # authority for account status, roles, permissions, and organization membership.
 app.dependency_overrides[authenticated_principal] = database_authoritative_principal
 app.include_router(execution_capability_router)
-app.include_router(hardened_execution_router)
+
+# Register hardened candidate execution handlers directly on the serving app. Keeping
+# these routes explicit prevents legacy module wildcard imports from shadowing an
+# APIRouter object and silently dropping the secure run/submit boundary.
+app.add_api_route(
+    "/api/v1/questions/{slug}/run",
+    queue_run_for_question,
+    methods=["POST"],
+    response_model=CanonicalExecutionAccepted,
+    status_code=202,
+)
+app.add_api_route(
+    "/api/v1/questions/{slug}/submissions",
+    queue_submit_for_question,
+    methods=["POST"],
+    response_model=CanonicalExecutionAccepted,
+    status_code=202,
+)
+app.add_api_route(
+    "/api/v1/executions/{execution_id}",
+    get_candidate_execution,
+    methods=["GET"],
+    response_model=CanonicalExecutionView,
+)
+app.add_api_route(
+    "/api/v1/executions/{execution_id}/cancel",
+    cancel_candidate_execution,
+    methods=["POST"],
+    response_model=CanonicalExecutionView,
+)
 app.include_router(candidate_submission_router)
 app.include_router(question_engagement_router)
 app.include_router(bookmarked_catalog_router)
