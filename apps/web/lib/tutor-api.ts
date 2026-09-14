@@ -2,6 +2,27 @@ export type TutorMode = "lesson" | "roadmap" | "practice" | "mock";
 export type TutorSurface = "chat" | "code" | "whiteboard";
 export type CandidateLevel = "junior" | "mid" | "senior" | "staff" | "manager";
 
+export type WhiteboardNode = {
+  id: string;
+  label: string;
+  kind: string | null;
+  x: number | null;
+  y: number | null;
+};
+
+export type WhiteboardEdge = {
+  source: string;
+  target: string;
+  label: string | null;
+};
+
+export type WhiteboardSnapshot = {
+  nodes: WhiteboardNode[];
+  edges: WhiteboardEdge[];
+  requirements: string[];
+  notes: string[];
+};
+
 export type TutorSession = {
   id: string;
   mode: TutorMode;
@@ -107,10 +128,47 @@ export function createTutorSession(input: {
   });
 }
 
+export function createWhiteboardTutorSession(input: {
+  candidateLevel: CandidateLevel;
+  title?: string;
+}) {
+  return tutorRequest<TutorSession>("/api/v1/tutor/sessions", {
+    method: "POST",
+    body: {
+      mode: "practice",
+      surface: "whiteboard",
+      candidate_level: input.candidateLevel,
+      question_slug: null,
+      title: input.title ?? "System design lab",
+    },
+  });
+}
+
 export function listTutorEvents(sessionId: string, signal?: AbortSignal) {
   return tutorRequest<TutorEvent[]>(
     `/api/v1/tutor/sessions/${encodeURIComponent(sessionId)}/events`,
     signal ? { signal } : {},
+  );
+}
+
+export function appendTutorEvent(
+  sessionId: string,
+  input: {
+    eventType: string;
+    idempotencyKey: string;
+    payload: Record<string, unknown>;
+  },
+) {
+  return tutorRequest<TutorEvent>(
+    `/api/v1/tutor/sessions/${encodeURIComponent(sessionId)}/events`,
+    {
+      method: "POST",
+      body: {
+        event_type: input.eventType,
+        idempotency_key: input.idempotencyKey,
+        payload: input.payload,
+      },
+    },
   );
 }
 
