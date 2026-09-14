@@ -79,6 +79,8 @@ class WhiteboardNode(TutorModel):
     id: str = Field(min_length=1, max_length=120)
     label: str = Field(min_length=1, max_length=500)
     kind: str | None = Field(default=None, max_length=120)
+    x: int | None = Field(default=None, ge=0, le=4_000)
+    y: int | None = Field(default=None, ge=0, le=4_000)
 
 
 class WhiteboardEdge(TutorModel):
