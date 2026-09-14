@@ -55,7 +55,7 @@ def candidate_company_readiness(
     principal: CandidateReadPrincipal,
     engine: DatabaseEngine,
 ) -> list[CompanyReadiness]:
-    """Return candidate-owned progress rolled up over source-backed company observations."""
+    """Roll candidate-owned progress up over source-backed company observations."""
 
     with principal_transaction(engine, principal) as connection:
         candidate_id = _candidate_id(connection)
@@ -78,11 +78,15 @@ def candidate_company_readiness(
                            company_problem.slug,
                            company_problem.name,
                            count(*) AS problem_count,
-                           count(*) FILTER (WHERE state.status='solved') AS solved_count,
+                           count(*) FILTER (
+                             WHERE state.status='solved'
+                           ) AS solved_count,
                            count(*) FILTER (
                              WHERE state.status IN ('attempted', 'failed')
                            ) AS in_progress_count,
-                           count(*) FILTER (WHERE state.status='viewed') AS viewed_count,
+                           count(*) FILTER (
+                             WHERE state.status='viewed'
+                           ) AS viewed_count,
                            max(state.last_activity_at)::text AS last_activity_at
                     FROM company_problem
                     LEFT JOIN knowledge_candidate_problem_state state
@@ -91,7 +95,8 @@ def candidate_company_readiness(
                     GROUP BY company_problem.company_id,
                              company_problem.slug,
                              company_problem.name
-                    ORDER BY solved_count DESC, problem_count DESC, company_problem.name ASC
+                    ORDER BY solved_count DESC, problem_count DESC,
+                             company_problem.name ASC
                     """
                 ),
                 {"candidate_id": candidate_id},
