@@ -1,7 +1,5 @@
-import { DesignLab } from "@/components/design-lab";
-
-import "./design-lab.css";
+import { DirectDesignLab } from "@/components/direct-design-lab";
 
 export default function DesignLabPage() {
-  return <DesignLab />;
+  return <DirectDesignLab />;
 }
