@@ -122,7 +122,10 @@ def _latest_whiteboard(
     try:
         return SafeWhiteboardContext.model_validate(payload)
     except ValidationError as exc:
-        raise HTTPException(status_code=422, detail="Stored whiteboard snapshot is invalid") from exc
+        raise HTTPException(
+            status_code=422,
+            detail="Stored whiteboard snapshot is invalid",
+        ) from exc
 
 
 def _existing_response(
