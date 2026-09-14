@@ -107,10 +107,11 @@ def _whiteboard_reply(context: TutorCoachContext) -> str:
         )
 
     return (
-        f"I can see {node_count} components, {edge_count} connections, {requirements} requirements, "
-        f"and {notes} design notes. Pick the most stateful component and defend one trade-off: "
-        "consistency vs availability, synchronous vs asynchronous work, or scale-up vs partitioning. "
-        f"What breaks first at 10× load, and how would you know?{mastery_guidance}"
+        f"I can see {node_count} components and {edge_count} connections, "
+        f"plus {requirements} requirements and {notes} design notes. "
+        "Pick the most stateful component and defend one trade-off: consistency vs availability, "
+        "synchronous vs asynchronous work, or scale-up vs partitioning. "
+        f"What breaks first at 10x load, and how would you know?{mastery_guidance}"
     )
 
 
