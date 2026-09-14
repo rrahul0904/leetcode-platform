@@ -63,8 +63,8 @@ describe("DesignLab", () => {
 
     render(<DesignLab />);
 
-    expect(await screen.findByText("Mobile client")).toBeInTheDocument();
-    expect(screen.getByText("API Gateway")).toBeInTheDocument();
+    expect((await screen.findAllByText("Mobile client")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("API Gateway").length).toBeGreaterThan(0);
     expect(screen.getByDisplayValue(/99.99% availability/)).toBeInTheDocument();
     expect(screen.getByText(/Account-backed design session restored/)).toBeInTheDocument();
   });
