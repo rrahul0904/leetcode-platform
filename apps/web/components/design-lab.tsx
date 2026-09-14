@@ -437,7 +437,7 @@ export function DesignLab() {
             <select value={level} onChange={(event) => setLevel(event.target.value as CandidateLevel)}>
               {levels.map((candidateLevel) => (
                 <option key={candidateLevel} value={candidateLevel}>
-                  {candidateLevel[0].toUpperCase() + candidateLevel.slice(1)}
+                  {candidateLevel.charAt(0).toUpperCase() + candidateLevel.slice(1)}
                 </option>
               ))}
             </select>
