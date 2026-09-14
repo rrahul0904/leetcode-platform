@@ -2,18 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from rigor_api.pr_review_domain import (
-    ReviewCommentInput,
-    ReviewSeverity,
-    ReviewVerdict,
-    get_public_challenge,
-    grade_review,
-    review_location_is_valid,
-)
+import rigor_api.pr_review_domain as pr_review
 
 
 def test_public_challenge_does_not_expose_hidden_findings() -> None:
-    challenge = get_public_challenge("payments-retry-001")
+    challenge = pr_review.get_public_challenge("payments-retry-001")
 
     assert challenge is not None
     payload = challenge.model_dump(mode="json")
@@ -24,17 +17,17 @@ def test_public_challenge_does_not_expose_hidden_findings() -> None:
 
 
 def test_review_location_must_target_a_known_diff_line() -> None:
-    assert review_location_is_valid(
+    assert pr_review.review_location_is_valid(
         "payments-retry-001",
         "apps/api/src/payments/capture.ts",
         12,
     )
-    assert not review_location_is_valid(
+    assert not pr_review.review_location_is_valid(
         "payments-retry-001",
         "apps/api/src/payments/capture.ts",
         999,
     )
-    assert not review_location_is_valid(
+    assert not pr_review.review_location_is_valid(
         "missing-challenge",
         "apps/api/src/payments/capture.ts",
         12,
@@ -43,28 +36,28 @@ def test_review_location_must_target_a_known_diff_line() -> None:
 
 def test_complete_review_receives_full_deterministic_score() -> None:
     comments = [
-        ReviewCommentInput(
+        pr_review.ReviewCommentInput(
             file="apps/api/src/payments/capture.ts",
             line=12,
-            severity=ReviewSeverity.BLOCKER,
+            severity=pr_review.ReviewSeverity.BLOCKER,
             message=(
                 "This timestamp creates a new idempotency key for every retry, so the "
                 "payment provider can process the same logical capture more than once."
             ),
         ),
-        ReviewCommentInput(
+        pr_review.ReviewCommentInput(
             file="apps/api/src/orders/finalize.ts",
             line=5,
-            severity=ReviewSeverity.MAJOR,
+            severity=pr_review.ReviewSeverity.MAJOR,
             message=(
                 "The order is marked paid before capture succeeds, so a provider failure "
                 "leaves internal order state claiming money was collected when it was not."
             ),
         ),
-        ReviewCommentInput(
+        pr_review.ReviewCommentInput(
             file="apps/api/src/webhooks/stripe.ts",
             line=6,
-            severity=ReviewSeverity.BLOCKER,
+            severity=pr_review.ReviewSeverity.BLOCKER,
             message=(
                 "Removing signature verification lets an unauthenticated caller forge a "
                 "payment success webhook and mutate payment state without Stripe proving it."
@@ -72,10 +65,10 @@ def test_complete_review_receives_full_deterministic_score() -> None:
         ),
     ]
 
-    grade = grade_review(
+    grade = pr_review.grade_review(
         "payments-retry-001",
         comments,
-        ReviewVerdict.REQUEST_CHANGES,
+        pr_review.ReviewVerdict.REQUEST_CHANGES,
     )
 
     assert grade.score == 100
@@ -91,8 +84,8 @@ def test_complete_review_receives_full_deterministic_score() -> None:
 
 def test_unknown_challenge_is_rejected_by_grader() -> None:
     with pytest.raises(ValueError, match="Unknown PR review challenge"):
-        grade_review(
+        pr_review.grade_review(
             "missing-challenge",
             [],
-            ReviewVerdict.COMMENT,
+            pr_review.ReviewVerdict.COMMENT,
         )
