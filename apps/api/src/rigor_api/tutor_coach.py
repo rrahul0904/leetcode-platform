@@ -74,7 +74,10 @@ def _mastery_guidance(context: TutorCoachContext) -> str:
 def _whiteboard_reply(context: TutorCoachContext) -> str:
     board = context.whiteboard
     if board is None:
-        return "Describe the first requirement and the first component you would place on the board."
+        return (
+            "Describe the first requirement and the first component you would place "
+            "on the board."
+        )
 
     node_count = len(board.nodes)
     edge_count = len(board.edges)
