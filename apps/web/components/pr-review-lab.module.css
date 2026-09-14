@@ -1,0 +1,83 @@
+.shell { display: grid; gap: 18px; padding: 28px 0 52px; color: #e7edf7; }
+.hero, .challengeBar, .workspace, .gradePanel { border: 1px solid rgba(148,163,184,.18); background: rgba(9,15,28,.82); box-shadow: 0 18px 50px rgba(0,0,0,.18); }
+.hero { display: flex; align-items: end; justify-content: space-between; gap: 24px; padding: 28px; border-radius: 18px; background: radial-gradient(circle at top right, rgba(56,189,248,.14), transparent 34%), rgba(9,15,28,.88); }
+.hero h1 { margin: 8px 0; font-size: clamp(2rem, 4vw, 3.7rem); line-height: .95; letter-spacing: -.05em; }
+.hero p, .challengeBar p, .emptyState p, .gradeHeadline p { color: #9daabd; }
+.eyebrow { display: inline-flex; align-items: center; gap: 7px; color: #7dd3fc; font-size: .72rem; letter-spacing: .16em; font-weight: 800; }
+.heroMeta { display: flex; flex-wrap: wrap; gap: 8px; }
+.heroMeta span { border: 1px solid rgba(125,211,252,.24); background: rgba(14,165,233,.08); padding: 7px 10px; border-radius: 999px; color: #bae6fd; font-size: .78rem; }
+.challengeBar { display: flex; justify-content: space-between; gap: 24px; padding: 20px 24px; border-radius: 14px; }
+.challengeBar h2 { margin: 4px 0 6px; font-size: 1.1rem; }
+.challengeBar p { max-width: 760px; margin: 0; line-height: 1.55; }
+.challengeBar span { font-size: .75rem; color: #7dd3fc; }
+.verdictControl { min-width: 190px; display: grid; gap: 6px; align-content: start; }
+.verdictControl label, .composer label { color: #94a3b8; font-size: .75rem; font-weight: 700; }
+.verdictControl select, .composer select { border: 1px solid rgba(148,163,184,.25); border-radius: 9px; background: #0b1220; color: #e7edf7; padding: 9px 10px; }
+.workspace { display: grid; grid-template-columns: 220px minmax(0, 1fr) 280px; min-height: 610px; overflow: hidden; border-radius: 16px; }
+.fileRail, .summaryRail { background: rgba(6,10,19,.8); }
+.fileRail { border-right: 1px solid rgba(148,163,184,.14); padding: 14px 10px; }
+.railHeading, .summaryHeading { color: #94a3b8; text-transform: uppercase; letter-spacing: .1em; font-size: .69rem; font-weight: 800; padding: 8px 10px 12px; }
+.fileRail > button { width: 100%; display: grid; grid-template-columns: 18px 1fr; gap: 2px 7px; align-items: center; border: 0; border-radius: 9px; background: transparent; color: #b9c5d6; padding: 9px; text-align: left; cursor: pointer; }
+.fileRail > button:hover, .fileRail > button.activeFile { background: rgba(56,189,248,.1); color: #e0f2fe; }
+.fileRail button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fileRail button small { grid-column: 2; color: #64748b; }
+.reviewProgress { margin: 18px 8px 0; padding-top: 14px; border-top: 1px solid rgba(148,163,184,.12); display: grid; }
+.reviewProgress strong { font-size: 1.7rem; }
+.reviewProgress span { color: #64748b; font-size: .73rem; }
+.diffPanel { min-width: 0; background: #0a101b; }
+.fileHeader { display: flex; justify-content: space-between; padding: 13px 16px; border-bottom: 1px solid rgba(148,163,184,.15); color: #cbd5e1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; }
+.fileHeader small { color: #64748b; }
+.diff { overflow-x: auto; padding: 10px 0; }
+.diffLine { display: grid; grid-template-columns: 44px 44px 28px minmax(640px, 1fr); min-height: 30px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .79rem; }
+.diffLine > * { display: flex; align-items: center; }
+.lineNumber { justify-content: flex-end; padding-right: 9px; color: #526078; border-right: 1px solid rgba(148,163,184,.08); user-select: none; }
+.commentTrigger { justify-content: center; border: 0; background: transparent; color: transparent; cursor: pointer; }
+.diffLine:hover .commentTrigger, .commentTrigger:focus-visible { color: #7dd3fc; }
+.diffLine code { padding: 0 12px; white-space: pre; color: #ccd6e5; }
+.marker { width: 16px; color: #64748b; }
+.addition { background: rgba(34,197,94,.075); }
+.addition code { color: #d1fae5; }
+.deletion { background: rgba(239,68,68,.075); }
+.deletion code { color: #fee2e2; }
+.inlineComment { margin: 8px 18px 12px 92px; border: 1px solid rgba(125,211,252,.18); border-radius: 10px; background: #111b2b; padding: 10px 12px; display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 9px; }
+.inlineComment p { margin: 0; line-height: 1.45; }
+.inlineComment button, .composer > div:first-child button { border: 0; background: transparent; color: #7dd3fc; cursor: pointer; }
+.severity { width: fit-content; border-radius: 999px; padding: 3px 7px; font-size: .63rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 900; }
+.info { color: #bae6fd; background: rgba(14,165,233,.16); }
+.minor { color: #fde68a; background: rgba(234,179,8,.14); }
+.major { color: #fdba74; background: rgba(249,115,22,.15); }
+.blocker { color: #fecaca; background: rgba(239,68,68,.16); }
+.composer { margin: 14px; border: 1px solid rgba(125,211,252,.25); border-radius: 12px; background: #0f1929; padding: 14px; display: grid; gap: 10px; }
+.composer > div { display: flex; align-items: center; gap: 10px; }
+.composer > div:first-child { justify-content: space-between; }
+.composer textarea { resize: vertical; border: 1px solid rgba(148,163,184,.22); border-radius: 9px; background: #080e18; color: #e7edf7; padding: 11px; font: inherit; }
+.primaryButton, .submitButton { border: 0; border-radius: 9px; background: #38bdf8; color: #03111b; font-weight: 900; cursor: pointer; padding: 10px 13px; }
+.primaryButton:disabled, .submitButton:disabled { opacity: .35; cursor: not-allowed; }
+.summaryRail { border-left: 1px solid rgba(148,163,184,.14); padding: 12px; display: flex; flex-direction: column; }
+.summaryHeading { display: flex; justify-content: space-between; }
+.summaryHeading strong { color: #e7edf7; }
+.emptyState { display: grid; justify-items: center; text-align: center; gap: 8px; padding: 42px 12px; color: #64748b; }
+.emptyState p { font-size: .8rem; line-height: 1.5; }
+.commentList { display: grid; gap: 9px; overflow: auto; }
+.commentList article { border: 1px solid rgba(148,163,184,.12); border-radius: 10px; padding: 10px; background: rgba(15,23,42,.6); }
+.commentList article strong { display: block; margin: 7px 0 4px; font-size: .75rem; }
+.commentList article p { margin: 0; color: #9daabd; font-size: .75rem; line-height: 1.45; }
+.submitButton { margin-top: auto; width: 100%; }
+.gradePanel { border-radius: 16px; padding: 22px; display: grid; gap: 18px; }
+.gradeHeadline { display: flex; justify-content: space-between; align-items: end; gap: 20px; }
+.gradeHeadline > div { display: grid; }
+.gradeHeadline span { color: #7dd3fc; font-size: .73rem; text-transform: uppercase; letter-spacing: .12em; font-weight: 800; }
+.gradeHeadline strong { font-size: 3rem; line-height: 1; }
+.gradeHeadline small { color: #64748b; font-size: 1rem; }
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.metrics div { border: 1px solid rgba(148,163,184,.12); border-radius: 11px; background: rgba(15,23,42,.6); padding: 13px; display: grid; gap: 3px; }
+.metrics span { color: #64748b; font-size: .72rem; }
+.findingGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.findingGrid > div { border-top: 1px solid rgba(148,163,184,.12); padding-top: 14px; }
+.findingGrid h3 { display: flex; align-items: center; gap: 7px; margin: 0 0 10px; font-size: .9rem; }
+.findingGrid article { padding: 9px 0; border-bottom: 1px solid rgba(148,163,184,.08); }
+.findingGrid article strong, .findingGrid article span { display: block; }
+.findingGrid article span { color: #7dd3fc; font-size: .7rem; margin: 3px 0 5px; }
+.findingGrid article p, .findingGrid > div > p { margin: 0; color: #9daabd; font-size: .78rem; line-height: 1.5; }
+@media (max-width: 1050px) { .workspace { grid-template-columns: 190px minmax(0,1fr); } .summaryRail { grid-column: 1 / -1; border-left: 0; border-top: 1px solid rgba(148,163,184,.14); } .submitButton { margin-top: 16px; } }
+@media (max-width: 720px) { .shell { padding-top: 16px; } .hero, .challengeBar, .gradeHeadline { align-items: stretch; flex-direction: column; } .workspace { grid-template-columns: 1fr; } .fileRail { border-right: 0; border-bottom: 1px solid rgba(148,163,184,.14); } .diffLine { grid-template-columns: 34px 34px 28px minmax(520px,1fr); } .inlineComment { margin-left: 14px; } .metrics, .findingGrid { grid-template-columns: 1fr 1fr; } }
