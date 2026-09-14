@@ -1,5 +1,11 @@
-import { redirect } from "next/navigation";
+import { DesignInterviewTimer } from "@/components/design-interview-timer";
+import { DirectDesignLab } from "@/components/direct-design-lab";
 
 export default function DesignLabPage() {
-  redirect("/question-bank");
+  return (
+    <>
+      <DesignInterviewTimer />
+      <DirectDesignLab />
+    </>
+  );
 }

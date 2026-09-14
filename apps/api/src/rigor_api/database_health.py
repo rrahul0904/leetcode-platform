@@ -13,7 +13,7 @@ from .execution_routes import (
 )
 from .schemas import ReadinessCheck, ReadinessResponse
 
-EXPECTED_MIGRATION_VERSION = "20260828_0018"
+EXPECTED_MIGRATION_VERSION = "20260911_0019"
 REQUIRED_TABLES = (
     "users",
     "user_roles",
@@ -60,6 +60,8 @@ REQUIRED_TABLES = (
     "plans",
     "subscriptions",
     "entitlements",
+    "tutor_sessions",
+    "tutor_events",
 )
 EXECUTION_ADAPTERS = {
     "LOCAL_FUNCTIONAL",
