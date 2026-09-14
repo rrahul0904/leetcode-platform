@@ -8,33 +8,36 @@ import {
   MessageSquarePlus,
   ShieldAlert,
 } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import {
-  gradeReview,
+  createReviewComment,
+  createReviewSession,
+  deleteReviewComment,
+  getReviewChallenge,
+  getReviewSession,
+  listReviewSessions,
+  submitReviewSession,
+} from "@/lib/pr-review-api";
+import type {
+  PublicReviewChallenge,
   ReviewComment,
-  ReviewFile,
   ReviewGrade,
   ReviewSeverity,
   ReviewVerdict,
-  reviewChallenge,
 } from "@/lib/pr-review-lab";
 
 import styles from "./pr-review-lab.module.css";
 
 type SelectedLine = { file: string; line: number } | null;
 
+const CHALLENGE_ID = "payments-retry-001";
 const severityOptions: ReviewSeverity[] = ["info", "minor", "major", "blocker"];
-
-function getDefaultFile(): ReviewFile {
-  const file = reviewChallenge.files[0];
-  if (!file) {
-    throw new Error("PR Review Lab requires at least one changed file");
-  }
-  return file;
-}
-
-const defaultFile = getDefaultFile();
 
 function lineNumber(oldLine: number | null, newLine: number | null) {
   return newLine ?? oldLine ?? 0;
@@ -45,51 +48,178 @@ function percent(value: number) {
 }
 
 export function PrReviewLab() {
-  const [activeFile, setActiveFile] = useState(defaultFile.path);
+  const [challenge, setChallenge] = useState<PublicReviewChallenge | null>(null);
+  const [activeFile, setActiveFile] = useState("");
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [selectedLine, setSelectedLine] = useState<SelectedLine>(null);
   const [message, setMessage] = useState("");
   const [severity, setSeverity] = useState<ReviewSeverity>("major");
   const [verdict, setVerdict] = useState<ReviewVerdict>("request-changes");
   const [comments, setComments] = useState<ReviewComment[]>([]);
   const [grade, setGrade] = useState<ReviewGrade | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function restore() {
+      try {
+        const loadedChallenge = await getReviewChallenge(
+          CHALLENGE_ID,
+          controller.signal,
+        );
+        if (controller.signal.aborted) return;
+        setChallenge(loadedChallenge);
+        setActiveFile(loadedChallenge.files[0]?.path ?? "");
+
+        const sessions = await listReviewSessions(controller.signal);
+        const activeSession = sessions.find(
+          (session) =>
+            session.challengeId === CHALLENGE_ID
+            && session.status === "active",
+        );
+        if (!activeSession || controller.signal.aborted) return;
+
+        const detail = await getReviewSession(
+          activeSession.id,
+          controller.signal,
+        );
+        if (controller.signal.aborted) return;
+        setSessionId(detail.session.id);
+        setComments(detail.comments);
+      } catch (caught) {
+        if (controller.signal.aborted) return;
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "Unable to load PR Review Lab",
+        );
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void restore();
+    return () => controller.abort();
+  }, []);
 
   const file = useMemo(
-    () => reviewChallenge.files.find((item) => item.path === activeFile) ?? defaultFile,
-    [activeFile],
+    () =>
+      challenge?.files.find((item) => item.path === activeFile)
+      ?? challenge?.files[0]
+      ?? null,
+    [activeFile, challenge],
   );
 
   function openComment(filePath: string, line: number) {
+    if (grade) return;
     setSelectedLine({ file: filePath, line });
     setMessage("");
     setSeverity("major");
-    setGrade(null);
+    setError(null);
   }
 
-  function addComment(event: FormEvent<HTMLFormElement>) {
+  async function addComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedLine || !message.trim()) return;
+    const normalizedMessage = message.trim();
+    if (
+      !selectedLine
+      || !normalizedMessage
+      || !challenge
+      || saving
+      || grade
+    ) {
+      return;
+    }
 
-    setComments((current) => [
-      ...current,
-      {
-        id: `${selectedLine.file}:${selectedLine.line}:${Date.now()}`,
+    setSaving(true);
+    setError(null);
+    try {
+      let currentSessionId = sessionId;
+      if (!currentSessionId) {
+        const session = await createReviewSession(challenge.id);
+        currentSessionId = session.id;
+        setSessionId(session.id);
+      }
+      const persisted = await createReviewComment(currentSessionId, {
         file: selectedLine.file,
         line: selectedLine.line,
         severity,
-        message: message.trim(),
-      },
-    ]);
-    setSelectedLine(null);
-    setMessage("");
+        message: normalizedMessage,
+      });
+      setComments((current) => [...current, persisted]);
+      setSelectedLine(null);
+      setMessage("");
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to save review comment",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function removeComment(id: string) {
-    setComments((current) => current.filter((comment) => comment.id !== id));
-    setGrade(null);
+  async function removeComment(comment: ReviewComment) {
+    if (!sessionId || saving || grade) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await deleteReviewComment(sessionId, comment.id);
+      setComments((current) =>
+        current.filter((candidate) => candidate.id !== comment.id),
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to remove review comment",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function submitReview() {
-    setGrade(gradeReview(comments, verdict));
+  async function submitReview() {
+    if (!sessionId || comments.length === 0 || saving || grade) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const submission = await submitReviewSession(sessionId, verdict);
+      setGrade(submission.grade);
+      setSelectedLine(null);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to submit review",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <section className={styles.shell}>
+        <div className={styles.statusCard}>Loading PR Review Lab…</div>
+      </section>
+    );
+  }
+
+  if (!challenge || !file) {
+    return (
+      <section className={styles.shell}>
+        <div className={styles.errorCard}>
+          {error ?? "PR Review Lab challenge is unavailable."}
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -106,23 +236,26 @@ export function PrReviewLab() {
           </p>
         </div>
         <div className={styles.heroMeta}>
-          <span>{reviewChallenge.difficulty}</span>
-          <span>{reviewChallenge.estimatedMinutes} min</span>
-          <span>{reviewChallenge.files.length} files changed</span>
+          <span>{challenge.difficulty}</span>
+          <span>{challenge.estimatedMinutes} min</span>
+          <span>{challenge.files.length} files changed</span>
         </div>
       </header>
+
+      {error && <div className={styles.errorCard}>{error}</div>}
 
       <div className={styles.challengeBar}>
         <div>
           <span>
-            {reviewChallenge.repository} · PR #{reviewChallenge.pullRequest}
+            {challenge.repository} · PR #{challenge.pullRequest}
           </span>
-          <h2>{reviewChallenge.title}</h2>
-          <p>{reviewChallenge.summary}</p>
+          <h2>{challenge.title}</h2>
+          <p>{challenge.summary}</p>
         </div>
         <div className={styles.verdictControl}>
           <label htmlFor="review-verdict">Merge verdict</label>
           <select
+            disabled={Boolean(grade)}
             id="review-verdict"
             value={verdict}
             onChange={(event) => setVerdict(event.target.value as ReviewVerdict)}
@@ -137,7 +270,7 @@ export function PrReviewLab() {
       <div className={styles.workspace}>
         <aside className={styles.fileRail} aria-label="Changed files">
           <div className={styles.railHeading}>Changed files</div>
-          {reviewChallenge.files.map((candidate) => (
+          {challenge.files.map((candidate) => (
             <button
               className={candidate.path === file.path ? styles.activeFile : ""}
               key={candidate.path}
@@ -156,7 +289,7 @@ export function PrReviewLab() {
           ))}
           <div className={styles.reviewProgress}>
             <strong>{comments.length}</strong>
-            <span>review comments</span>
+            <span>persisted review comments</span>
           </div>
         </aside>
 
@@ -184,6 +317,7 @@ export function PrReviewLab() {
                     <button
                       aria-label={`Review ${file.path} line ${targetLine}`}
                       className={styles.commentTrigger}
+                      disabled={Boolean(grade)}
                       onClick={() => openComment(file.path, targetLine)}
                       type="button"
                     >
@@ -191,7 +325,11 @@ export function PrReviewLab() {
                     </button>
                     <code>
                       <span className={styles.marker}>
-                        {line.kind === "addition" ? "+" : line.kind === "deletion" ? "−" : " "}
+                        {line.kind === "addition"
+                          ? "+"
+                          : line.kind === "deletion"
+                            ? "−"
+                            : " "}
                       </span>
                       {line.content || " "}
                     </code>
@@ -202,7 +340,11 @@ export function PrReviewLab() {
                         {comment.severity}
                       </span>
                       <p>{comment.message}</p>
-                      <button onClick={() => removeComment(comment.id)} type="button">
+                      <button
+                        disabled={saving || Boolean(grade)}
+                        onClick={() => void removeComment(comment)}
+                        type="button"
+                      >
                         Remove
                       </button>
                     </div>
@@ -212,7 +354,7 @@ export function PrReviewLab() {
             })}
           </div>
 
-          {selectedLine?.file === file.path && (
+          {selectedLine?.file === file.path && !grade && (
             <form className={styles.composer} onSubmit={addComment}>
               <div>
                 <strong>Comment on line {selectedLine.line}</strong>
@@ -243,10 +385,10 @@ export function PrReviewLab() {
                 </select>
                 <button
                   className={styles.primaryButton}
-                  disabled={!message.trim()}
+                  disabled={!message.trim() || saving}
                   type="submit"
                 >
-                  Add comment
+                  {saving ? "Saving…" : "Add comment"}
                 </button>
               </div>
             </form>
@@ -283,11 +425,11 @@ export function PrReviewLab() {
           )}
           <button
             className={styles.submitButton}
-            disabled={comments.length === 0}
-            onClick={submitReview}
+            disabled={comments.length === 0 || saving || Boolean(grade)}
+            onClick={() => void submitReview()}
             type="button"
           >
-            Submit review
+            {grade ? "Review submitted" : saving ? "Submitting…" : "Submit review"}
           </button>
         </aside>
       </div>
@@ -296,15 +438,15 @@ export function PrReviewLab() {
         <section className={styles.gradePanel} aria-live="polite">
           <div className={styles.gradeHeadline}>
             <div>
-              <span>Review scored</span>
+              <span>Review scored server-side</span>
               <strong>
                 {grade.score}
                 <small>/100</small>
               </strong>
             </div>
             <p>
-              {grade.caught.length} of 3 findings caught · {grade.missed.length} missed ·{" "}
-              {grade.falsePositives.length} false positives
+              {grade.caught.length} of {grade.caught.length + grade.missed.length} findings
+              caught · {grade.missed.length} missed · {grade.falsePositiveCount} false positives
             </p>
           </div>
           <div className={styles.metrics}>
