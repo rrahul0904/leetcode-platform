@@ -125,6 +125,24 @@ def test_senior_candidate_gets_complexity_probe_after_public_tests_pass() -> Non
     assert intervention.kind is InterventionKind.COMPLEXITY_CHALLENGE
 
 
+def test_whiteboard_node_preserves_safe_layout_coordinates() -> None:
+    node = WhiteboardNode(
+        id="api",
+        label="API Gateway",
+        kind="gateway",
+        x=320,
+        y=180,
+    )
+
+    assert node.model_dump(mode="json") == {
+        "id": "api",
+        "label": "API Gateway",
+        "kind": "gateway",
+        "x": 320,
+        "y": 180,
+    }
+
+
 def test_staff_whiteboard_gets_tradeoff_probe_once_design_has_shape() -> None:
     whiteboard = SafeWhiteboardContext(
         nodes=[
