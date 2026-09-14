@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DesignInterviewTimer } from "./design-interview-timer";
@@ -21,15 +21,15 @@ describe("DesignInterviewTimer", () => {
     expect(screen.getByText("45:00")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
 
-    vi.advanceTimersByTime(5_000);
+    act(() => vi.advanceTimersByTime(5_000));
     expect(screen.getByText("44:55")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
-    vi.advanceTimersByTime(5_000);
+    act(() => vi.advanceTimersByTime(5_000));
     expect(screen.getByText("44:55")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
-    vi.advanceTimersByTime(1_000);
+    act(() => vi.advanceTimersByTime(1_000));
     expect(screen.getByText("44:54")).toBeInTheDocument();
   });
 
