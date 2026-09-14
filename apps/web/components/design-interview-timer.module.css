@@ -1,0 +1,120 @@
+.timer {
+  margin: 18px 0 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfa;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.summary svg {
+  color: var(--teal);
+  flex: 0 0 auto;
+}
+
+.summary strong,
+.summary span {
+  display: block;
+}
+
+.summary strong {
+  font-size: 12px;
+}
+
+.summary span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.clock,
+.clockOvertime {
+  min-width: 86px;
+  font-variant-numeric: tabular-nums;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  text-align: center;
+}
+
+.clock {
+  color: #203733;
+}
+
+.clockOvertime {
+  color: #a14733;
+}
+
+.presets,
+.actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.preset,
+.presetActive {
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid #ccd7d2;
+  border-radius: 999px;
+  background: #fff;
+  color: #52615e;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.presetActive {
+  border-color: var(--teal);
+  background: #e9f6f2;
+  color: #245b50;
+}
+
+.preset:hover,
+.preset:focus-visible,
+.presetActive:focus-visible {
+  border-color: var(--teal);
+  outline: none;
+}
+
+.actions button {
+  min-height: 36px;
+  white-space: nowrap;
+}
+
+@media (max-width: 980px) {
+  .timer {
+    grid-template-columns: 1fr auto;
+  }
+
+  .presets,
+  .actions {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 620px) {
+  .timer {
+    grid-template-columns: 1fr;
+  }
+
+  .clock {
+    text-align: left;
+  }
+
+  .presets,
+  .actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
