@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { DesignLab } from "@/components/design-lab";
 
 export default function DesignLabPage() {
-  redirect("/question-bank");
+  return <DesignLab />;
 }
