@@ -1,0 +1,145 @@
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 12px;
+  max-width: 920px;
+  margin: 0 auto 14px;
+}
+
+.toolbar label {
+  margin: 0;
+  max-width: none;
+}
+
+.sort {
+  width: 100%;
+  border: 1px solid var(--kb-line);
+  background: var(--kb-surface);
+  color: var(--kb-ink);
+  padding: 0 14px;
+  font-family: var(--kb-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.context {
+  max-width: 920px;
+  margin: 0 auto 28px;
+  color: var(--kb-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cardHeader > span {
+  margin: 0;
+}
+
+.readiness {
+  display: block !important;
+  margin: 20px 0 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--kb-line-soft);
+}
+
+.readinessHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.readinessHeader span,
+.readinessHeader strong {
+  margin: 0;
+  font-family: var(--kb-mono);
+  font-size: 9px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.readinessHeader span {
+  color: var(--kb-muted);
+}
+
+.readinessHeader strong {
+  color: var(--kb-accent);
+}
+
+.track {
+  height: 5px;
+  overflow: hidden;
+  background: var(--kb-line-soft);
+}
+
+.track > span {
+  display: block;
+  height: 100%;
+  margin: 0;
+  background: var(--kb-accent);
+  transition: width 180ms ease;
+}
+
+.progressStats {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px !important;
+  margin-top: 12px;
+}
+
+.card .progressStats small {
+  display: grid;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+}
+
+.card .progressStats b {
+  color: var(--kb-ink);
+  font-family: var(--kb-serif);
+  font-size: 17px;
+  font-weight: 400;
+}
+
+.card .progressStats i {
+  color: var(--kb-muted);
+  font-family: var(--kb-mono);
+  font-size: 8px;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.card em {
+  margin-top: auto;
+  padding-top: 18px;
+}
+
+.empty {
+  grid-column: 1 / -1;
+  padding: 36px;
+  border: 1px dashed var(--kb-line);
+  color: var(--kb-muted);
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .sort {
+    min-height: 46px;
+  }
+}
