@@ -66,7 +66,7 @@ jobs:
         run: |
           set -euo pipefail
           uv run alembic upgrade head
-          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260911_0019"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260914_0020"
 
       - name: Verify legacy data and new production schema survived
         run: |
@@ -79,8 +79,12 @@ jobs:
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.candidate_question_notes') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.tutor_sessions') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.tutor_events') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.pr_review_sessions') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.pr_review_comments') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='tutor_sessions'::regclass")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='tutor_events'::regclass")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='pr_review_sessions'::regclass")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='pr_review_comments'::regclass")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT status::text FROM users WHERE identity_subject='production-migration-canary'")" = "active"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT auth_provider FROM users WHERE identity_subject='production-migration-canary'")" = "local-oidc"
 
