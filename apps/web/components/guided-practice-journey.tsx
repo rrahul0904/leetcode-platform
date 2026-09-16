@@ -11,7 +11,7 @@ import {
   MessageSquareText,
   Mountain,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import styles from "./guided-practice-journey.module.css";
 
@@ -119,10 +119,7 @@ export function GuidedPracticeJourney({
   const activeIndex = STAGES.findIndex((stage) => stage.id === journey.activeStage);
   const completedCount = journey.completed.length;
   const progressLabel = `${completedCount} of ${STAGES.length} stages signed off`;
-  const nextStage = useMemo(
-    () => STAGES.find((stage) => !journey.completed.includes(stage.id)),
-    [journey.completed],
-  );
+  const nextStage = STAGES[activeIndex + 1];
 
   function selectStage(stage: LearningStage) {
     setShowNudge(false);
