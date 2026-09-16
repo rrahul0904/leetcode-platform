@@ -1,0 +1,392 @@
+.root {
+  margin: 18px 0 24px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 17px 14px;
+}
+
+.topline > div:first-child {
+  min-width: 0;
+}
+
+.topline strong,
+.topline small,
+.eyebrow {
+  display: block;
+}
+
+.eyebrow {
+  margin-bottom: 5px;
+  color: #9290ff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+
+.topline strong {
+  color: #f4f4f8;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.topline small {
+  margin-top: 4px;
+  color: #8d8d9b;
+  font-size: 11px;
+}
+
+.focusButton,
+.stageTab,
+.nudgeButton,
+.completeButton {
+  font: inherit;
+}
+
+.focusButton {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #c7c7d1;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.focusButton:hover {
+  border-color: rgba(145, 142, 255, 0.42);
+  color: #fff;
+}
+
+.progressTrack {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.progressTrack span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6764df, #8c89ff);
+  transition: width 180ms ease;
+}
+
+.stageTabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  padding: 1px 0;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.stageTab {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 9px;
+  border: 0;
+  background: #16171e;
+  color: #a0a0ad;
+  cursor: pointer;
+  text-align: left;
+}
+
+.stageTab:hover {
+  background: #1b1c25;
+}
+
+.stageTabActive {
+  background: rgba(103, 100, 223, 0.11);
+  color: #f4f4fb;
+}
+
+.stageTab > span:last-child {
+  min-width: 0;
+}
+
+.stageTab strong,
+.stageTab small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stageTab strong {
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.stageTab small {
+  margin-top: 2px;
+  color: #747481;
+  font-size: 9px;
+}
+
+.stageIcon,
+.stageIconComplete {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+}
+
+.stageIcon {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+  color: #8f8f9d;
+}
+
+.stageIconComplete {
+  border: 1px solid rgba(113, 215, 164, 0.2);
+  background: rgba(113, 215, 164, 0.09);
+  color: #71d7a4;
+}
+
+.activeCard {
+  padding: 16px 17px 17px;
+}
+
+.activeHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.activeHeading span {
+  color: #777786;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.activeHeading h3 {
+  margin: 3px 0 0;
+  color: #f4f4f8;
+  font-size: 15px;
+}
+
+.activeHeading > small {
+  color: #81818f;
+  font-size: 10px;
+}
+
+.stageBody {
+  margin-top: 11px;
+  color: #b8b8c4;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.stageBody p {
+  margin: 0;
+}
+
+.stageBody ul {
+  margin: 9px 0 0;
+  padding-left: 19px;
+}
+
+.stageBody li + li {
+  margin-top: 5px;
+}
+
+.muted {
+  color: #7c7c89;
+}
+
+.activityStatus {
+  display: grid;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.activityStatus span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  color: #8f8f9c;
+  font-size: 11px;
+}
+
+.activityStatus .activityDone {
+  color: #71d7a4;
+}
+
+.reflectionLabel {
+  display: block;
+  margin-bottom: 8px;
+  color: #c8c8d3;
+  font-weight: 700;
+}
+
+.stageBody textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 11px;
+  outline: 0;
+  background: #111218;
+  color: #eeeeF5;
+  padding: 10px 11px;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.stageBody textarea:focus {
+  border-color: rgba(145, 142, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(103, 100, 223, 0.08);
+}
+
+.stageBody > small {
+  display: block;
+  margin-top: 5px;
+  color: #747481;
+  font-size: 9px;
+}
+
+.challengePrompt {
+  margin-top: 9px !important;
+  padding-left: 10px;
+  border-left: 2px solid rgba(145, 142, 255, 0.5);
+  color: #d0d0da;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.nudgeButton,
+.completeButton {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.nudgeButton {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: #b5b5c0;
+}
+
+.completeButton {
+  border: 1px solid rgba(103, 100, 223, 0.55);
+  background: #6562dd;
+  color: #fff;
+}
+
+.nudgeButton:hover,
+.completeButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.completeButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.nudge {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 11px 12px;
+  border: 1px solid rgba(240, 195, 95, 0.14);
+  border-radius: 11px;
+  background: rgba(240, 195, 95, 0.055);
+  color: #e6c979;
+}
+
+.nudge strong,
+.nudge small {
+  display: block;
+}
+
+.nudge strong {
+  color: #ecd58d;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.nudge p {
+  margin: 4px 0 0;
+  color: #c8bd9e;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.nudge small {
+  margin-top: 5px;
+  color: #8d846c;
+  font-size: 9px;
+}
+
+.reflectionHint {
+  display: block;
+  margin-top: 7px;
+  color: #878794;
+  font-size: 9px;
+}
+
+@media (max-width: 900px) {
+  .stageTabs {
+    grid-template-columns: 1fr;
+  }
+
+  .stageTab strong,
+  .stageTab small {
+    white-space: normal;
+  }
+}
+
+@media (max-width: 560px) {
+  .topline,
+  .activeHeading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .focusButton {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .actions {
+    display: grid;
+  }
+
+  .nudgeButton,
+  .completeButton {
+    justify-content: center;
+  }
+}
