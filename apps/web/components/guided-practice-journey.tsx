@@ -28,8 +28,6 @@ type GuidedPracticeJourneyProps = {
   slug: string;
   learningObjectives: string[];
   constraints: string[];
-  hasRun: boolean;
-  hasSubmitted: boolean;
   onFocusModeChange?: (enabled: boolean) => void;
 };
 
@@ -90,8 +88,6 @@ export function GuidedPracticeJourney({
   slug,
   learningObjectives,
   constraints,
-  hasRun,
-  hasSubmitted,
   onFocusModeChange,
 }: GuidedPracticeJourneyProps) {
   const [journey, setJourney] = useState<StoredJourney>(DEFAULT_JOURNEY);
@@ -181,17 +177,11 @@ export function GuidedPracticeJourney({
       case "practice":
         return (
           <div className={styles.stageBody}>
-            <p>Sketch the approach, implement it, then use public tests as feedback.</p>
-            <div className={styles.activityStatus}>
-              <span className={hasRun ? styles.activityDone : undefined}>
-                {hasRun ? <Check size={14} /> : <Code2 size={14} />}
-                {hasRun ? "Run activity detected" : "Run a public test when ready"}
-              </span>
-              <span className={hasSubmitted ? styles.activityDone : undefined}>
-                {hasSubmitted ? <Check size={14} /> : <Mountain size={14} />}
-                {hasSubmitted ? "Submission evaluated" : "Submit only when you choose"}
-              </span>
-            </div>
+            <p>
+              Sketch the approach, implement it, and use public tests as feedback. Your stage
+              signoff is a learning note; Run and Submit remain governed by the existing secure
+              execution flow.
+            </p>
           </div>
         );
       case "explain":
