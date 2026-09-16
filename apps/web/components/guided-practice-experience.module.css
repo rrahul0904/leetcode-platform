@@ -1,0 +1,24 @@
+.guideContainer {
+  width: min(1480px, calc(100% - 32px));
+  margin: 16px auto -2px;
+}
+
+.focusExperience :global(.practice-timer > svg),
+.focusExperience :global(.practice-timer > strong) {
+  display: none;
+}
+
+.focusExperience :global(.practice-timer)::before {
+  content: "SELF-PACED";
+  color: #9290ff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+@media (max-width: 720px) {
+  .guideContainer {
+    width: min(100% - 20px, 1480px);
+    margin-top: 10px;
+  }
+}
