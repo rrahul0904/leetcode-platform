@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GuidedPracticeJourney } from "./guided-practice-journey";
@@ -10,6 +10,7 @@ const baseProps = {
 };
 
 afterEach(() => {
+  cleanup();
   window.localStorage.clear();
   vi.clearAllMocks();
 });
@@ -68,6 +69,10 @@ describe("GuidedPracticeJourney", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mark this step complete" }));
     await waitFor(() =>
       expect(screen.getByText("1 of 5 stages signed off")).toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(window.localStorage.getItem("skillsforge.guided-practice:reliable-event-aggregation"))
+        .toContain('"study"'),
     );
     first.unmount();
 
