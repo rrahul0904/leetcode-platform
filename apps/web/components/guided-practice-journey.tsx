@@ -96,14 +96,20 @@ export function GuidedPracticeJourney({
   const storageKey = `skillsforge.guided-practice:${slug}`;
 
   useEffect(() => {
+    let restoredJourney: StoredJourney | undefined;
     try {
       const raw = window.localStorage.getItem(storageKey);
-      if (raw) setJourney(normaliseStoredJourney(JSON.parse(raw)));
+      if (raw) restoredJourney = normaliseStoredJourney(JSON.parse(raw));
     } catch {
       // A corrupt local draft must never block the practice workspace.
-    } finally {
-      setHydrated(true);
     }
+
+    const hydrationTimer = window.setTimeout(() => {
+      if (restoredJourney) setJourney(restoredJourney);
+      setHydrated(true);
+    }, 0);
+
+    return () => window.clearTimeout(hydrationTimer);
   }, [storageKey]);
 
   useEffect(() => {
