@@ -42,15 +42,15 @@ describe("GuidedPracticeJourney", () => {
     );
   });
 
-  it("requires a short self-explanation before signing off the Explain stage", () => {
+  it("requires a short self-explanation before signing off the Practice stage", () => {
     render(<GuidedPracticeJourney {...baseProps} />);
 
-    fireEvent.click(screen.getByRole("tab", { name: /4\. Explain/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /3\. Practice/i }));
     const complete = screen.getByRole("button", { name: "Mark this step complete" });
     expect(complete).toBeDisabled();
 
     fireEvent.change(
-      screen.getByLabelText("Explain your approach and complexity in your own words."),
+      screen.getByLabelText("Explain your planned approach and complexity in your own words."),
       {
         target: {
           value:
