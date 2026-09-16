@@ -7,8 +7,6 @@ const baseProps = {
   slug: "reliable-event-aggregation",
   learningObjectives: ["Choose a reliable aggregation strategy."],
   constraints: ["Handle duplicate events safely."],
-  hasRun: false,
-  hasSubmitted: false,
 };
 
 afterEach(() => {
@@ -44,7 +42,7 @@ describe("GuidedPracticeJourney", () => {
     );
   });
 
-  it("requires a short self-explanation before signing off the Explain stage", async () => {
+  it("requires a short self-explanation before signing off the Explain stage", () => {
     render(<GuidedPracticeJourney {...baseProps} />);
 
     fireEvent.click(screen.getByRole("tab", { name: /4\. Explain/i }));
