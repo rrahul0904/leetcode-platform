@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import styles from "./guided-practice-journey.module.css";
 
-type LearningStage = "study" | "discover" | "practice" | "explain" | "challenge";
+type LearningStage = "study" | "discover" | "practice" | "create" | "challenge";
 
 type StoredJourney = {
   activeStage: LearningStage;
@@ -39,8 +39,8 @@ const STAGES: Array<{
 }> = [
   { id: "study", label: "Study", caption: "Understand the goal", icon: BookOpen },
   { id: "discover", label: "Discover", caption: "Notice constraints", icon: Compass },
-  { id: "practice", label: "Practice", caption: "Try your approach", icon: Code2 },
-  { id: "explain", label: "Explain", caption: "Put it in your words", icon: MessageSquareText },
+  { id: "practice", label: "Practice", caption: "Explain your approach", icon: MessageSquareText },
+  { id: "create", label: "Create", caption: "Build and test it", icon: Code2 },
   { id: "challenge", label: "Challenge", caption: "Stretch the reasoning", icon: Mountain },
 ];
 
@@ -52,9 +52,9 @@ const NUDGES: Record<LearningStage, string> = {
   discover:
     "Look for a boundary, an empty or minimal case, and one constraint that should influence your data structure or query shape.",
   practice:
-    "Name the invariant your code should preserve after each meaningful step. If you cannot name it yet, trace one tiny example by hand.",
-  explain:
-    "Explain why your approach works before describing the syntax. Then state time and space cost in terms of the input size.",
+    "Explain why your planned approach should work before describing syntax. Then state the expected time and space cost.",
+  create:
+    "Name the invariant your code should preserve after each meaningful step. If you get stuck, trace one tiny example by hand.",
   challenge:
     "Imagine the input is 10× larger or arrives continuously. Which assumption breaks first, and what trade-off would you revisit?",
 };
@@ -177,28 +177,28 @@ export function GuidedPracticeJourney({
       case "practice":
         return (
           <div className={styles.stageBody}>
-            <p>
-              Sketch the approach, implement it, and use public tests as feedback. Your stage
-              signoff is a learning note; Run and Submit remain governed by the existing secure
-              execution flow.
-            </p>
-          </div>
-        );
-      case "explain":
-        return (
-          <div className={styles.stageBody}>
             <label className={styles.reflectionLabel} htmlFor={`practice-reflection-${slug}`}>
-              Explain your approach and complexity in your own words.
+              Explain your planned approach and complexity in your own words.
             </label>
             <textarea
               id={`practice-reflection-${slug}`}
               onChange={(event) =>
                 setJourney((current) => ({ ...current, reflection: event.target.value }))
               }
-              placeholder="I chose this approach because… Time is O(…), space is O(…)."
+              placeholder="I plan to use… because… Expected time is O(…), space is O(…)."
               value={journey.reflection}
             />
             <small>Saved in this browser as you type.</small>
+          </div>
+        );
+      case "create":
+        return (
+          <div className={styles.stageBody}>
+            <p>
+              Build the solution in the editor, then use public tests as feedback. Stage signoff
+              is only a learning note; Run and Submit remain governed by the existing secure
+              execution and evaluation flow.
+            </p>
           </div>
         );
       case "challenge":
@@ -216,8 +216,8 @@ export function GuidedPracticeJourney({
     }
   }
 
-  const explainNeedsReflection =
-    journey.activeStage === "explain" && journey.reflection.trim().length < 20;
+  const practiceNeedsReflection =
+    journey.activeStage === "practice" && journey.reflection.trim().length < 20;
 
   return (
     <section aria-label="Guided practice journey" className={styles.root}>
@@ -291,7 +291,7 @@ export function GuidedPracticeJourney({
           </button>
           <button
             className={styles.completeButton}
-            disabled={explainNeedsReflection}
+            disabled={practiceNeedsReflection}
             onClick={completeActiveStage}
             type="button"
           >
@@ -309,7 +309,7 @@ export function GuidedPracticeJourney({
             </div>
           </div>
         )}
-        {explainNeedsReflection && (
+        {practiceNeedsReflection && (
           <small className={styles.reflectionHint}>
             Write a short explanation before signing off this step.
           </small>
