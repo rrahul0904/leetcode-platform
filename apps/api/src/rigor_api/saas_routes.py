@@ -20,6 +20,7 @@ from .config import get_settings
 from .database import DatabaseEngine, principal_transaction
 from .identity_webhooks import WebhookVerificationError, process_clerk_event, verify_svix_webhook
 from .object_storage import ObjectStorageConfigurationError, S3Presigner
+from .resume_extraction import ResumeExtractionError, validate_resume_upload_metadata
 from .schemas import AuthenticatedPrincipal
 
 router = APIRouter(prefix="/api/v1", tags=["saas"])
@@ -258,6 +259,16 @@ def presign_upload(
     settings = get_settings()
     if not settings.s3_upload_bucket:
         raise HTTPException(status_code=503, detail="Private file storage is not configured")
+    if payload.category == "resume":
+        try:
+            validate_resume_upload_metadata(
+                payload.file_name,
+                payload.mime_type,
+                payload.size_bytes,
+            )
+        except ResumeExtractionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     file_id = uuid4()
     safe_name = _safe_file_name(payload.file_name)
     with principal_transaction(engine, principal) as connection:

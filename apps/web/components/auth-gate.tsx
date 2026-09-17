@@ -22,6 +22,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const isCandidate = principal?.roles.includes("candidate") ?? false;
   const candidateRoute = [
     "/",
+    "/career",
     "/problems",
     "/questions",
     "/companies",

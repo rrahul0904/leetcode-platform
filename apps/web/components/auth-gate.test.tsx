@@ -99,6 +99,13 @@ describe("AuthGate", () => {
     expect(router.replace).not.toHaveBeenCalledWith("/onboarding");
   });
 
+  it("keeps a candidate inside CareerOS", async () => {
+    pathname = "/career";
+    renderGate("CareerOS workspace");
+    expect(await screen.findByText("CareerOS workspace")).toBeInTheDocument();
+    expect(router.replace).not.toHaveBeenCalledWith("/");
+  });
+
   it("keeps a candidate inside the hosted practice workspace", async () => {
     pathname = "/practice/py-0001-bounded-cache";
     renderGate("Practice workspace");

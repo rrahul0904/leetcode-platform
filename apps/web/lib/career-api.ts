@@ -19,7 +19,8 @@ export type CareerJobAnalysisInput = {
   job_title?: string;
   company?: string;
   source_url?: string;
-  resume_text: string;
+  resume_text?: string;
+  document_id?: string;
   job_description: string;
 };
 
@@ -62,6 +63,24 @@ export type CareerJobSummary = {
   last_analyzed_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type CareerResumeDocument = {
+  document_id: string;
+  candidate_file_id: string;
+  file_name: string;
+  mime_type: string;
+  extraction_method: "pdf_text" | "docx_xml";
+  character_count: number;
+  created_at: string;
+};
+
+type PresignResumeResponse = {
+  file_id: string;
+  method: "PUT";
+  upload_url: string;
+  expires_seconds: number;
+  storage_key: string;
 };
 
 const apiUrl = process.env.NEXT_PUBLIC_RIGOR_API_URL ?? "/api/backend";
@@ -129,6 +148,49 @@ export async function analyzeCareerJob(
   const result = await parseResponse<CareerSavedAnalysis>(response, "CareerOS analysis failed");
   notifyHistoryChanged();
   return result;
+}
+
+export async function presignCareerResumeUpload(input: {
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  checksumSha256: string;
+}): Promise<PresignResumeResponse> {
+  const response = await fetch(`${apiUrl}/api/v1/files/presign-upload`, {
+    method: "POST",
+    headers: requestHeaders(),
+    body: JSON.stringify({
+      file_name: input.fileName,
+      mime_type: input.mimeType,
+      size_bytes: input.sizeBytes,
+      checksum_sha256: input.checksumSha256,
+      category: "resume",
+    }),
+  });
+  return parseResponse<PresignResumeResponse>(response, "Resume upload could not start");
+}
+
+export async function uploadCareerResumeBinary(
+  uploadUrl: string,
+  file: File,
+  mimeType: string,
+): Promise<void> {
+  const response = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": mimeType },
+    body: file,
+  });
+  if (!response.ok) {
+    throw new CareerApiError(response.status, `Resume upload failed (${response.status})`);
+  }
+}
+
+export async function extractCareerResume(fileId: string): Promise<CareerResumeDocument> {
+  const response = await fetch(`${apiUrl}/api/v1/career/resumes/${fileId}/extract`, {
+    method: "POST",
+    headers: requestHeaders(),
+  });
+  return parseResponse<CareerResumeDocument>(response, "Resume extraction failed");
 }
 
 export async function listCareerJobs(signal?: AbortSignal): Promise<CareerJobSummary[]> {

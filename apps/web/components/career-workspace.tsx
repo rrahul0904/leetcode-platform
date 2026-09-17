@@ -5,11 +5,22 @@ import { type FormEvent, useState } from "react";
 
 import {
   analyzeCareerJob,
+  extractCareerResume,
+  presignCareerResumeUpload,
   type CareerJobAnalysis,
   type CareerJobAnalysisInput,
+  type CareerResumeDocument,
+  uploadCareerResumeBinary,
 } from "@/lib/career-api";
 
 import styles from "./career-workspace.module.css";
+
+const MAX_RESUME_BYTES = 8 * 1024 * 1024;
+const PDF_MIME = "application/pdf";
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+type ResumeMode = "upload" | "paste";
+type ResumeUploadState = "idle" | "hashing" | "uploading" | "extracting" | "ready" | "failed";
 
 const EMPTY_FORM: CareerJobAnalysisInput = {
   job_title: "",
@@ -19,14 +30,54 @@ const EMPTY_FORM: CareerJobAnalysisInput = {
   job_description: "",
 };
 
+function resumeMimeType(file: File): string {
+  const lowerName = file.name.toLowerCase();
+  if (lowerName.endsWith(".pdf") && (!file.type || file.type === PDF_MIME)) {
+    return PDF_MIME;
+  }
+  if (lowerName.endsWith(".docx") && (!file.type || file.type === DOCX_MIME)) {
+    return DOCX_MIME;
+  }
+  throw new Error("Choose a PDF or DOCX resume with a matching file type.");
+}
+
+async function sha256(file: File): Promise<string> {
+  const digest = await window.crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function uploadStateLabel(state: ResumeUploadState): string {
+  switch (state) {
+    case "hashing":
+      return "Checking file integrity…";
+    case "uploading":
+      return "Uploading securely…";
+    case "extracting":
+      return "Extracting resume text…";
+    case "ready":
+      return "Resume ready";
+    case "failed":
+      return "Upload needs attention";
+    default:
+      return "PDF or DOCX · up to 8 MiB";
+  }
+}
+
 export function CareerWorkspace() {
   const [form, setForm] = useState<CareerJobAnalysisInput>(EMPTY_FORM);
   const [analysis, setAnalysis] = useState<CareerJobAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resumeMode, setResumeMode] = useState<ResumeMode>("upload");
+  const [resumeDocument, setResumeDocument] = useState<CareerResumeDocument | null>(null);
+  const [resumeFileName, setResumeFileName] = useState<string | null>(null);
+  const [resumeUploadState, setResumeUploadState] = useState<ResumeUploadState>("idle");
+  const [resumeUploadError, setResumeUploadError] = useState<string | null>(null);
 
-  const canAnalyze =
-    form.resume_text.trim().length >= 40 && form.job_description.trim().length >= 40;
+  const pastedResume = form.resume_text?.trim() ?? "";
+  const resumeReady = resumeMode === "upload" ? resumeDocument !== null : pastedResume.length >= 40;
+  const canAnalyze = resumeReady && form.job_description.trim().length >= 40;
+  const resumeBusy = ["hashing", "uploading", "extracting"].includes(resumeUploadState);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -39,8 +90,10 @@ export function CareerWorkspace() {
       const company = form.company?.trim();
       const sourceUrl = form.source_url?.trim();
       const result = await analyzeCareerJob({
-        resume_text: form.resume_text.trim(),
         job_description: form.job_description.trim(),
+        ...(resumeMode === "upload" && resumeDocument
+          ? { document_id: resumeDocument.document_id }
+          : { resume_text: pastedResume }),
         ...(jobTitle ? { job_title: jobTitle } : {}),
         ...(company ? { company } : {}),
         ...(sourceUrl ? { source_url: sourceUrl } : {}),
@@ -59,6 +112,51 @@ export function CareerWorkspace() {
     }
   }
 
+  async function onResumeFile(file: File | undefined) {
+    if (!file || resumeBusy) return;
+    setResumeDocument(null);
+    setResumeFileName(file.name);
+    setResumeUploadError(null);
+    setError(null);
+
+    try {
+      if (file.size <= 0) throw new Error("Resume file must not be empty.");
+      if (file.size > MAX_RESUME_BYTES) throw new Error("Resume files are limited to 8 MiB.");
+      const mimeType = resumeMimeType(file);
+
+      setResumeUploadState("hashing");
+      const checksumSha256 = await sha256(file);
+
+      setResumeUploadState("uploading");
+      const presigned = await presignCareerResumeUpload({
+        fileName: file.name,
+        mimeType,
+        sizeBytes: file.size,
+        checksumSha256,
+      });
+      await uploadCareerResumeBinary(presigned.upload_url, file, mimeType);
+
+      setResumeUploadState("extracting");
+      const document = await extractCareerResume(presigned.file_id);
+      setResumeDocument(document);
+      setResumeUploadState("ready");
+    } catch (caught) {
+      setResumeDocument(null);
+      setResumeUploadState("failed");
+      setResumeUploadError(
+        caught instanceof Error ? caught.message : "CareerOS could not process this resume.",
+      );
+    }
+  }
+
+  function clearUploadedResume() {
+    if (resumeBusy) return;
+    setResumeDocument(null);
+    setResumeFileName(null);
+    setResumeUploadError(null);
+    setResumeUploadState("idle");
+  }
+
   function update<K extends keyof CareerJobAnalysisInput>(
     field: K,
     value: CareerJobAnalysisInput[K],
@@ -73,16 +171,16 @@ export function CareerWorkspace() {
           <p className={styles.eyebrow}>CareerOS · Job intelligence</p>
           <h1 className={styles.title}>Turn one job description into a preparation plan.</h1>
           <p className={styles.subtitle}>
-            Paste your resume and the role you want. CareerOS maps evidence, exposes gaps,
-            explains the fit score, and builds an interview pack you can take directly into
+            Upload or paste your resume and add the role you want. CareerOS maps evidence, exposes
+            gaps, explains the fit score, and builds an interview pack you can take directly into
             SkillForge practice.
           </p>
         </div>
         <aside className={styles.heroNote}>
-          <strong>Wave 1 · Explainable by design</strong>
+          <strong>Explainable and candidate-owned</strong>
           <span>
-            The first scoring engine uses deterministic skill and language evidence. No hidden
-            model judgment is required to understand why a score changed.
+            Resume files stay in private object storage. CareerOS stores extracted text and uses a
+            deterministic evidence score before any model-backed features are introduced.
           </span>
         </aside>
       </section>
@@ -119,13 +217,59 @@ export function CareerWorkspace() {
 
           <div className={styles.textGrid}>
             <div className={styles.field}>
-              <label htmlFor="career-resume">Resume text</label>
-              <textarea
-                id="career-resume"
-                value={form.resume_text}
-                onChange={(event) => update("resume_text", event.target.value)}
-                placeholder="Paste your resume here. Include skills, projects, outcomes, and recent experience."
-              />
+              <span className={styles.fieldLabel}>Resume</span>
+              <div className={styles.modeTabs} role="group" aria-label="Resume source">
+                <button
+                  className={resumeMode === "upload" ? styles.modeTabActive : styles.modeTab}
+                  onClick={() => setResumeMode("upload")}
+                  type="button"
+                >
+                  Upload PDF/DOCX
+                </button>
+                <button
+                  className={resumeMode === "paste" ? styles.modeTabActive : styles.modeTab}
+                  onClick={() => setResumeMode("paste")}
+                  type="button"
+                >
+                  Paste text
+                </button>
+              </div>
+
+              {resumeMode === "upload" ? (
+                <div className={styles.uploadBox}>
+                  <input
+                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    className={styles.fileInput}
+                    disabled={resumeBusy}
+                    id="career-resume-file"
+                    onChange={(event) => void onResumeFile(event.target.files?.[0])}
+                    type="file"
+                  />
+                  <label className={styles.filePicker} htmlFor="career-resume-file">
+                    {resumeFileName ? "Replace resume" : "Choose resume"}
+                  </label>
+                  <div className={styles.uploadStatus} aria-live="polite">
+                    <strong>{resumeFileName ?? "No file selected"}</strong>
+                    <span>{uploadStateLabel(resumeUploadState)}</span>
+                    {resumeDocument && (
+                      <span>{resumeDocument.character_count.toLocaleString()} extracted characters</span>
+                    )}
+                  </div>
+                  {resumeFileName && !resumeBusy && (
+                    <button className={styles.textButton} onClick={clearUploadedResume} type="button">
+                      Remove
+                    </button>
+                  )}
+                  {resumeUploadError && <p className={styles.uploadError}>{resumeUploadError}</p>}
+                </div>
+              ) : (
+                <textarea
+                  id="career-resume"
+                  value={form.resume_text ?? ""}
+                  onChange={(event) => update("resume_text", event.target.value)}
+                  placeholder="Paste your resume here. Include skills, projects, outcomes, and recent experience."
+                />
+              )}
             </div>
             <div className={styles.field}>
               <label htmlFor="career-job-description">Job description</label>
@@ -139,7 +283,11 @@ export function CareerWorkspace() {
           </div>
 
           <div className={styles.formFooter}>
-            <span>Minimum 40 characters in both text fields. Your result is generated on demand.</span>
+            <span>
+              {resumeMode === "upload"
+                ? "Upload a text-bearing PDF/DOCX and add at least 40 characters of job description."
+                : "Paste at least 40 characters of resume and job-description text."}
+            </span>
             <button className={styles.primaryButton} type="submit" disabled={!canAnalyze || loading}>
               {loading ? "Analyzing…" : "Analyze role"}
             </button>
