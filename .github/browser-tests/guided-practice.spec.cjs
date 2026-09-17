@@ -36,7 +36,7 @@ test("completes the guided flow and restores browser-local progress", async ({ p
   const reflection =
     "I preserve one aggregation invariant and process each event once, so time is linear.";
   await page
-    .getByLabelText("Explain your planned approach and complexity in your own words.")
+    .getByLabel("Explain your planned approach and complexity in your own words.")
     .fill(reflection);
   await expect(complete).toBeEnabled();
   await complete.click();
