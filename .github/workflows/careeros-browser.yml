@@ -44,6 +44,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Verify CareerOS upload flow in Chrome
         env:
+          CAREEROS_BROWSER_BASE_URL: http://localhost:3001
           NEXT_PUBLIC_RIGOR_AUTH_MODE: local
           NEXT_PUBLIC_RIGOR_API_URL: /api/backend
         shell: bash
