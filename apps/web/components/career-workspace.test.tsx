@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CareerWorkspace } from "./career-workspace";
@@ -66,9 +66,14 @@ beforeEach(() => {
   });
   api.analyzeCareerJob.mockResolvedValue(ANALYSIS);
   vi.spyOn(window.crypto.subtle, "digest").mockResolvedValue(new Uint8Array(32).buffer);
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: vi.fn(),
+  });
 });
 
 afterEach(() => {
+  cleanup();
   vi.restoreAllMocks();
 });
 
