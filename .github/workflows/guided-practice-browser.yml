@@ -5,7 +5,7 @@ on:
     paths:
       - ".github/browser-tests/guided-practice.spec.cjs"
       - ".github/workflows/guided-practice-browser.yml"
-      - "apps/web/app/sign-in/__browser-test/guided-practice/**"
+      - "apps/web/app/sign-in/browser-test/guided-practice/**"
       - "apps/web/components/guided-practice-experience.module.css"
       - "apps/web/components/guided-practice-journey.module.css"
       - "apps/web/components/guided-practice-journey.tsx"
@@ -16,7 +16,7 @@ on:
     paths:
       - ".github/browser-tests/guided-practice.spec.cjs"
       - ".github/workflows/guided-practice-browser.yml"
-      - "apps/web/app/sign-in/__browser-test/guided-practice/**"
+      - "apps/web/app/sign-in/browser-test/guided-practice/**"
       - "apps/web/components/guided-practice-experience.module.css"
       - "apps/web/components/guided-practice-journey.module.css"
       - "apps/web/components/guided-practice-journey.tsx"
@@ -69,7 +69,7 @@ jobs:
           ready=0
           for attempt in $(seq 1 60); do
             if curl --fail --silent --show-error \
-              http://127.0.0.1:3001/sign-in/__browser-test/guided-practice \
+              http://localhost:3001/sign-in/browser-test/guided-practice \
               >/dev/null; then
               ready=1
               break
@@ -95,4 +95,5 @@ jobs:
           name: guided-practice-browser-evidence
           path: .artifacts/guided-practice-browser
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 14
