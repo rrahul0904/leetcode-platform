@@ -201,3 +201,66 @@ def test_checksum_mismatch_quarantines_resume(monkeypatch) -> None:
             assert "quarantined" in quarantined.json()["detail"].casefold()
         finally:
             cleanup_candidate(engine, "local-candidate")
+
+
+def test_parser_rejection_quarantines_resume(monkeypatch) -> None:
+    settings = SimpleNamespace(s3_upload_bucket="test-resume-bucket", aws_region="us-east-1")
+    monkeypatch.setattr(saas_routes, "get_settings", lambda: settings)
+    monkeypatch.setattr(career_resume_routes, "get_settings", lambda: settings)
+    monkeypatch.setattr(saas_routes, "S3Presigner", FakePresigner)
+    monkeypatch.setattr(career_resume_routes, "S3Presigner", FakePresigner)
+
+    data = docx_bytes()
+    monkeypatch.setattr(career_resume_routes, "_download_resume_bytes", lambda _url: data)
+
+    def reject_resume(*_args, **_kwargs):
+        raise career_resume_routes.ResumeExtractionError(
+            "resume_malformed",
+            "Resume could not be safely extracted.",
+        )
+
+    monkeypatch.setattr(career_resume_routes, "extract_resume_text", reject_resume)
+
+    with TestClient(app) as client:
+        engine = cast(Engine, app.state.database_engine)
+        provider = cast(LocalOIDCProvider, app.state.local_oidc_provider)
+        cleanup_candidate(engine, "local-candidate")
+        try:
+            token = provider.issue_test_access_token("candidate", expires_in=900)
+            headers = {"Authorization": f"Bearer {token}"}
+            presigned = client.post(
+                "/api/v1/files/presign-upload",
+                headers=headers,
+                json={
+                    "file_name": "resume.docx",
+                    "mime_type": DOCX_MIME,
+                    "size_bytes": len(data),
+                    "checksum_sha256": hashlib.sha256(data).hexdigest(),
+                    "category": "resume",
+                },
+            )
+            assert presigned.status_code == 200
+            file_id = presigned.json()["file_id"]
+
+            rejected = client.post(
+                f"/api/v1/career/resumes/{file_id}/extract",
+                headers=headers,
+            )
+            assert rejected.status_code == 422
+            assert "safely extracted" in rejected.json()["detail"].casefold()
+
+            with engine.begin() as connection:
+                status = connection.execute(
+                    text("SELECT status FROM candidate_files WHERE id=:file_id"),
+                    {"file_id": file_id},
+                ).scalar_one()
+            assert status == "quarantined"
+
+            quarantined = client.post(
+                f"/api/v1/career/resumes/{file_id}/extract",
+                headers=headers,
+            )
+            assert quarantined.status_code == 409
+            assert "quarantined" in quarantined.json()["detail"].casefold()
+        finally:
+            cleanup_candidate(engine, "local-candidate")
