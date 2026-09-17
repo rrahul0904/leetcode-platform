@@ -1,7 +1,7 @@
 const { expect, test } = require("@playwright/test");
 
 const harnessUrl =
-  "http://127.0.0.1:3001/sign-in/__browser-test/guided-practice";
+  "http://localhost:3001/sign-in/browser-test/guided-practice";
 const storageKey = "skillsforge.guided-practice:browser-guided-practice";
 
 async function expectActiveStage(page, index, label) {
