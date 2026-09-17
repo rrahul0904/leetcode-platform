@@ -1,0 +1,98 @@
+name: Guided practice browser acceptance
+
+on:
+  pull_request:
+    paths:
+      - ".github/browser-tests/guided-practice.spec.cjs"
+      - ".github/workflows/guided-practice-browser.yml"
+      - "apps/web/app/sign-in/__browser-test/guided-practice/**"
+      - "apps/web/components/guided-practice-experience.module.css"
+      - "apps/web/components/guided-practice-journey.module.css"
+      - "apps/web/components/guided-practice-journey.tsx"
+  push:
+    branches:
+      - main
+      - "agent/**"
+    paths:
+      - ".github/browser-tests/guided-practice.spec.cjs"
+      - ".github/workflows/guided-practice-browser.yml"
+      - "apps/web/app/sign-in/__browser-test/guided-practice/**"
+      - "apps/web/components/guided-practice-experience.module.css"
+      - "apps/web/components/guided-practice-journey.module.css"
+      - "apps/web/components/guided-practice-journey.tsx"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: guided-practice-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chromium:
+    name: Chromium guided-flow acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up pinned pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.10.0
+          run_install: false
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.18.0"
+          cache: pnpm
+      - name: Install locked JavaScript workspace
+        run: pnpm install --frozen-lockfile
+      - name: Install pinned browser runner without changing the repository lockfile
+        run: pnpm add -Dw @playwright/test@1.63.0 --lockfile=false
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run exact browser acceptance
+        env:
+          NEXT_PUBLIC_RIGOR_AUTH_MODE: local
+          SKILLFORGE_BROWSER_TEST_HARNESS: "1"
+        run: |
+          set -euo pipefail
+          mkdir -p .artifacts/guided-practice-browser
+          pnpm --filter @rigor/web dev > .artifacts/guided-practice-browser/next.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error \
+              http://127.0.0.1:3001/sign-in/__browser-test/guided-practice \
+              >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$ready" -ne 1 ]; then
+            cat .artifacts/guided-practice-browser/next.log
+            exit 1
+          fi
+
+          pnpm exec playwright test \
+            .github/browser-tests/guided-practice.spec.cjs \
+            --browser=chromium \
+            --workers=1 \
+            --reporter=line \
+            --output=.artifacts/guided-practice-browser/test-results
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guided-practice-browser-evidence
+          path: .artifacts/guided-practice-browser
+          if-no-files-found: error
+          retention-days: 14
