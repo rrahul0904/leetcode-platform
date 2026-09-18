@@ -28,7 +28,7 @@ export type MockInterviewReport = {
   next_steps: string[];
 };
 
-export type MockInterviewSession = {
+export type MockInterviewSessionSummary = {
   id: string;
   interview_type: string;
   target_role: string;
@@ -40,6 +40,9 @@ export type MockInterviewSession = {
   completed_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type MockInterviewSession = MockInterviewSessionSummary & {
   messages: MockInterviewMessage[];
   report: MockInterviewReport | null;
 };
@@ -95,6 +98,13 @@ async function request<T>(
 export function getMockInterviewTemplates(signal?: AbortSignal) {
   return request<MockInterviewTemplate[]>(
     "/api/v1/mock-interviews/templates",
+    signal ? { signal } : {},
+  );
+}
+
+export function listMockInterviews(signal?: AbortSignal) {
+  return request<MockInterviewSessionSummary[]>(
+    "/api/v1/mock-interviews",
     signal ? { signal } : {},
   );
 }
