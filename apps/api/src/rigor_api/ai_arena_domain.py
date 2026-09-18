@@ -1,6 +1,3 @@
-from dataclasses import dataclass
-
-
 _DIFFICULTY_GAIN = {"easy": 18, "medium": 28, "hard": 42}
 
 
@@ -36,13 +33,23 @@ def performance_score(runtime_ms: int | None, budget_ms: int = 2_000) -> int:
     return 0
 
 
-@dataclass(frozen=True)
 class ArenaScore:
-    correctness: int
-    performance: int
-    quality: int
-    efficiency: int
-    total: int
+    __slots__ = ("correctness", "performance", "quality", "efficiency", "total")
+
+    def __init__(
+        self,
+        *,
+        correctness: int,
+        performance: int,
+        quality: int,
+        efficiency: int,
+        total: int,
+    ) -> None:
+        self.correctness = correctness
+        self.performance = performance
+        self.quality = quality
+        self.efficiency = efficiency
+        self.total = total
 
 
 def score_arena_submission(
