@@ -1,4 +1,4 @@
-# ruff: noqa: I001\nfrom __future__ import annotations
+from __future__ import annotations
 
 from fastapi.routing import APIRoute
 
