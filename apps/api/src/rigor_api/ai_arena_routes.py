@@ -213,7 +213,6 @@ def _ensure_profile(connection: Connection) -> None:
 
 
 def _profile(connection: Connection, display_name: str) -> ArenaProfileView:
-    _ensure_profile(connection)
     row = connection.execute(
         text(
             f"""
@@ -222,7 +221,15 @@ def _profile(connection: Connection, display_name: str) -> ArenaProfileView:
             WHERE user_id={_CURRENT_USER_SQL}
             """
         )
-    ).mappings().one()
+    ).mappings().one_or_none()
+    if row is None:
+        return ArenaProfileView(
+            display_name=display_name,
+            rating=1000,
+            tier="Bronze",
+            solved_count=0,
+            submission_count=0,
+        )
     return ArenaProfileView(
         display_name=display_name,
         rating=int(row["rating"]),
@@ -413,6 +420,10 @@ def finalize_arena_submission(
     engine: DatabaseEngine,
 ) -> ArenaResultView:
     with principal_transaction(engine, principal) as connection:
+        connection.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"ai-arena:{request.generation_id}"},
+        )
         existing = _stored_result(
             connection,
             generation_id=request.generation_id,
