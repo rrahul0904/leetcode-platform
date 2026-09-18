@@ -10,6 +10,7 @@ import {
   Menu,
   MessageSquareText,
   Radar,
+  Route,
   Search,
   Trophy,
   X,
@@ -28,6 +29,7 @@ const candidateNav = [
   ["PR Review", "/pr-review", FileCheck2],
   ["AI Arena", "/ai-arena", Trophy],
   ["Mock Interviews", "/mock-interviews", MessageSquareText],
+  ["Learning Paths", "/learning-paths", Route],
   ["Progress", "/progress", CircleGauge],
 ] as const;
 
