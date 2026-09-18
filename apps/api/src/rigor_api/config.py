@@ -29,6 +29,15 @@ class Settings(BaseSettings):
     execution_adapter: str = "LOCAL_FUNCTIONAL"
     ai_adapter: str = "DETERMINISTIC"
     tutor_model: str = "gpt-5.2"
+    arena_generation_limit_per_hour: int = Field(
+        default=30,
+        ge=1,
+        le=10_000,
+        validation_alias=AliasChoices(
+            "RIGOR_ARENA_GENERATION_LIMIT_PER_HOUR",
+            "ARENA_GENERATION_LIMIT_PER_HOUR",
+        ),
+    )
     openai_api_key: SecretStr | None = Field(
         default=None,
         validation_alias=AliasChoices("RIGOR_OPENAI_API_KEY", "OPENAI_API_KEY"),
