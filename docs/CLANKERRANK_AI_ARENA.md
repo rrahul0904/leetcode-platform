@@ -50,7 +50,7 @@ Tiers are Bronze, Silver, Gold, Platinum, and Diamond.
 - Generated source must match the subsequently submitted source exactly.
 - Candidate code is not executed inside the Arena route. It reuses SkillForge's existing
   durable execution/sandbox path.
-- Arena generations and results are candidate-owned with forced PostgreSQL RLS.
+- Arena rate limits, generations, and results are candidate-owned with forced PostgreSQL RLS; leaderboard profile reads expose only the public rating fields.
 - Leaderboard profiles expose only display name, rating/tier, solved count, and
   submission count.
 - Finalization is tied to persisted SkillForge submission/evaluation rows.
@@ -60,6 +60,7 @@ Tiers are Bronze, Silver, Gold, Platinum, and Diamond.
 Alembic revision `20260918_0021` adds:
 
 - `ai_arena_profiles`
+- `ai_arena_rate_limits`
 - `ai_arena_generations`
 - `ai_arena_results`
 
