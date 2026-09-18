@@ -118,8 +118,9 @@ def _strings(value: object) -> list[str]:
     return [str(item) for item in value if isinstance(item, (str, int, float))]
 
 
-def _difficulty(content: dict[str, Any]) -> str:
+def _difficulty(content: dict[str, Any], persisted: object = None) -> str:
     candidates: list[object] = [
+        persisted,
         content.get("difficulty"),
         (content.get("metadata") or {}).get("difficulty")
         if isinstance(content.get("metadata"), dict)
@@ -128,9 +129,20 @@ def _difficulty(content: dict[str, Any]) -> str:
         if isinstance(content.get("classification"), dict)
         else None,
     ]
+    aliases = {
+        "foundational": "easy",
+        "beginner": "easy",
+        "easy": "easy",
+        "intermediate": "medium",
+        "medium": "medium",
+        "advanced": "hard",
+        "hard": "hard",
+        "staff": "hard",
+        "principal": "hard",
+    }
     for value in candidates:
-        if isinstance(value, str) and value.casefold() in {"easy", "medium", "hard"}:
-            return value.casefold()
+        if isinstance(value, str) and value.casefold() in aliases:
+            return aliases[value.casefold()]
     return "medium"
 
 
@@ -158,7 +170,7 @@ def _challenge(payload: dict[str, Any]) -> PublicArenaChallenge:
     return PublicArenaChallenge(
         slug=str(payload["slug"]),
         title=str(payload["title"]),
-        difficulty=_difficulty(content),
+        difficulty=_difficulty(content, payload.get("difficulty")),
         problem_statement=str(statement),
         constraints=_strings(constraints),
         public_examples=public_examples,
@@ -515,7 +527,7 @@ def finalize_arena_submission(
             text(
                 f"""
                 SELECT g.id AS generation_id, g.question_version_id, g.prompt,
-                       g.generated_code, q.slug, v.structured_content,
+                       g.generated_code, q.slug, v.difficulty, v.structured_content,
                        s.id AS submission_id, s.submitted_source,
                        sr.public_results, sr.hidden_total, sr.hidden_passed,
                        sr.runtime_ms, se.code_quality_score
@@ -594,7 +606,7 @@ def finalize_arena_submission(
             previous_best_score is None or previous_best_score < 70
         )
         delta = rating_delta(
-            difficulty=_difficulty(content),
+            difficulty=_difficulty(content, row["difficulty"]),
             score=score.total,
             previous_best_score=previous_best_score,
             first_solve=first_solve,
