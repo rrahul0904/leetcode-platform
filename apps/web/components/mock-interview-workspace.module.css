@@ -105,6 +105,22 @@
   box-shadow: inset 3px 0 0 currentColor;
 }
 
+.historyButton {
+  opacity: .88;
+}
+
+.historyButton:hover {
+  opacity: 1;
+}
+
+.emptyHistory {
+  margin: 0;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color, #d8d8d8);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .setupMain,
 .conversation {
   padding: 30px;
