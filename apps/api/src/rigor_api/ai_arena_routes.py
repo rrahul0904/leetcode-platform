@@ -226,7 +226,7 @@ def _profile(connection: Connection, display_name: str) -> ArenaProfileView:
     return ArenaProfileView(
         display_name=display_name,
         rating=int(row["rating"]),
-        tier=tier_for_rating(int(row["rating_after"])),
+        tier=str(row["tier"]),
         solved_count=int(row["solved_count"]),
         submission_count=int(row["submission_count"]),
     )
