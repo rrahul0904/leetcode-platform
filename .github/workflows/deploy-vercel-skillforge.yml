@@ -460,4 +460,4 @@ jobs:
             exit 1
           fi
 
-          echo "SkillForge production passed web, BFF, API readiness, auth, tutor, PR-review, AI Arena, CSP, and exact-hostname checks."
+          echo "SkillForge production passed web, BFF, API readiness, auth, tutor, PR-review, AI Arena, mock-interview, CSP, and exact-hostname checks."
