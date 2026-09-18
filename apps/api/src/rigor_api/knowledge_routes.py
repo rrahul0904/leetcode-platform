@@ -390,16 +390,21 @@ def list_companies(
                 text(
                     f"""
                 SELECT c.id, c.slug, c.name,
-                       count(DISTINCT o.problem_id) AS problem_count,
-                       count(DISTINCT o.problem_id) FILTER (WHERE o.difficulty='easy')
+                       count(DISTINCT p.id) AS problem_count,
+                       count(DISTINCT p.id) FILTER (WHERE o.difficulty='easy')
                          AS easy_count,
-                       count(DISTINCT o.problem_id) FILTER (WHERE o.difficulty='medium')
+                       count(DISTINCT p.id) FILTER (WHERE o.difficulty='medium')
                          AS medium_count,
-                       count(DISTINCT o.problem_id) FILTER (WHERE o.difficulty='hard')
+                       count(DISTINCT p.id) FILTER (WHERE o.difficulty='hard')
                          AS hard_count,
-                       avg(o.frequency) AS average_frequency
+                       avg(o.frequency) FILTER (WHERE p.id IS NOT NULL)
+                         AS average_frequency
                 FROM knowledge_companies c
                 LEFT JOIN knowledge_company_observations o ON o.company_id=c.id
+                LEFT JOIN knowledge_problems p
+                  ON p.id=o.problem_id
+                 AND p.deleted_at IS NULL
+                 AND p.publication_status IN ('published', 'metadata_only')
                 {condition}
                 GROUP BY c.id, c.slug, c.name
                 ORDER BY problem_count DESC, c.name ASC
