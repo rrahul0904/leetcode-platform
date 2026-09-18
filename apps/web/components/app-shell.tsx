@@ -23,6 +23,9 @@ import { useAuth } from "@/lib/auth";
 const candidateNav = [
   ["Overview", "/", LayoutDashboard],
   ["Question Bank", "/question-bank", BookOpen],
+  ["Companies", "/companies", Radar],
+  ["Design Lab", "/design-lab", LayoutDashboard],
+  ["PR Review", "/pr-review", FileCheck2],
   ["AI Arena", "/ai-arena", Trophy],
   ["Mock Interviews", "/mock-interviews", MessageSquareText],
   ["Progress", "/progress", CircleGauge],
