@@ -172,9 +172,9 @@ def _published_arena_question(connection: Connection, slug: str) -> dict[str, An
         payload = published_question_payload(connection, slug)
         _challenge(payload)
         return payload
-    except (PracticeSessionNotFoundError, ValueError) as exc:
+    except PracticeSessionNotFoundError as exc:
         raise HTTPException(status_code=404, detail="AI Arena challenge not found") from exc
-    except Exception as exc:
+    except (PracticeStateTransitionError, ValueError) as exc:
         raise HTTPException(status_code=409, detail="Question is not AI Arena executable") from exc
 
 
@@ -420,17 +420,41 @@ def finalize_arena_submission(
     engine: DatabaseEngine,
 ) -> ArenaResultView:
     with principal_transaction(engine, principal) as connection:
-        connection.execute(
-            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
-            {"key": f"ai-arena:{request.generation_id}"},
+        lock_keys = sorted(
+            (
+                f"ai-arena-generation:{request.generation_id}",
+                f"ai-arena-submission:{request.submission_id}",
+            )
         )
-        existing = _stored_result(
+        for lock_key in lock_keys:
+            connection.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+                {"key": lock_key},
+            )
+
+        generation_result = _stored_result(
             connection,
             generation_id=request.generation_id,
+        )
+        if generation_result is not None:
+            if generation_result.submission_id != request.submission_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Arena generation has already been finalized with another submission.",
+                )
+            return generation_result
+
+        submission_result = _stored_result(
+            connection,
             submission_id=request.submission_id,
         )
-        if existing is not None:
-            return existing
+        if submission_result is not None:
+            if submission_result.generation_id != request.generation_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Submission has already been finalized for another Arena generation.",
+                )
+            return submission_result
 
         row = connection.execute(
             text(
