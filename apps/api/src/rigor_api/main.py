@@ -49,7 +49,17 @@ from .knowledge_company_readiness_routes import (
     CompanyReadiness,
     candidate_company_readiness,
 )
-from .mock_interview_routes import router as mock_interview_router
+from .mock_interview_routes import (
+    MockInterviewSessionSummary,
+    MockInterviewSessionView,
+    MockInterviewTemplateView,
+    answer_mock_interview,
+    create_mock_interview,
+    get_mock_interview,
+    list_mock_interview_templates,
+    list_mock_interviews,
+    update_mock_interview_state,
+)
 from .pr_review_routes import router as pr_review_router
 from .principal_auth import database_authoritative_principal
 from .question_engagement import router as question_engagement_router
@@ -185,5 +195,41 @@ app.include_router(attachment_solution_router)
 app.include_router(saas_router)
 app.include_router(tutor_router)
 app.include_router(tutor_chat_router)
-app.include_router(mock_interview_router)
+app.add_api_route(
+    "/api/v1/mock-interviews/templates",
+    list_mock_interview_templates,
+    methods=["GET"],
+    response_model=list[MockInterviewTemplateView],
+)
+app.add_api_route(
+    "/api/v1/mock-interviews",
+    create_mock_interview,
+    methods=["POST"],
+    response_model=MockInterviewSessionView,
+    status_code=201,
+)
+app.add_api_route(
+    "/api/v1/mock-interviews",
+    list_mock_interviews,
+    methods=["GET"],
+    response_model=list[MockInterviewSessionSummary],
+)
+app.add_api_route(
+    "/api/v1/mock-interviews/{session_id}",
+    get_mock_interview,
+    methods=["GET"],
+    response_model=MockInterviewSessionView,
+)
+app.add_api_route(
+    "/api/v1/mock-interviews/{session_id}/responses",
+    answer_mock_interview,
+    methods=["POST"],
+    response_model=MockInterviewSessionView,
+)
+app.add_api_route(
+    "/api/v1/mock-interviews/{session_id}/actions",
+    update_mock_interview_state,
+    methods=["POST"],
+    response_model=MockInterviewSessionView,
+)
 app.include_router(pr_review_router)
