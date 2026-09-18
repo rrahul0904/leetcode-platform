@@ -495,23 +495,32 @@ def create_mock_interview(
         existing = connection.execute(
             text(
                 f"""
-                SELECT id
-                FROM mock_interview_sessions
-                WHERE candidate_id={_CURRENT_USER_SQL}
-                  AND source_type='skillforge_template'
-                  AND source_id=:source_id
-                  AND current_phase LIKE :idempotency_marker
-                ORDER BY created_at DESC
+                SELECT s.id, s.target_role, s.source_id
+                FROM mock_interview_sessions s
+                JOIN mock_interview_messages m ON m.session_id=s.id
+                WHERE s.candidate_id={_CURRENT_USER_SQL}
+                  AND m.role='interviewer'
+                  AND m.sequence_number=0
+                  AND m.evidence->>'idempotency_key'=:idempotency_key
+                ORDER BY s.created_at DESC
                 LIMIT 1
                 """
             ),
-            {
-                "source_id": template.slug,
-                "idempotency_marker": f"%|{idempotency_key}",
-            },
-        ).scalar_one_or_none()
+            {"idempotency_key": idempotency_key},
+        ).mappings().one_or_none()
         if existing is not None:
-            return _detail(connection, UUID(str(existing)))
+            if (
+                str(existing["source_id"]) != template.slug
+                or str(existing["target_role"]) != request.target_role.strip()
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Idempotency-Key was already used for a different "
+                        "mock interview request."
+                    ),
+                )
+            return _detail(connection, UUID(str(existing["id"])))
 
         first_phase = template.phases[0]
         session_id = connection.execute(
@@ -535,7 +544,7 @@ def create_mock_interview(
                 "organization_id": principal.organization_id or "",
                 "target_role": request.target_role.strip(),
                 "source_id": template.slug,
-                "current_phase": f"{first_phase.slug}|{idempotency_key}",
+                "current_phase": first_phase.slug,
             },
         ).scalar_one()
         resolved_session_id = UUID(str(session_id))
@@ -549,17 +558,8 @@ def create_mock_interview(
                 "template": template.slug,
                 "label": first_phase.label,
                 "rubric": _EVALUATOR_VERSION,
+                "idempotency_key": idempotency_key,
             },
-        )
-        connection.execute(
-            text(
-                """
-                UPDATE mock_interview_sessions
-                SET current_phase=:phase
-                WHERE id=:session_id
-                """
-            ),
-            {"phase": first_phase.slug, "session_id": resolved_session_id},
         )
         return _detail(connection, resolved_session_id)
 
