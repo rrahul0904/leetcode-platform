@@ -13,7 +13,7 @@ from .execution_routes import (
 )
 from .schemas import ReadinessCheck, ReadinessResponse
 
-EXPECTED_MIGRATION_VERSION = "20260914_0020"
+EXPECTED_MIGRATION_VERSION = "20260918_0021"
 REQUIRED_TABLES = (
     "users",
     "user_roles",
@@ -64,6 +64,9 @@ REQUIRED_TABLES = (
     "tutor_events",
     "pr_review_sessions",
     "pr_review_comments",
+    "ai_arena_profiles",
+    "ai_arena_generations",
+    "ai_arena_results",
 )
 EXECUTION_ADAPTERS = {
     "LOCAL_FUNCTIONAL",
