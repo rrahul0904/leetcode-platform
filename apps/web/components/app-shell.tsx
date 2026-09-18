@@ -5,6 +5,7 @@ import {
   CircleGauge,
   FileCheck2,
   FileUp,
+  History,
   LayoutDashboard,
   Link2,
   Menu,
@@ -30,6 +31,7 @@ const candidateNav = [
   ["AI Arena", "/ai-arena", Trophy],
   ["Mock Interviews", "/mock-interviews", MessageSquareText],
   ["Learning Paths", "/learning-paths", Route],
+  ["Attempts", "/attempts", History],
   ["Progress", "/progress", CircleGauge],
 ] as const;
 
