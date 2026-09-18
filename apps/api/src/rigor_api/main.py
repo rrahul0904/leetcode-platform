@@ -5,7 +5,7 @@ not boot FastAPI or evaluate production-only settings. The historical API module
 is retained as ``legacy_main`` while this serving entrypoint removes candidate-code
 execution and candidate-owned read routes from the legacy submissions router *before*
 it is included in the app, then installs the durable execution, ownership-hardened
-candidate reads, governed solution, SaaS, and tutor routers explicitly.
+candidate reads, governed solution, SaaS, tutor, and PR-review routers explicitly.
 """
 
 from __future__ import annotations
@@ -33,6 +33,7 @@ from .execution_routes import (
     queue_run_for_question,
     queue_submit_for_question,
 )
+from .pr_review_routes import router as pr_review_router
 from .principal_auth import database_authoritative_principal
 from .question_engagement import router as question_engagement_router
 from .saas_routes import router as saas_router
@@ -130,3 +131,4 @@ app.include_router(attachment_solution_router)
 app.include_router(saas_router)
 app.include_router(tutor_router)
 app.include_router(tutor_chat_router)
+app.include_router(pr_review_router)
