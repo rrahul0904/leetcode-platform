@@ -261,16 +261,9 @@
   width: 100%;
   min-height: 44px;
   border: 1px solid currentColor;
-  background: currentColor;
-  cursor: pointer;
-}
-
-.primary {
-  color: var(--foreground, #111);
-}
-
-.primary::first-line {
+  background: var(--foreground, #111);
   color: var(--background, #fff);
+  cursor: pointer;
 }
 
 .submit {
