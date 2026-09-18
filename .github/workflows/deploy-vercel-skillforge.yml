@@ -223,18 +223,24 @@ jobs:
           pr_review_rls="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT count(*) FROM pg_class WHERE relname IN (:sessions,:comments) AND relrowsecurity AND relforcerowsecurity"), {"sessions":"pr_review_sessions","comments":"pr_review_comments"}).scalar_one()); c.close(); e.dispose()')"
           arena_tables="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT count(*) FROM pg_class WHERE relname IN (:profiles,:limits,:generations,:results)"), {"profiles":"ai_arena_profiles","limits":"ai_arena_rate_limits","generations":"ai_arena_generations","results":"ai_arena_results"}).scalar_one()); c.close(); e.dispose()')"
           arena_rls="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT count(*) FROM pg_class WHERE relname IN (:profiles,:limits,:generations,:results) AND relrowsecurity AND relforcerowsecurity"), {"profiles":"ai_arena_profiles","limits":"ai_arena_rate_limits","generations":"ai_arena_generations","results":"ai_arena_results"}).scalar_one()); c.close(); e.dispose()')"
+          mock_interview_tables="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT count(*) FROM pg_class WHERE relname IN (:sessions,:messages,:reports)"), {"sessions":"mock_interview_sessions","messages":"mock_interview_messages","reports":"mock_interview_reports"}).scalar_one()); c.close(); e.dispose()')"
+          mock_interview_rls="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT count(*) FROM pg_class WHERE relname IN (:sessions,:messages,:reports) AND relrowsecurity AND relforcerowsecurity"), {"sessions":"mock_interview_sessions","messages":"mock_interview_messages","reports":"mock_interview_reports"}).scalar_one()); c.close(); e.dispose()')"
           echo "Published candidate questions: $published_count"
           echo "Tutor tables present: $tutor_tables"
           echo "PR review tables present: $pr_review_tables"
           echo "PR review tables with forced RLS: $pr_review_rls"
           echo "AI Arena tables present: $arena_tables"
           echo "AI Arena tables with forced RLS: $arena_rls"
+          echo "Mock interview tables present: $mock_interview_tables"
+          echo "Mock interview tables with forced RLS: $mock_interview_rls"
           test "$published_count" -ge "$EXPECTED_LAUNCH_PACKAGES"
           test "$tutor_tables" -eq 2
           test "$pr_review_tables" -eq 2
           test "$pr_review_rls" -eq 2
           test "$arena_tables" -eq 4
           test "$arena_rls" -eq 4
+          test "$mock_interview_tables" -eq 3
+          test "$mock_interview_rls" -eq 3
 
       - name: Deploy current API and worker to ECS
         id: ecs
