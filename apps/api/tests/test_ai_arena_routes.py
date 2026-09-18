@@ -20,6 +20,7 @@ def test_public_arena_challenge_never_serializes_hidden_test_bodies() -> None:
         {
             "slug": "arena-security-contract",
             "title": "Arena Security Contract",
+            "difficulty": "advanced",
             "structured_content": {
                 "question_type": "python_coding",
                 "problem_statement": "Return the input value.",
@@ -49,6 +50,7 @@ def test_public_arena_challenge_never_serializes_hidden_test_bodies() -> None:
     )
 
     payload = challenge.model_dump(mode="json")
+    assert payload["difficulty"] == "hard"
     assert payload["public_test_count"] == 1
     assert payload["hidden_test_count"] == 1
     assert "tests" not in payload
