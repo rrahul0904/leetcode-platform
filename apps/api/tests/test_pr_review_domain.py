@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 import rigor_api.pr_review_domain as pr_review
 
 
