@@ -14,6 +14,9 @@ import type {
   NextAction,
   PracticeHint,
   PracticeSession,
+  MockInterviewSession,
+  MockInterviewSessionSummary,
+  MockInterviewTemplate,
 } from "./types";
 
 export interface QuestionFilters {
@@ -299,4 +302,66 @@ export function revealHint(sessionId: string) {
 
 export function getSubmissions(signal?: AbortSignal) {
   return apiClient.request<CandidateSubmission[]>("/api/v1/submissions", { signal });
+}
+
+
+export function getMockInterviewTemplates(signal?: AbortSignal) {
+  return apiClient.request<MockInterviewTemplate[]>(
+    "/api/v1/mock-interviews/templates",
+    { signal },
+  );
+}
+
+export function getMockInterviews(signal?: AbortSignal) {
+  return apiClient.request<MockInterviewSessionSummary[]>(
+    "/api/v1/mock-interviews",
+    { signal },
+  );
+}
+
+export function getMockInterview(sessionId: string, signal?: AbortSignal) {
+  return apiClient.request<MockInterviewSession>(
+    `/api/v1/mock-interviews/${encodeURIComponent(sessionId)}`,
+    { signal },
+  );
+}
+
+export function createMockInterview(
+  focus: string,
+  targetRole: string,
+  idempotencyKey = fallbackIdempotencyKey("mobile-mock-create"),
+) {
+  return apiClient.request<MockInterviewSession>("/api/v1/mock-interviews", {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
+    body: jsonBody({ focus, target_role: targetRole }),
+  });
+}
+
+export function answerMockInterview(
+  sessionId: string,
+  content: string,
+  idempotencyKey = fallbackIdempotencyKey("mobile-mock-answer"),
+) {
+  return apiClient.request<MockInterviewSession>(
+    `/api/v1/mock-interviews/${encodeURIComponent(sessionId)}/responses`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: jsonBody({ content }),
+    },
+  );
+}
+
+export function updateMockInterviewState(
+  sessionId: string,
+  action: "pause" | "resume" | "cancel",
+) {
+  return apiClient.request<MockInterviewSession>(
+    `/api/v1/mock-interviews/${encodeURIComponent(sessionId)}/actions`,
+    {
+      method: "POST",
+      body: jsonBody({ action }),
+    },
+  );
 }
