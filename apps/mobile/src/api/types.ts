@@ -72,3 +72,58 @@ export interface ExecutionView {
   result: AsyncExecutionResult | null;
   error: string | null;
 }
+
+
+export interface MockInterviewTemplate {
+  slug: string;
+  label: string;
+  description: string;
+  competencies: string[];
+  phases: Array<{ slug: string; label: string }>;
+}
+
+export interface MockInterviewMessage {
+  id: string;
+  session_id: string;
+  sequence_number: number;
+  role: string;
+  phase: string;
+  content: string;
+  evidence: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface MockInterviewReport {
+  overall_score: number;
+  rubric_evidence: Array<Record<string, unknown>>;
+  strengths: string[];
+  growth_areas: string[];
+  next_steps: string[];
+}
+
+export type MockInterviewStatus =
+  | "CREATED"
+  | "READY"
+  | "IN_PROGRESS"
+  | "PAUSED"
+  | "COMPLETED"
+  | "CANCELLED";
+
+export interface MockInterviewSessionSummary {
+  id: string;
+  interview_type: string;
+  target_role: string;
+  focus: string;
+  focus_label: string;
+  status: MockInterviewStatus;
+  current_phase: string;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MockInterviewSession extends MockInterviewSessionSummary {
+  messages: MockInterviewMessage[];
+  report: MockInterviewReport | null;
+}
