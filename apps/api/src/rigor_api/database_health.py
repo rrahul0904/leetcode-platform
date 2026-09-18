@@ -33,6 +33,8 @@ REQUIRED_TABLES = (
     "assessment_sessions",
     "simulation_sessions",
     "mock_interview_sessions",
+    "mock_interview_messages",
+    "mock_interview_reports",
     "ai_interactions",
     "readiness_snapshots",
     "recommendation_events",
