@@ -65,6 +65,7 @@ REQUIRED_TABLES = (
     "pr_review_sessions",
     "pr_review_comments",
     "ai_arena_profiles",
+    "ai_arena_rate_limits",
     "ai_arena_generations",
     "ai_arena_results",
 )
