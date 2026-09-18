@@ -487,11 +487,22 @@ def create_mock_interview(
     engine: DatabaseEngine,
     idempotency_key: IdempotencyHeader,
 ) -> MockInterviewSessionView:
-    template = template_for(request.focus)
+    focus = request.focus.strip()
+    target_role = request.target_role.strip()
+    if not focus or not target_role:
+        raise HTTPException(
+            status_code=422,
+            detail="Focus and target role must contain non-whitespace text.",
+        )
+    template = template_for(focus)
     if template is None:
         raise HTTPException(status_code=404, detail="Mock interview template not found")
 
     with principal_transaction(engine, principal) as connection:
+        connection.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"mock-interview-create:{idempotency_key}"},
+        )
         existing = connection.execute(
             text(
                 f"""
@@ -511,7 +522,7 @@ def create_mock_interview(
         if existing is not None:
             if (
                 str(existing["source_id"]) != template.slug
-                or str(existing["target_role"]) != request.target_role.strip()
+                or str(existing["target_role"]) != target_role
             ):
                 raise HTTPException(
                     status_code=409,
@@ -542,7 +553,7 @@ def create_mock_interview(
             ),
             {
                 "organization_id": principal.organization_id or "",
-                "target_role": request.target_role.strip(),
+                "target_role": target_role,
                 "source_id": template.slug,
                 "current_phase": first_phase.slug,
             },
@@ -607,6 +618,12 @@ def answer_mock_interview(
     engine: DatabaseEngine,
     idempotency_key: IdempotencyHeader,
 ) -> MockInterviewSessionView:
+    content = request.content.strip()
+    if not content:
+        raise HTTPException(
+            status_code=422,
+            detail="Interview response must contain non-whitespace text.",
+        )
     with principal_transaction(engine, principal) as connection:
         row = _session_row(connection, session_id, lock=True)
         existing = connection.execute(
@@ -656,13 +673,13 @@ def answer_mock_interview(
                 detail="Interview phase is not recognized.",
             )
         phase = template.phases[phase_index]
-        evidence = evaluate_response(phase, request.content)
+        evidence = evaluate_response(phase, content)
         _insert_message(
             connection,
             session_id=session_id,
             role="candidate",
             phase=phase.slug,
-            content=request.content.strip(),
+            content=content,
             evidence={
                 "idempotency_key": idempotency_key,
                 "label": evidence.label,
