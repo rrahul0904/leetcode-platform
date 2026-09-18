@@ -93,6 +93,19 @@ export type CompanySummary = {
   average_frequency: number | null;
 };
 
+export type CompanyReadiness = {
+  company_id: string;
+  slug: string;
+  name: string;
+  problem_count: number;
+  solved_count: number;
+  in_progress_count: number;
+  viewed_count: number;
+  remaining_count: number;
+  completion_percent: number;
+  last_activity_at: string | null;
+};
+
 export type SystemDesignSummary = {
   id: string;
   slug: string;
@@ -198,6 +211,10 @@ export function getKnowledgeSolutions(
 
 export function getKnowledgeCompanies(signal?: AbortSignal) {
   return request<CompanySummary[]>("/api/v1/knowledge/companies", signal);
+}
+
+export function getKnowledgeCompanyReadiness(signal?: AbortSignal) {
+  return request<CompanyReadiness[]>("/api/v1/knowledge/me/company-readiness", signal);
 }
 
 export function getSystemDesignLibrary(signal?: AbortSignal) {
