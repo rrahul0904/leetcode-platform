@@ -15,6 +15,7 @@ from fastapi.routing import APIRoute
 from . import attachment_progress_patch as attachment_progress_patch
 from . import execution_patches as execution_patches
 from . import submissions as legacy_submissions
+from .ai_arena_routes import router as ai_arena_router
 from .attachment_solution_routes import router as attachment_solution_router
 from .auth import authenticated_principal, token_validator
 from .bookmarked_catalog import router as bookmarked_catalog_router
@@ -126,6 +127,7 @@ app.add_api_route(
     candidate_owned_evidence,
     methods=["GET"],
 )
+app.include_router(ai_arena_router)
 app.include_router(company_readiness_router)
 app.include_router(question_engagement_router)
 app.include_router(bookmarked_catalog_router)
