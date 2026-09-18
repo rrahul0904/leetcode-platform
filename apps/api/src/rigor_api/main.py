@@ -15,7 +15,18 @@ from fastapi.routing import APIRoute
 from . import attachment_progress_patch as attachment_progress_patch
 from . import execution_patches as execution_patches
 from . import submissions as legacy_submissions
-from .ai_arena_routes import router as ai_arena_router
+from .ai_arena_routes import (
+    ArenaGenerationView,
+    ArenaLeaderboardRow,
+    ArenaProfileView,
+    ArenaResultView,
+    PublicArenaChallenge,
+    finalize_arena_submission,
+    generate_arena_candidate,
+    get_arena_leaderboard,
+    get_arena_profile,
+    list_arena_challenges,
+)
 from .attachment_solution_routes import router as attachment_solution_router
 from .auth import authenticated_principal, token_validator
 from .bookmarked_catalog import router as bookmarked_catalog_router
@@ -34,7 +45,10 @@ from .execution_routes import (
     queue_run_for_question,
     queue_submit_for_question,
 )
-from .knowledge_company_readiness_routes import router as company_readiness_router
+from .knowledge_company_readiness_routes import (
+    CompanyReadiness,
+    candidate_company_readiness,
+)
 from .pr_review_routes import router as pr_review_router
 from .principal_auth import database_authoritative_principal
 from .question_engagement import router as question_engagement_router
@@ -127,8 +141,43 @@ app.add_api_route(
     candidate_owned_evidence,
     methods=["GET"],
 )
-app.include_router(ai_arena_router)
-app.include_router(company_readiness_router)
+app.add_api_route(
+    "/api/v1/arena/challenges",
+    list_arena_challenges,
+    methods=["GET"],
+    response_model=list[PublicArenaChallenge],
+)
+app.add_api_route(
+    "/api/v1/arena/generate",
+    generate_arena_candidate,
+    methods=["POST"],
+    response_model=ArenaGenerationView,
+    status_code=201,
+)
+app.add_api_route(
+    "/api/v1/arena/finalize",
+    finalize_arena_submission,
+    methods=["POST"],
+    response_model=ArenaResultView,
+)
+app.add_api_route(
+    "/api/v1/arena/me",
+    get_arena_profile,
+    methods=["GET"],
+    response_model=ArenaProfileView,
+)
+app.add_api_route(
+    "/api/v1/arena/leaderboard",
+    get_arena_leaderboard,
+    methods=["GET"],
+    response_model=list[ArenaLeaderboardRow],
+)
+app.add_api_route(
+    "/api/v1/knowledge/me/company-readiness",
+    candidate_company_readiness,
+    methods=["GET"],
+    response_model=list[CompanyReadiness],
+)
 app.include_router(question_engagement_router)
 app.include_router(bookmarked_catalog_router)
 app.include_router(attachment_solution_router)
