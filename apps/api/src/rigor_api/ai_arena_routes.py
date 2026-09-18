@@ -10,6 +10,7 @@ from sqlalchemy import Connection, text
 from .ai_arena_domain import rating_delta, score_arena_submission, tier_for_rating
 from .ai_arena_provider import generate_arena_code
 from .auth import require_permissions
+from .config import get_settings
 from .database import DatabaseEngine, principal_transaction
 from .practice import (
     PracticeSessionNotFoundError,
@@ -200,6 +201,49 @@ def _generation_view(connection: Connection, row: Any) -> ArenaGenerationView:
     )
 
 
+def _consume_generation_quota(connection: Connection) -> None:
+    limit = get_settings().arena_generation_limit_per_hour
+    consumed = connection.execute(
+        text(
+            f"""
+            INSERT INTO ai_arena_rate_limits (
+                user_id, scope, window_started_at, used, updated_at
+            ) VALUES (
+                {_CURRENT_USER_SQL},
+                'generation',
+                date_trunc('hour', CURRENT_TIMESTAMP),
+                1,
+                CURRENT_TIMESTAMP
+            )
+            ON CONFLICT (user_id, scope) DO UPDATE
+            SET window_started_at=CASE
+                    WHEN ai_arena_rate_limits.window_started_at
+                         < date_trunc('hour', CURRENT_TIMESTAMP)
+                    THEN date_trunc('hour', CURRENT_TIMESTAMP)
+                    ELSE ai_arena_rate_limits.window_started_at
+                END,
+                used=CASE
+                    WHEN ai_arena_rate_limits.window_started_at
+                         < date_trunc('hour', CURRENT_TIMESTAMP)
+                    THEN 1
+                    ELSE ai_arena_rate_limits.used + 1
+                END,
+                updated_at=CURRENT_TIMESTAMP
+            WHERE ai_arena_rate_limits.window_started_at
+                      < date_trunc('hour', CURRENT_TIMESTAMP)
+               OR ai_arena_rate_limits.used < :limit
+            RETURNING used
+            """
+        ),
+        {"limit": limit},
+    ).scalar_one_or_none()
+    if consumed is None:
+        raise HTTPException(
+            status_code=429,
+            detail="AI Arena generation limit reached for the current hourly window.",
+        )
+
+
 def _ensure_profile(connection: Connection) -> None:
     connection.execute(
         text(
@@ -354,6 +398,7 @@ def generate_arena_candidate(
                 )
             return view
         question = _published_arena_question(connection, request.challenge_slug)
+        _consume_generation_quota(connection)
 
     generation = generate_arena_code(question, request.prompt)
 
