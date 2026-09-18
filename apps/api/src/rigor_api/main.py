@@ -33,6 +33,7 @@ from .execution_routes import (
     queue_run_for_question,
     queue_submit_for_question,
 )
+from .knowledge_company_readiness_routes import router as company_readiness_router
 from .pr_review_routes import router as pr_review_router
 from .principal_auth import database_authoritative_principal
 from .question_engagement import router as question_engagement_router
@@ -125,6 +126,7 @@ app.add_api_route(
     candidate_owned_evidence,
     methods=["GET"],
 )
+app.include_router(company_readiness_router)
 app.include_router(question_engagement_router)
 app.include_router(bookmarked_catalog_router)
 app.include_router(attachment_solution_router)
