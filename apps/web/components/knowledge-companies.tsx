@@ -29,7 +29,7 @@ function compareCompanies(
       left.name.localeCompare(right.name)
     );
   }
-  if (sort === "readiness") {
+  if (sort === "readiness" && readiness.size > 0) {
     return (
       (readiness.get(right.slug) ?? 0) - (readiness.get(left.slug) ?? 0) ||
       right.problem_count - left.problem_count ||
@@ -62,6 +62,7 @@ export function KnowledgeCompanies() {
       ),
     [companyReadiness.data],
   );
+  const readinessAvailable = companyReadiness.isSuccess;
   const visible = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     return [...(companies.data ?? [])]
@@ -148,36 +149,45 @@ export function KnowledgeCompanies() {
                   : `Average recorded frequency ${company.average_frequency.toFixed(1)}.`}
               </p>
 
-              <div className={styles.readiness}>
-                <div className={styles.readinessHeader}>
-                  <span>Preparation coverage</span>
-                  <strong>{completion.toFixed(1)}%</strong>
+              {readinessAvailable && progress ? (
+                <div className={styles.readiness}>
+                  <div className={styles.readinessHeader}>
+                    <span>Preparation coverage</span>
+                    <strong>{completion.toFixed(1)}%</strong>
+                  </div>
+                  <div
+                    aria-label={`${company.name} preparation coverage ${completion.toFixed(1)} percent`}
+                    aria-valuemax={100}
+                    aria-valuemin={0}
+                    aria-valuenow={completion}
+                    className={styles.track}
+                    role="progressbar"
+                  >
+                    <span style={{ width: `${completion}%` }} />
+                  </div>
+                  <div className={styles.progressStats}>
+                    <small>
+                      <b>{progress.solved_count}</b>
+                      <i>Solved</i>
+                    </small>
+                    <small>
+                      <b>{progress.in_progress_count}</b>
+                      <i>In progress</i>
+                    </small>
+                    <small>
+                      <b>{progress.remaining_count}</b>
+                      <i>Remaining</i>
+                    </small>
+                  </div>
                 </div>
-                <div
-                  aria-label={`${company.name} preparation coverage ${completion.toFixed(1)} percent`}
-                  aria-valuemax={100}
-                  aria-valuemin={0}
-                  aria-valuenow={completion}
-                  className={styles.track}
-                  role="progressbar"
-                >
-                  <span style={{ width: `${completion}%` }} />
+              ) : companyReadiness.isLoading ? (
+                <div className={styles.readiness}>
+                  <div className={styles.readinessHeader}>
+                    <span>Preparation coverage</span>
+                    <strong>Loading…</strong>
+                  </div>
                 </div>
-                <div className={styles.progressStats}>
-                  <small>
-                    <b>{progress?.solved_count ?? 0}</b>
-                    <i>Solved</i>
-                  </small>
-                  <small>
-                    <b>{progress?.in_progress_count ?? 0}</b>
-                    <i>In progress</i>
-                  </small>
-                  <small>
-                    <b>{progress?.remaining_count ?? problemCount}</b>
-                    <i>Remaining</i>
-                  </small>
-                </div>
-              </div>
+              ) : null}
 
               <em>
                 Open ranked preparation list <ArrowRight size={14} />
