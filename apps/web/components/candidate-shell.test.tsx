@@ -53,6 +53,9 @@ describe("candidate AppShell", () => {
       within(navigation).getByRole("link", { name: "Companies" }),
     ).toHaveAttribute("href", "/companies");
     expect(
+      within(navigation).getByRole("link", { name: "Design Lab" }),
+    ).toHaveAttribute("href", "/design-lab");
+    expect(
       within(navigation).getByRole("link", { name: "PR Review" }),
     ).toHaveAttribute("href", "/pr-review");
     expect(
@@ -61,6 +64,9 @@ describe("candidate AppShell", () => {
     expect(
       within(navigation).getByRole("link", { name: "Learning Paths" }),
     ).toHaveAttribute("href", "/learning-paths");
+    expect(
+      within(navigation).getByRole("link", { name: "Attempts" }),
+    ).toHaveAttribute("href", "/attempts");
     expect(
       within(navigation).getByRole("link", { name: "Progress" }),
     ).toHaveAttribute("href", "/progress");
