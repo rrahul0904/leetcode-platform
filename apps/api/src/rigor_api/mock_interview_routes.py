@@ -246,6 +246,24 @@ def _insert_message(
     )
 
 
+def _evidence_float(value: object) -> float:
+    if isinstance(value, bool):
+        return 0.0
+    if isinstance(value, (int, float)):
+        return float(value)
+    return 0.0
+
+
+def _evidence_int(value: object) -> int:
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    return 0
+
+
 def _phase_evidence_from_messages(
     connection: Connection,
     session_id: UUID,
@@ -273,9 +291,9 @@ def _phase_evidence_from_messages(
             PhaseEvidence(
                 phase=str(row["phase"]),
                 label=str(payload.get("label") or row["phase"]),
-                score=float(payload.get("score") or 0),
-                concept_coverage=float(payload.get("concept_coverage") or 0),
-                depth_score=float(payload.get("depth_score") or 0),
+                score=_evidence_float(payload.get("score")),
+                concept_coverage=_evidence_float(payload.get("concept_coverage")),
+                depth_score=_evidence_float(payload.get("depth_score")),
                 matched_concepts=tuple(
                     str(item)
                     for item in cast(
@@ -290,7 +308,7 @@ def _phase_evidence_from_messages(
                         payload.get("missing_concepts") or [],
                     )
                 ),
-                word_count=int(payload.get("word_count") or 0),
+                word_count=_evidence_int(payload.get("word_count")),
             )
         )
     return evidence
