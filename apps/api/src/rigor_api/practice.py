@@ -46,7 +46,7 @@ def published_question_payload(connection: Connection, slug: str) -> dict[str, A
                 """
                 SELECT q.id AS question_id, q.slug, v.id AS question_version_id,
                        v.title, v.version AS publication_version,
-                       v.structured_content
+                       v.difficulty, v.structured_content
                 FROM questions q
                 JOIN question_versions v ON v.id=q.current_published_version_id
                 WHERE q.slug=:slug
