@@ -17,7 +17,9 @@ import {
   createMockInterview,
   getMockInterview,
   getMockInterviewTemplates,
+  listMockInterviews,
   type MockInterviewSession,
+  type MockInterviewSessionSummary,
   type MockInterviewTemplate,
   updateMockInterviewState,
 } from "@/lib/mock-interview-api";
@@ -29,6 +31,7 @@ export function MockInterviewWorkspace() {
   const [selectedFocus, setSelectedFocus] = useState("");
   const [targetRole, setTargetRole] = useState("Senior Data Engineer");
   const [session, setSession] = useState<MockInterviewSession | null>(null);
+  const [history, setHistory] = useState<MockInterviewSessionSummary[]>([]);
   const [answer, setAnswer] = useState("");
   const [busy, setBusy] = useState<"load" | "create" | "answer" | "action" | null>(
     "load",
@@ -37,15 +40,19 @@ export function MockInterviewWorkspace() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void getMockInterviewTemplates(controller.signal)
-      .then((items) => {
+    void Promise.all([
+      getMockInterviewTemplates(controller.signal),
+      listMockInterviews(controller.signal),
+    ])
+      .then(([items, sessions]) => {
         setTemplates(items);
+        setHistory(sessions);
         if (items.length > 0) setSelectedFocus(items[0].slug);
       })
       .catch((caught) => {
         if (!controller.signal.aborted) {
           setError(
-            caught instanceof Error ? caught.message : "Mock interview templates failed.",
+            caught instanceof Error ? caught.message : "Mock interviews failed to load.",
           );
         }
       })
@@ -87,7 +94,9 @@ export function MockInterviewWorkspace() {
         crypto.randomUUID(),
       );
       setSession(created);
+      setSelectedFocus(created.focus);
       setAnswer("");
+      setHistory(await listMockInterviews());
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "Mock interview could not start.",
@@ -111,6 +120,7 @@ export function MockInterviewWorkspace() {
       );
       setSession(updated);
       setAnswer("");
+      setHistory(await listMockInterviews());
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "Response could not be submitted.",
@@ -126,9 +136,28 @@ export function MockInterviewWorkspace() {
     setError(null);
     try {
       setSession(await updateMockInterviewState(session.id, action));
+      setHistory(await listMockInterviews());
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "Interview state could not be updated.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function openSession(sessionId: string) {
+    if (busy) return;
+    setBusy("load");
+    setError(null);
+    try {
+      const opened = await getMockInterview(sessionId);
+      setSession(opened);
+      setSelectedFocus(opened.focus);
+      setAnswer("");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Interview could not be opened.",
       );
     } finally {
       setBusy(null);
@@ -198,6 +227,22 @@ export function MockInterviewWorkspace() {
                 <span>{item.phases.length} phases</span>
               </button>
             ))}
+            <div className={styles.sectionTitle}>Recent sessions</div>
+            {history.length === 0 ? (
+              <p className={styles.emptyHistory}>No interviews yet.</p>
+            ) : (
+              history.slice(0, 8).map((item) => (
+                <button
+                  className={styles.historyButton}
+                  key={item.id}
+                  onClick={() => void openSession(item.id)}
+                  type="button"
+                >
+                  <strong>{item.focus_label}</strong>
+                  <span>{item.status.replaceAll("_", " ")} · {item.target_role}</span>
+                </button>
+              ))
+            )}
           </aside>
 
           <main className={styles.setupMain}>
