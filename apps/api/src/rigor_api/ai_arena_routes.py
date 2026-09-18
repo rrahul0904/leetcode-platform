@@ -485,24 +485,30 @@ def finalize_arena_submission(
             connection,
             generation_id=request.generation_id,
         )
+        if (
+            generation_result is not None
+            and generation_result.submission_id != request.submission_id
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Arena generation has already been finalized with another submission.",
+            )
         if generation_result is not None:
-            if generation_result.submission_id != request.submission_id:
-                raise HTTPException(
-                    status_code=409,
-                    detail="Arena generation has already been finalized with another submission.",
-                )
             return generation_result
 
         submission_result = _stored_result(
             connection,
             submission_id=request.submission_id,
         )
+        if (
+            submission_result is not None
+            and submission_result.generation_id != request.generation_id
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Submission has already been finalized for another Arena generation.",
+            )
         if submission_result is not None:
-            if submission_result.generation_id != request.generation_id:
-                raise HTTPException(
-                    status_code=409,
-                    detail="Submission has already been finalized for another Arena generation.",
-                )
             return submission_result
 
         row = connection.execute(
