@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { MockInterviewWorkspace } from "@/components/mock-interview-workspace";
 
 export default function MockInterviewsPage() {
-  redirect("/question-bank");
+  return <MockInterviewWorkspace />;
 }
