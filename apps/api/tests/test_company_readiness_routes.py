@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from fastapi.routing import APIRoute
-
 from rigor_api.knowledge_company_readiness_routes import _completion_percent
 from rigor_api.main import app
 
