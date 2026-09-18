@@ -2,6 +2,8 @@
 
 Rigor is an independent, evidence-driven technical interview preparation platform for experienced engineers. It targets senior through principal roles across software, data, machine learning, AI infrastructure, architecture, and technical leadership.
 
+The consolidated SkillForge experience also includes adaptive AI tutoring, production-style PR review practice, source-backed company preparation, and an **AI Arena** where candidates prompt a model, submit the generated Python through the existing isolated execution plane, and earn server-authoritative scores and ratings.
+
 > Rigor is independent and is not affiliated with, endorsed by, or sponsored by any employer. Company-style tracks are original curricula based on public engineering themes. Compensation, interview, and employment outcomes are not guaranteed.
 
 ## Local application
@@ -54,6 +56,8 @@ Read:
 - [Troubleshooting](docs/LOCAL_TROUBLESHOOTING.md)
 - [Docker release](docs/DOCKER_RELEASE.md)
 - [Implementation ledger](IMPLEMENTATION_PROGRESS.md)
+- [Technical learning consolidation](docs/TECHNICAL_LEARNING_CONSOLIDATION.md)
+- [ClankerRank → SkillForge AI Arena](docs/CLANKERRANK_AI_ARENA.md)
 
 ## Execution boundary
 
