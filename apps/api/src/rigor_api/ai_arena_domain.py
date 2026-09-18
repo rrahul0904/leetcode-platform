@@ -34,7 +34,7 @@ def performance_score(runtime_ms: int | None, budget_ms: int = 2_000) -> int:
 
 
 class ArenaScore:
-    __slots__ = ("correctness", "performance", "quality", "efficiency", "total")
+    __slots__ = ("correctness", "efficiency", "performance", "quality", "total")
 
     def __init__(
         self,
