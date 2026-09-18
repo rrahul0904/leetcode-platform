@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from fastapi.routing import APIRoute
-
 from rigor_api.ai_arena_routes import _challenge
 from rigor_api.main import app
 
