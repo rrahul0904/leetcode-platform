@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Link2,
   Menu,
+  MessageSquareText,
   Radar,
   Search,
   Trophy,
@@ -23,6 +24,7 @@ const candidateNav = [
   ["Overview", "/", LayoutDashboard],
   ["Question Bank", "/question-bank", BookOpen],
   ["AI Arena", "/ai-arena", Trophy],
+  ["Mock Interviews", "/mock-interviews", MessageSquareText],
   ["Progress", "/progress", CircleGauge],
 ] as const;
 
