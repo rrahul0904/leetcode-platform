@@ -36,7 +36,7 @@ describe("candidate AppShell", () => {
     const navigation = screen.getByRole("navigation", {
       name: "Primary navigation",
     });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(3);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(4);
     expect(
       within(navigation).getByRole("link", { name: "Overview" }),
     ).toHaveAttribute("href", "/");
@@ -46,6 +46,9 @@ describe("candidate AppShell", () => {
     expect(
       within(navigation).getByRole("link", { name: "Question Bank" }),
     ).toHaveAttribute("aria-current", "page");
+    expect(
+      within(navigation).getByRole("link", { name: "AI Arena" }),
+    ).toHaveAttribute("href", "/ai-arena");
     expect(
       within(navigation).getByRole("link", { name: "Progress" }),
     ).toHaveAttribute("href", "/progress");
