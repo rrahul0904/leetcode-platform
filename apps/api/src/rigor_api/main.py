@@ -45,11 +45,11 @@ from .execution_routes import (
     queue_run_for_question,
     queue_submit_for_question,
 )
-from .mock_interview_routes import router as mock_interview_router
 from .knowledge_company_readiness_routes import (
     CompanyReadiness,
     candidate_company_readiness,
 )
+from .mock_interview_routes import router as mock_interview_router
 from .pr_review_routes import router as pr_review_router
 from .principal_auth import database_authoritative_principal
 from .question_engagement import router as question_engagement_router
