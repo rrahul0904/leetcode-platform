@@ -335,6 +335,13 @@ jobs:
             exit 1
           fi
 
+          mock_status="$(curl --silent --output /tmp/preview-mock-interviews.json --write-out '%{http_code}' "$DEPLOYMENT_URL/api/backend/api/v1/mock-interviews/templates")"
+          if [ "$mock_status" != "401" ] && [ "$mock_status" != "200" ]; then
+            echo "Mock interview API is not reachable through the new deployment BFF: HTTP $mock_status"
+            cat /tmp/preview-mock-interviews.json
+            exit 1
+          fi
+
 
       - name: Assign the exact requested hostname without deleting the old deployment
         env:
@@ -423,6 +430,13 @@ jobs:
           if [ "$arena_status" != "401" ] && [ "$arena_status" != "200" ]; then
             echo "AI Arena API is not reachable through the exact production hostname: HTTP $arena_status"
             cat /tmp/canonical-ai-arena.json
+            exit 1
+          fi
+
+          mock_status="$(curl --silent --output /tmp/canonical-mock-interviews.json --write-out '%{http_code}' "$REQUESTED_CANONICAL_URL/api/backend/api/v1/mock-interviews/templates")"
+          if [ "$mock_status" != "401" ] && [ "$mock_status" != "200" ]; then
+            echo "Mock interview API is not reachable through the exact production hostname: HTTP $mock_status"
+            cat /tmp/canonical-mock-interviews.json
             exit 1
           fi
 
