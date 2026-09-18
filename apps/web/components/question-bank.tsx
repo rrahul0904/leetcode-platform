@@ -173,6 +173,9 @@ export function QuestionBank() {
             {label}
           </button>
         ))}
+        <Link className="catalog-tab" href="/question-bank?track=data-engineering" role="tab">
+          Data Engineering
+        </Link>
         <Link className="catalog-tab" href="/mock-interviews" role="tab">
           Mock Interviews
         </Link>
