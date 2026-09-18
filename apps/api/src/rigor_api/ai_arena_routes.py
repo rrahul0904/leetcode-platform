@@ -358,6 +358,10 @@ def generate_arena_candidate(
     generation = generate_arena_code(question, request.prompt)
 
     with principal_transaction(engine, principal) as connection:
+        connection.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"ai-arena-generation:{idempotency_key}"},
+        )
         existing = connection.execute(
             text(
                 f"""
