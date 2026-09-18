@@ -13,6 +13,7 @@ from .auth import require_permissions
 from .database import DatabaseEngine, principal_transaction
 from .practice import (
     PracticeSessionNotFoundError,
+    PracticeStateTransitionError,
     published_question_payload,
     question_runtime,
     question_tests,
@@ -225,7 +226,7 @@ def _profile(connection: Connection, display_name: str) -> ArenaProfileView:
     return ArenaProfileView(
         display_name=display_name,
         rating=int(row["rating"]),
-        tier=str(row["tier"]),
+        tier=tier_for_rating(int(row["rating_after"])),
         solved_count=int(row["solved_count"]),
         submission_count=int(row["submission_count"]),
     )
@@ -253,9 +254,8 @@ def _stored_result(
             SELECT r.id, r.generation_id, r.submission_id,
                    r.correctness_score, r.performance_score,
                    r.quality_score, r.efficiency_score, r.total_score,
-                   r.rating_delta, r.rating_after, p.tier, q.slug
+                   r.rating_delta, r.rating_after, q.slug
             FROM ai_arena_results r
-            JOIN ai_arena_profiles p ON p.user_id=r.user_id
             JOIN ai_arena_generations g ON g.id=r.generation_id
             JOIN question_versions v ON v.id=g.question_version_id
             JOIN questions q ON q.id=v.question_id
@@ -309,7 +309,7 @@ def list_arena_challenges(
         for slug in slugs:
             try:
                 challenges.append(_challenge(published_question_payload(connection, str(slug))))
-            except (PracticeSessionNotFoundError, ValueError, Exception):
+            except (PracticeSessionNotFoundError, PracticeStateTransitionError, ValueError):
                 continue
             if len(challenges) >= 50:
                 break
@@ -336,7 +336,16 @@ def generate_arena_candidate(
             {"idempotency_key": idempotency_key},
         ).mappings().one_or_none()
         if existing is not None:
-            return _generation_view(connection, existing)
+            view = _generation_view(connection, existing)
+            if (
+                view.challenge_slug != request.challenge_slug
+                or view.prompt != request.prompt.strip()
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Idempotency-Key was already used for a different Arena generation.",
+                )
+            return view
         question = _published_arena_question(connection, request.challenge_slug)
 
     generation = generate_arena_code(question, request.prompt)
@@ -354,7 +363,16 @@ def generate_arena_candidate(
             {"idempotency_key": idempotency_key},
         ).mappings().one_or_none()
         if existing is not None:
-            return _generation_view(connection, existing)
+            view = _generation_view(connection, existing)
+            if (
+                view.challenge_slug != request.challenge_slug
+                or view.prompt != request.prompt.strip()
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Idempotency-Key was already used for a different Arena generation.",
+                )
+            return view
         fresh_question = _published_arena_question(connection, request.challenge_slug)
         if UUID(str(fresh_question["question_version_id"])) != UUID(
             str(question["question_version_id"])
