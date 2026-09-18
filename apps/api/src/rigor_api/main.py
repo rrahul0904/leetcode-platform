@@ -45,6 +45,7 @@ from .execution_routes import (
     queue_run_for_question,
     queue_submit_for_question,
 )
+from .mock_interview_routes import router as mock_interview_router
 from .knowledge_company_readiness_routes import (
     CompanyReadiness,
     candidate_company_readiness,
@@ -184,4 +185,5 @@ app.include_router(attachment_solution_router)
 app.include_router(saas_router)
 app.include_router(tutor_router)
 app.include_router(tutor_chat_router)
+app.include_router(mock_interview_router)
 app.include_router(pr_review_router)
