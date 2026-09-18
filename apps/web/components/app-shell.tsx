@@ -10,6 +10,7 @@ import {
   Menu,
   Radar,
   Search,
+  Trophy,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -21,6 +22,7 @@ import { useAuth } from "@/lib/auth";
 const candidateNav = [
   ["Overview", "/", LayoutDashboard],
   ["Question Bank", "/question-bank", BookOpen],
+  ["AI Arena", "/ai-arena", Trophy],
   ["Progress", "/progress", CircleGauge],
 ] as const;
 
