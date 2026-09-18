@@ -3,6 +3,11 @@ name: Deploy existing SkillForge production
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-vercel-skillforge.yml
   push:
     branches:
       - main
@@ -29,6 +34,7 @@ env:
   REQUESTED_CANONICAL_URL: https://skillforge-interactive-demo-bmbpowee0-rrahul0904-5013s-projects.vercel.app
   EXPECTED_ALEMBIC_HEAD: 20260918_0021
   EXPECTED_LAUNCH_PACKAGES: "50"
+  RELEASE_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
 
 jobs:
   release:
@@ -252,7 +258,7 @@ jobs:
           set -euo pipefail
           gh workflow run deploy-ecs.yml \
             --repo "$GITHUB_REPOSITORY" \
-            --ref "$GITHUB_REF_NAME" \
+            --ref "$RELEASE_REF" \
             -f environment=production
 
           run_id=""
@@ -260,7 +266,7 @@ jobs:
             run_id="$(gh run list \
               --repo "$GITHUB_REPOSITORY" \
               --workflow deploy-ecs.yml \
-              --branch "$GITHUB_REF_NAME" \
+              --branch "$RELEASE_REF" \
               --event workflow_dispatch \
               --limit 10 \
               --json databaseId,headSha,createdAt \
