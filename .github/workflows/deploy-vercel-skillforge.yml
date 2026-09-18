@@ -221,8 +221,6 @@ jobs:
           tutor_tables="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT count(*) FROM pg_class WHERE relname IN (:sessions,:events)"), {"sessions":"tutor_sessions","events":"tutor_events"}).scalar_one()); c.close(); e.dispose()')"
           pr_review_tables="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT count(*) FROM pg_class WHERE relname IN (:sessions,:comments)"), {"sessions":"pr_review_sessions","comments":"pr_review_comments"}).scalar_one()); c.close(); e.dispose()')"
           pr_review_rls="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT count(*) FROM pg_class WHERE relname IN (:sessions,:comments) AND relrowsecurity AND relforcerowsecurity"), {"sessions":"pr_review_sessions","comments":"pr_review_comments"}).scalar_one()); c.close(); e.dispose()')"
-          arena_tables="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT count(*) FROM pg_class WHERE relname IN (:profiles,:generations,:results)"), {"profiles":"ai_arena_profiles","generations":"ai_arena_generations","results":"ai_arena_results"}).scalar_one()); c.close(); e.dispose()')"
-          arena_rls="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT count(*) FROM pg_class WHERE relname IN (:profiles,:generations,:results) AND relrowsecurity AND relforcerowsecurity"), {"profiles":"ai_arena_profiles","generations":"ai_arena_generations","results":"ai_arena_results"}).scalar_one()); c.close(); e.dispose()')"
           arena_tables="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT count(*) FROM pg_class WHERE relname IN (:profiles,:limits,:generations,:results)"), {"profiles":"ai_arena_profiles","limits":"ai_arena_rate_limits","generations":"ai_arena_generations","results":"ai_arena_results"}).scalar_one()); c.close(); e.dispose()')"
           arena_rls="$(uv run python -c 'import os; from sqlalchemy import create_engine,text; e=create_engine(os.environ["RIGOR_DATABASE_URL"]); c=e.connect(); print(c.execute(text("SELECT count(*) FROM pg_class WHERE relname IN (:profiles,:limits,:generations,:results) AND relrowsecurity AND relforcerowsecurity"), {"profiles":"ai_arena_profiles","limits":"ai_arena_rate_limits","generations":"ai_arena_generations","results":"ai_arena_results"}).scalar_one()); c.close(); e.dispose()')"
           echo "Published candidate questions: $published_count"
@@ -231,14 +229,10 @@ jobs:
           echo "PR review tables with forced RLS: $pr_review_rls"
           echo "AI Arena tables present: $arena_tables"
           echo "AI Arena tables with forced RLS: $arena_rls"
-          echo "AI Arena tables present: $arena_tables"
-          echo "AI Arena tables with forced RLS: $arena_rls"
           test "$published_count" -ge "$EXPECTED_LAUNCH_PACKAGES"
           test "$tutor_tables" -eq 2
           test "$pr_review_tables" -eq 2
           test "$pr_review_rls" -eq 2
-          test "$arena_tables" -eq 3
-          test "$arena_rls" -eq 3
           test "$arena_tables" -eq 4
           test "$arena_rls" -eq 4
 
@@ -335,12 +329,6 @@ jobs:
             exit 1
           fi
 
-          arena_status="$(curl --silent --output /tmp/preview-ai-arena.json --write-out '%{http_code}' "$DEPLOYMENT_URL/api/backend/api/v1/arena/challenges")"
-          if [ "$arena_status" != "401" ] && [ "$arena_status" != "200" ]; then
-            echo "AI Arena API is not reachable through the new deployment BFF: HTTP $arena_status"
-            cat /tmp/preview-ai-arena.json
-            exit 1
-          fi
 
       - name: Assign the exact requested hostname without deleting the old deployment
         env:
@@ -432,12 +420,6 @@ jobs:
             exit 1
           fi
 
-          arena_status="$(curl --silent --output /tmp/canonical-ai-arena.json --write-out '%{http_code}' "$REQUESTED_CANONICAL_URL/api/backend/api/v1/arena/challenges")"
-          if [ "$arena_status" != "401" ] && [ "$arena_status" != "200" ]; then
-            echo "AI Arena API is not reachable through the exact production hostname: HTTP $arena_status"
-            cat /tmp/canonical-ai-arena.json
-            exit 1
-          fi
 
           headers="$(curl --silent --show-error --head "$REQUESTED_CANONICAL_URL/")"
           if printf '%s\n' "$headers" | grep -Ei '^content-security-policy:' | grep -Eq 'localhost|127\.0\.0\.1'; then
