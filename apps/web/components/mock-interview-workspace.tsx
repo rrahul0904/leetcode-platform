@@ -47,7 +47,8 @@ export function MockInterviewWorkspace() {
       .then(([items, sessions]) => {
         setTemplates(items);
         setHistory(sessions);
-        if (items.length > 0) setSelectedFocus(items[0].slug);
+        const firstTemplate = items[0];
+        if (firstTemplate) setSelectedFocus(firstTemplate.slug);
       })
       .catch((caught) => {
         if (!controller.signal.aborted) {
