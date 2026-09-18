@@ -1,11 +1,12 @@
 name: Deploy existing SkillForge production
-# production-release-trigger: 2026-09-18
+# production-release-trigger: 2026-09-18-execute
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+      - agent/production-release-execute
       - agent/vercel-clean-skillforge
       - agent/layrs-ai-tutor
     paths:
