@@ -1,5 +1,35 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "NEXT_PUBLIC_RIGOR_AUTH_MODE",
+    "NEXT_PUBLIC_RIGOR_API_URL",
+    "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+    "CLERK_SECRET_KEY",
+    "CLERK_JWT_TEMPLATE",
+    "RIGOR_BACKEND_ORIGIN",
+    "RIGOR_ENVIRONMENT",
+    "RIGOR_LOCAL_OIDC_ENABLED",
+    "RIGOR_EXECUTION_ADAPTER",
+    "RIGOR_CLERK_ISSUER",
+    "RIGOR_CLERK_JWKS_URL",
+    "RIGOR_JWT_AUDIENCE",
+    "RIGOR_DATABASE_URL",
+    "DATABASE_URL",
+    "DATABASE_URL_UNPOOLED",
+    "POSTGRES_URL",
+    "POSTGRES_URL_NON_POOLING",
+    "POSTGRES_PRISMA_URL",
+    "POSTGRES_HOST",
+    "POSTGRES_DATABASE",
+    "POSTGRES_USER",
+    "POSTGRES_PASSWORD",
+    "PGHOST",
+    "PGHOST_UNPOOLED",
+    "PGDATABASE",
+    "PGUSER",
+    "PGPASSWORD",
+    "NEON_PROJECT_ID"
+  ],
   "tasks": {
     "dev": { "cache": false, "persistent": true },
     "build": { "dependsOn": ["^build"], "outputs": [".next/**", "!.next/cache/**", "dist/**"] },
@@ -8,4 +38,3 @@
     "test": { "dependsOn": ["^test"], "outputs": ["coverage/**"] }
   }
 }
-

@@ -1,11 +1,5 @@
-import { Suspense } from "react";
-
-import { KnowledgeProblemBank } from "@/components/knowledge-problem-bank";
+import { redirect } from "next/navigation";
 
 export default function ProblemsPage() {
-  return (
-    <Suspense fallback={<div className="kb-workspace-loading">Loading question bank…</div>}>
-      <KnowledgeProblemBank />
-    </Suspense>
-  );
+  redirect("/question-bank");
 }

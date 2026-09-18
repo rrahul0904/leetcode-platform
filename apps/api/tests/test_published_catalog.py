@@ -46,6 +46,7 @@ def cleanup_catalog_fixtures(engine: Engine) -> None:
 def seed_catalog_fixtures(engine: Engine) -> None:
     cleanup_catalog_fixtures(engine)
     structured_content = {
+        "question_type": "python_coding",
         "learning_objectives": ["Apply deterministic cache semantics"],
         "prerequisites": ["Python mappings"],
         "candidate_instructions": ["Implement the requested behavior"],
@@ -194,6 +195,7 @@ def test_candidate_catalog_is_published_filtered_and_leakage_safe() -> None:
                 "skill": "catalog-test-skill",
                 "difficulty": "advanced",
                 "role": "advanced",
+                "question_type": "python_coding",
                 "company_style": "catalog-test-style",
                 "completion_status": "not_started",
                 "sort": "duration",

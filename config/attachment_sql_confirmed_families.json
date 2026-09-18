@@ -1,0 +1,15 @@
+{
+  "validator": "postgresql-family-confirmation-v1",
+  "confirmed_family_fingerprints": [
+    "9fd4878aef3d665ffe4c38b7aa8adcd44f31b0e750440ed1e4d908fcf397c1c3",
+    "15837cc6aaf5d6e1da0ac7b09ae271617dcf8dc3a65679c81aede56fcacfea12",
+    "076b91513b026fff1f9fad1536677809f0d59922dc6b52568f6924499b9aa246",
+    "8eabd90d2228cf0faf99bbe07507f13d4d49f959cb4598d1241b83d98fb55c74"
+  ],
+  "validation": {
+    "database_family": "PostgreSQL",
+    "verified_behavior": "ROW_NUMBER latest-row-per-partition with duplicate partition keys and ingest-sequence tie break",
+    "hidden_fixture_expected_fact_ids": [2, 4, 6]
+  },
+  "note": "These four fingerprints cover the 20 SQL execution candidates in attachment V1; each family occurs five times with a different partition-key domain name."
+}

@@ -1,0 +1,90 @@
+{
+  "program": "SkillForge real-corpus solve-flow milestone",
+  "repository": "rrahul0904/leetcode-platform",
+  "integration_branch": "agent/next-milestone-multi-agent",
+  "source_base": "agent/question-bank-coding-pad",
+  "prompt": "docs/NEXT_MULTI_AGENT_EXECUTION_PROMPT.md",
+  "milestone": "search real corpus -> open published question -> Run -> Submit -> persist -> reload/recover",
+  "rules": {
+    "preserve_source_bank_release_gates": true,
+    "fabricate_missing_provenance_or_rights": false,
+    "raw_corpus_is_runtime_store": false,
+    "candidate_code_in_web_or_api_process": false,
+    "physical_counts_only": true,
+    "run_submit_idempotent": true,
+    "merge_to_main_before_aggregate_gate": false
+  },
+  "agents": [
+    {
+      "id": "agent-0",
+      "name": "Integration Architect / Release Conductor",
+      "branch": "agent/next-milestone-multi-agent",
+      "issue": 10,
+      "wave": 0,
+      "depends_on": [],
+      "owns": ["shared contracts", "migration allocation", "merge sequence", "aggregate release evidence"]
+    },
+    {
+      "id": "agent-1",
+      "name": "1M Corpus Ingestion & Canonicalization",
+      "branch": "agent/1m-corpus-ingestion",
+      "issue": 11,
+      "wave": 1,
+      "depends_on": ["agent-0-contract-freeze"],
+      "owns": ["corpus discovery", "Parquet/JSONL import", "staging", "normalization", "canonicalization", "reconciliation"]
+    },
+    {
+      "id": "agent-2",
+      "name": "Database-Backed Search & Question Serving",
+      "branch": "agent/live-question-bank-search",
+      "issue": 12,
+      "wave": 1,
+      "depends_on": ["agent-0-contract-freeze"],
+      "owns": ["search API", "filters", "pagination", "facets", "question lookup", "search observability"]
+    },
+    {
+      "id": "agent-3",
+      "name": "Question Detail Experience & User Persistence",
+      "branch": "agent/question-detail-persistence",
+      "issue": 13,
+      "wave": 1,
+      "depends_on": ["agent-0-contract-freeze"],
+      "owns": ["question detail route", "bookmarks", "notes", "drafts", "attempt history", "user authorization"]
+    },
+    {
+      "id": "agent-4",
+      "name": "Python + SQL Judge Integration",
+      "branch": "agent/runtime-judge-wireup",
+      "issue": 14,
+      "wave": 1,
+      "depends_on": ["agent-0-contract-freeze"],
+      "owns": ["coding pad Run/Submit integration", "runtime packages", "public tests", "hidden tests", "result recovery"]
+    },
+    {
+      "id": "agent-5",
+      "name": "Attempts, Progress & Readiness Foundation",
+      "branch": "agent/attempts-progress-foundation",
+      "issue": 15,
+      "wave": 1,
+      "depends_on": ["agent-0-contract-freeze"],
+      "owns": ["attempt events", "idempotent progress evidence", "topic/subtopic projection", "backup/restore persistence"]
+    },
+    {
+      "id": "agent-6",
+      "name": "End-to-End Verification / SRE / Release Gate",
+      "branch": "agent/milestone-e2e-release",
+      "issue": 16,
+      "wave": 2,
+      "depends_on": ["agent-1", "agent-2", "agent-3", "agent-4", "agent-5"],
+      "owns": ["Playwright E2E", "accessibility critical path", "volume evidence", "backup/restore verification", "release report"]
+    }
+  ],
+  "deferred_until_core_milestone_passes": [
+    "full AI tutor/interviewer",
+    "adaptive mastery/readiness",
+    "company intelligence",
+    "full Admin Content Factory",
+    "broader production deployment/IaC closure",
+    "SEO/content expansion"
+  ]
+}

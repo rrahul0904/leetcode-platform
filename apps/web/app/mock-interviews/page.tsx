@@ -1,3 +1,5 @@
-import { MockInterviews } from "@/components/mock-interviews";
+import { MockInterviewWorkspace } from "@/components/mock-interview-workspace";
 
-export default function MockInterviewsPage() { return <MockInterviews />; }
+export default function MockInterviewsPage() {
+  return <MockInterviewWorkspace />;
+}

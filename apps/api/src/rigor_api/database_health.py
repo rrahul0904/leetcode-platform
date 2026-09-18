@@ -13,8 +13,14 @@ from .execution_routes import (
 )
 from .schemas import ReadinessCheck, ReadinessResponse
 
-EXPECTED_MIGRATION_VERSION = "20260802_0015"
+EXPECTED_MIGRATION_VERSION = "20260918_0021"
 REQUIRED_TABLES = (
+    "users",
+    "user_roles",
+    "user_preferences",
+    "candidate_profiles",
+    "organizations",
+    "organization_memberships",
     "practice_sessions",
     "submissions",
     "execution_requests",
@@ -27,6 +33,8 @@ REQUIRED_TABLES = (
     "assessment_sessions",
     "simulation_sessions",
     "mock_interview_sessions",
+    "mock_interview_messages",
+    "mock_interview_reports",
     "ai_interactions",
     "readiness_snapshots",
     "recommendation_events",
@@ -43,14 +51,38 @@ REQUIRED_TABLES = (
     "knowledge_activity_events",
     "local_execution_queue",
     "local_execution_controller_status",
+    "identity_webhook_events",
+    "login_events",
+    "candidate_files",
+    "candidate_question_bookmarks",
+    "candidate_question_notes",
+    "generated_reports",
+    "data_export_requests",
+    "deletion_requests",
+    "plans",
+    "subscriptions",
+    "entitlements",
+    "tutor_sessions",
+    "tutor_events",
+    "pr_review_sessions",
+    "pr_review_comments",
+    "ai_arena_profiles",
+    "ai_arena_rate_limits",
+    "ai_arena_generations",
+    "ai_arena_results",
 )
-EXECUTION_ADAPTERS = {"LOCAL_FUNCTIONAL", "LOCAL_DOCKER", "KUBERNETES_JOB"}
+EXECUTION_ADAPTERS = {
+    "LOCAL_FUNCTIONAL",
+    "LOCAL_DOCKER",
+    "KUBERNETES_JOB",
+    "VERCEL_SANDBOX",
+}
 AI_ADAPTERS = {"DETERMINISTIC", "OPENAI", "ANTHROPIC"}
 
 
 def database_checks(engine: Engine) -> tuple[list[ReadinessCheck], int]:
     checks: list[ReadinessCheck] = []
-    content_count = 0
+    published_content_count = 0
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1")).scalar_one()
@@ -80,174 +112,101 @@ def database_checks(engine: Engine) -> tuple[list[ReadinessCheck], int]:
                     detail=(
                         f"missing={','.join(missing)}"
                         if missing
-                        else "all required tables present"
+                        else f"count={len(REQUIRED_TABLES)}"
                     ),
                 )
             )
-            content_count = int(
+            published_content_count = int(
                 connection.execute(
                     text(
                         """
-                        SELECT
-                          (SELECT count(*) FROM questions q
-                           JOIN question_versions v ON v.id=q.current_published_version_id
-                           WHERE v.state='published'::content_state)
-                          + (SELECT count(*) FROM external_question_references)
+                        SELECT count(*)
+                        FROM questions q
+                        JOIN question_versions v ON v.id=q.current_published_version_id
+                        WHERE v.state='published'::content_state
                         """
                     )
                 ).scalar_one()
             )
     except SQLAlchemyError as exc:
         checks.append(
-            ReadinessCheck(
-                name="postgresql",
-                status="not_ready",
-                detail=f"database check failed: {exc.__class__.__name__}",
-            )
+            ReadinessCheck(name="postgresql", status="not_ready", detail=type(exc).__name__)
         )
-    return checks, content_count
+    return checks, published_content_count
 
 
-def local_execution_checks(engine: Engine, adapter: str) -> list[ReadinessCheck]:
-    if adapter != "LOCAL_DOCKER":
-        return []
-    try:
-        with engine.connect() as connection:
-            row = (
-                connection.execute(
-                    text(
-                        """
-                        SELECT
-                          heartbeat_at > CURRENT_TIMESTAMP - INTERVAL '30 seconds'
-                            AS heartbeat_ready,
-                          queue_depth,
-                          python_runner_ready,
-                          sql_runner_ready
-                        FROM local_execution_controller_status
-                        WHERE controller_key='local'
-                        """
-                    )
-                )
-                .mappings()
-                .one_or_none()
-            )
-    except SQLAlchemyError as exc:
-        return [
-            ReadinessCheck(
-                name="local_execution_controller",
-                status="not_ready",
-                detail=f"status check failed: {exc.__class__.__name__}",
-            )
-        ]
-    if row is None:
-        return [
-            ReadinessCheck(
-                name="local_execution_controller",
-                status="not_ready",
-                detail="controller heartbeat is unavailable",
-            ),
-            ReadinessCheck(
-                name="python_runner",
-                status="not_ready",
-                detail="controller has not reported runner status",
-            ),
-            ReadinessCheck(
-                name="sql_runner",
-                status="not_ready",
-                detail="controller has not reported runner status",
-            ),
-        ]
-
-    controller_ready = row["heartbeat_ready"] is True
-    python_ready = row["python_runner_ready"] is True
-    sql_ready = row["sql_runner_ready"] is True
-    return [
-        ReadinessCheck(
-            name="local_execution_controller",
-            status="ready" if controller_ready else "not_ready",
-            detail=(
-                f"heartbeat fresh; queued={int(row['queue_depth'])}"
-                if controller_ready
-                else "controller heartbeat is stale"
-            ),
-        ),
-        ReadinessCheck(
-            name="python_runner",
-            status="ready" if python_ready else "not_ready",
-            detail=(
-                "reachable through internal execution network"
-                if python_ready
-                else "unreachable"
-            ),
-        ),
-        ReadinessCheck(
-            name="sql_runner",
-            status="ready" if sql_ready else "not_ready",
-            detail=(
-                "reachable through internal execution network"
-                if sql_ready
-                else "unreachable"
-            ),
-        ),
-    ]
-
-
-def valkey_check(url: str) -> ReadinessCheck:
+def dependency_check(name: str, url: str) -> ReadinessCheck:
     parsed = urlparse(url)
-    host = parsed.hostname or "localhost"
-    port = parsed.port or 6379
+    host = parsed.hostname
+    port = parsed.port
+    if not host or not port:
+        return ReadinessCheck(name=name, status="not_ready", detail="invalid_url")
     try:
-        with socket.create_connection((host, port), timeout=1.5) as connection:
-            connection.sendall(b"*1\r\n$4\r\nPING\r\n")
-            response = connection.recv(16)
-        if response.startswith(b"+PONG"):
-            return ReadinessCheck(name="valkey", status="ready", detail="reachable")
-        return ReadinessCheck(name="valkey", status="not_ready", detail="unexpected response")
+        with socket.create_connection((host, port), timeout=0.5):
+            return ReadinessCheck(name=name, status="ready", detail=f"{host}:{port}")
     except OSError as exc:
-        return ReadinessCheck(
-            name="valkey",
-            status="not_ready",
-            detail=f"connection failed: {exc.__class__.__name__}",
-        )
+        return ReadinessCheck(name=name, status="not_ready", detail=type(exc).__name__)
 
 
 def readiness_report(engine: Engine, settings: Settings) -> ReadinessResponse:
-    checks, content_count = database_checks(engine)
-    adapter = settings.execution_adapter.strip().upper()
-    checks.extend(
-        [
-            valkey_check(settings.valkey_url),
-            ReadinessCheck(
-                name="content",
-                status="ready" if content_count > 0 else "not_ready",
-                detail=f"available records={content_count}",
-            ),
-            ReadinessCheck(
-                name="execution_adapter",
-                status="ready" if adapter in EXECUTION_ADAPTERS else "not_ready",
-                detail=adapter,
-            ),
-            ReadinessCheck(
-                name="async_execution_api",
-                status="ready" if EXECUTION_ROUTES_REGISTERED else "not_ready",
-                detail="registered" if EXECUTION_ROUTES_REGISTERED else "missing",
-            ),
-            ReadinessCheck(
-                name="legacy_candidate_execution",
-                status="ready" if LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED else "not_ready",
-                detail=(
-                    "synchronous HTTP execution blocked"
-                    if LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED
-                    else "unsafe synchronous route available"
-                ),
-            ),
-            ReadinessCheck(
-                name="ai_adapter",
-                status="ready" if settings.ai_adapter in AI_ADAPTERS else "not_ready",
-                detail=settings.ai_adapter,
-            ),
-        ]
+    checks, published_content_count = database_checks(engine)
+    execution_adapter = settings.execution_adapter.upper()
+    if execution_adapter != "VERCEL_SANDBOX":
+        checks.append(dependency_check("valkey", settings.valkey_url))
+    checks.append(
+        ReadinessCheck(
+            name="content",
+            status="ready" if published_content_count > 0 else "not_ready",
+            detail=f"published_questions={published_content_count}",
+        )
     )
-    checks.extend(local_execution_checks(engine, adapter))
-    status = "ready" if all(check.status == "ready" for check in checks) else "not_ready"
-    return ReadinessResponse(status=status, checks=checks)
+    checks.append(
+        ReadinessCheck(
+            name="execution_adapter",
+            status="ready" if execution_adapter in EXECUTION_ADAPTERS else "not_ready",
+            detail=execution_adapter,
+        )
+    )
+    ai_adapter = settings.ai_adapter.upper()
+    checks.append(
+        ReadinessCheck(
+            name="ai_adapter",
+            status="ready" if ai_adapter in AI_ADAPTERS else "not_ready",
+            detail=ai_adapter,
+        )
+    )
+    checks.append(
+        ReadinessCheck(
+            name="execution_routes",
+            status=(
+                "ready"
+                if EXECUTION_ROUTES_REGISTERED and LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED
+                else "not_ready"
+            ),
+            detail=(
+                "durable execution routes registered; legacy synchronous execution blocked"
+                if EXECUTION_ROUTES_REGISTERED and LEGACY_SYNCHRONOUS_EXECUTION_BLOCKED
+                else "execution route registration incomplete"
+            ),
+        )
+    )
+    if settings.environment.strip().lower() in {"staging", "production"}:
+        identity_ready = bool(settings.oidc_jwks_url) and not settings.local_oidc_enabled
+        checks.append(
+            ReadinessCheck(
+                name="identity_provider",
+                status="ready" if identity_ready else "not_ready",
+                detail="external_oidc" if settings.oidc_jwks_url else "jwks_missing",
+            )
+        )
+        checks.append(
+            ReadinessCheck(
+                name="private_storage",
+                status="ready" if settings.s3_upload_bucket else "not_ready",
+                detail=settings.s3_upload_bucket or "bucket_missing",
+            )
+        )
+    return ReadinessResponse(
+        status="ready" if all(check.status == "ready" for check in checks) else "not_ready",
+        checks=checks,
+    )

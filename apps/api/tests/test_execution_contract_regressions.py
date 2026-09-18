@@ -4,6 +4,8 @@ import pytest
 from fastapi import HTTPException
 
 from rigor_api.execution_api import _entrypoint, _invocation_mode
+from rigor_api.execution_domain import ExecutionStatus
+from rigor_api.execution_results import TrustedExecutionProjection
 
 
 def _question(mode: dict[str, object]) -> dict[str, object]:
@@ -49,3 +51,41 @@ def test_invocation_mode_defaults_to_auto_and_rejects_unknown_values() -> None:
 
     with pytest.raises(HTTPException, match="invocation mode"):
         _invocation_mode(_question({"invocation_mode": "magic"}))
+
+
+def test_completed_execution_with_zero_tests_never_passes() -> None:
+    projection = TrustedExecutionProjection(
+        execution_status=ExecutionStatus.completed,
+        runtime_ms=1,
+        exit_code=0,
+        error_category=None,
+        public_results=[],
+        hidden_total=0,
+        hidden_passed=0,
+        stdout="",
+        stderr="",
+        candidate_message="Execution completed without deterministic evidence.",
+    )
+
+    assert projection.total_tests == 0
+    assert projection.passed_tests == 0
+    assert projection.all_tests_passed is False
+
+
+def test_completed_execution_with_real_passing_test_can_pass() -> None:
+    projection = TrustedExecutionProjection(
+        execution_status=ExecutionStatus.completed,
+        runtime_ms=1,
+        exit_code=0,
+        error_category=None,
+        public_results=[{"passed": True}],
+        hidden_total=0,
+        hidden_passed=0,
+        stdout="",
+        stderr="",
+        candidate_message="Execution completed.",
+    )
+
+    assert projection.total_tests == 1
+    assert projection.passed_tests == 1
+    assert projection.all_tests_passed is True

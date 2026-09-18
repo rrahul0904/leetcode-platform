@@ -1,0 +1,49 @@
+name: SkillForge Terraform SaaS
+
+on:
+  pull_request:
+    paths:
+      - "infra/terraform/modules/vpc/**"
+      - "infra/terraform/modules/ecs/**"
+      - "infra/terraform/modules/rds/**"
+      - "infra/terraform/modules/redis/**"
+      - "infra/terraform/modules/sqs/**"
+      - "infra/terraform/modules/s3/**"
+      - "infra/terraform/modules/secrets/**"
+      - "infra/terraform/modules/cloudfront/**"
+      - "infra/terraform/modules/waf/**"
+      - "infra/terraform/modules/acm/**"
+      - "infra/terraform/modules/route53/**"
+      - "infra/terraform/modules/ecr/**"
+      - "infra/terraform/environments/dev/**"
+      - "infra/terraform/environments/prod/**"
+      - ".github/workflows/terraform-saas.yml"
+  push:
+    branches:
+      - main
+      - "agent/**"
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform-saas.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate ${{ matrix.environment }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [dev, prod]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.14.4"
+      - name: Terraform format
+        run: terraform fmt -check -diff -recursive infra/terraform
+      - name: Initialize
+        run: terraform -chdir=infra/terraform/environments/${{ matrix.environment }} init -backend=false -input=false
+      - name: Validate
+        run: terraform -chdir=infra/terraform/environments/${{ matrix.environment }} validate

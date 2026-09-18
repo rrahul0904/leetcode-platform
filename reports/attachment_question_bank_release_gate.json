@@ -1,0 +1,17 @@
+{
+  "expected_serving_records": 11979,
+  "required_database_counts": {
+    "questions": 11979,
+    "question_versions": 11979,
+    "solutions": 11979,
+    "nonblank_explanations": 11979,
+    "unique_external_ids": 11979
+  },
+  "required_runtime_invariants": [
+    "every runnable question has at least one public test",
+    "every runnable question has at least one hidden test",
+    "hidden tests are never returned by the solution reveal endpoint",
+    "SQL requires PostgreSQL confirmation before runnable publication",
+    "PySpark remains gated without concrete fixtures and a Spark runner"
+  ]
+}

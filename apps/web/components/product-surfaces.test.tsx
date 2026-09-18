@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ContentReview } from "./content-review";
-import { MockInterviews } from "./mock-interviews";
 import { QualityGates } from "./quality-gates";
 import { QueryProvider } from "./query-provider";
 import { Reviewers } from "./reviewers";
@@ -23,18 +22,6 @@ vi.mock("@/lib/api", async (importOriginal) => ({
 }));
 
 describe("product surfaces", () => {
-  it("starts and retakes a deterministic mock exam", () => {
-    render(<MockInterviews />);
-    fireEvent.click(
-      screen.getByRole("button", { name: /start mock exam/i }),
-    );
-    expect(screen.getByText("QUESTION 1 OF 12")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /submit exam/i }));
-    expect(
-      screen.getByRole("button", { name: /retake exam/i }),
-    ).toBeInTheDocument();
-  });
-
   it("filters the quality gate board", () => {
     render(<QualityGates />);
     fireEvent.change(screen.getByLabelText("Filter gates"), {

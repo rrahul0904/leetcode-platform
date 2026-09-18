@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, SquareTerminal } from "lucide-react";
+import { ArrowRight, Code2, SquareTerminal } from "lucide-react";
 import Link from "next/link";
 
 import { EmptyState, ErrorState, LoadingState, PageHeader } from "@/components/page-ui";
@@ -34,8 +34,25 @@ export function WorkspaceEntry() {
       <PageHeader
         eyebrow="PRACTICE WORKSPACE"
         title="Resume with context, not from scratch."
-        description="Open a published exercise in the isolated workspace. Drafts, elapsed time, active executions, and deterministic results survive navigation and reconnects."
+        description="Open a published exercise in the isolated workspace or use the new Python and SQL coding lab. Drafts, custom tests, elapsed time, and deterministic results survive navigation and reconnects."
       />
+
+      <section className="workspace-entry-card" aria-label="Interactive coding lab">
+        <div>
+          <span>NEW INTERACTIVE CODING PAD</span>
+          <Code2 size={34} />
+        </div>
+        <small>PYTHON 3.13 · POSTGRESQL 18 · LOCAL DRAFT RECOVERY</small>
+        <h2>Practice in a real editor before choosing a question.</h2>
+        <p>
+          Use line numbers, keyboard shortcuts, custom input, SQL schema and result panels,
+          reset, full-screen mode, and persistent per-language drafts.
+        </p>
+        <Link className="cinematic-button cinematic-button--primary" href="/coding-lab">
+          Open coding lab <ArrowRight size={16} />
+        </Link>
+      </section>
+
       {questions.isLoading && (
         <LoadingState label="Selecting the next published exercise" />
       )}
@@ -45,9 +62,9 @@ export function WorkspaceEntry() {
       {questions.data && !question && (
         <EmptyState
           title="No published workspace exercise is available."
-          description="Choose external practice while the governed hosted catalog is being reviewed."
+          description="Use the coding lab or choose external practice while the governed hosted catalog is being reviewed."
           action={
-            <Link className="button button--ghost" href="/question-bank">
+            <Link className="button button--ghost" href="/problems">
               Browse the question bank
             </Link>
           }

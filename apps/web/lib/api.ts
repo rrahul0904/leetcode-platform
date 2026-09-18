@@ -60,7 +60,8 @@ export type CompetencyReadiness =
 export type NextAction = components["schemas"]["NextAction"];
 export type PracticeHint = components["schemas"]["PracticeHint"];
 
-const apiUrl = process.env.NEXT_PUBLIC_RIGOR_API_URL ?? "http://localhost:8002";
+const apiUrl = process.env.NEXT_PUBLIC_RIGOR_API_URL ?? "/api/backend";
+const useLocalAccessToken = process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE === "local";
 
 export class ApiError extends Error {
   constructor(
@@ -82,7 +83,9 @@ async function requestJson<T>(
   } = {},
 ): Promise<T> {
   const accessToken =
-    typeof window === "undefined" || typeof window.localStorage === "undefined"
+    !useLocalAccessToken ||
+    typeof window === "undefined" ||
+    typeof window.localStorage === "undefined"
       ? null
       : window.localStorage.getItem("rigor.auth.access-token");
   const response = await fetch(`${apiUrl}${path}`, {

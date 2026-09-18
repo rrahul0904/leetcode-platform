@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 
 import {
+  ErrorState,
   EvidenceNote,
   LoadingState,
   PageHeader,
@@ -40,12 +41,26 @@ export function Progress() {
     queryFn: ({ signal }) => getNextAction(signal),
   });
 
-  if (readiness.isLoading || submissions.isLoading)
+  if (readiness.isLoading || submissions.isLoading) {
     return (
       <div className="page-content">
         <LoadingState label="Calculating evidence-backed readiness" />
       </div>
     );
+  }
+
+  if (readiness.isError || submissions.isError) {
+    return (
+      <div className="page-content">
+        <ErrorState
+          retry={() => {
+            void readiness.refetch();
+            void submissions.refetch();
+          }}
+        />
+      </div>
+    );
+  }
 
   const data = readiness.data;
   const history = submissions.data ?? [];
@@ -56,13 +71,13 @@ export function Progress() {
       <PageHeader
         eyebrow="READINESS EVIDENCE"
         title="Progress without false certainty."
-        description="Your score reflects persisted submissions, rubric evidence, recency, and consistency. Confidence stays separate, so sparse evidence is never presented as certainty."
+        description="Your score reflects persisted evaluated submissions and competency evidence. Confidence stays separate, so sparse evidence is never presented as certainty."
       />
       {!hasEvidence && (
         <EvidenceNote tone="warning">
           <strong>No evaluated submission exists yet.</strong>
           <span>
-            Complete one hosted Python question to establish your first
+            Complete and submit a runnable published question to establish your first
             competency baseline.
           </span>
         </EvidenceNote>
@@ -71,10 +86,10 @@ export function Progress() {
         <article className="readiness-score">
           <CircleGauge size={28} />
           <span>ROLE READINESS</span>
-          <strong>{data ? percent(data.overall.score) : "—"}</strong>
+          <strong>{hasEvidence && data ? percent(data.overall.score) : "—"}</strong>
           <p>
-            {data?.target_role ?? "Staff AI Engineer"} · confidence{" "}
-            {data ? percent(data.overall.confidence) : "0%"}
+            {data?.target_role || "Target role not configured"} · confidence{" "}
+            {hasEvidence && data ? percent(data.overall.confidence) : "—"}
           </p>
         </article>
         <div className="panel">
@@ -89,8 +104,11 @@ export function Progress() {
               <span>evidence points</span>
             </div>
             <div>
-              <strong>{data?.competencies.length ?? 0}</strong>
-              <span>competencies</span>
+              <strong>
+                {data?.competencies.filter((competency) => competency.evidence_count > 0)
+                  .length ?? 0}
+              </strong>
+              <span>skills with evidence</span>
             </div>
           </div>
           <small>
@@ -104,16 +122,24 @@ export function Progress() {
               <Target size={18} />
               <span>
                 <strong>{nextAction.data.title}</strong>
-                <small>{nextAction.data.reasons[0]}</small>
+                <small>{nextAction.data.reasons[0] ?? "Evidence-ranked next step"}</small>
               </span>
               <ArrowRight size={15} />
             </Link>
+          ) : nextAction.isError ? (
+            <div className="next-practice-card" role="status">
+              <FileCheck2 size={18} />
+              <span>
+                <strong>Recommendation unavailable</strong>
+                <small>Your persisted progress is unchanged. Retry when the service is available.</small>
+              </span>
+            </div>
           ) : (
             <Link className="next-practice-card" href="/question-bank">
               <FileCheck2 size={18} />
               <span>
                 <strong>Choose a published question</strong>
-                <small>Start with a Python engineering exercise.</small>
+                <small>Start with any question that is marked runnable.</small>
               </span>
               <ArrowRight size={15} />
             </Link>
@@ -153,6 +179,49 @@ export function Progress() {
           )}
         </div>
       </section>
+
+      {hasEvidence && data && (
+        <section className="detail-grid section-block" aria-label="Readiness interpretation">
+          <div className="panel">
+            <SectionHeading eyebrow="STRONGEST AREAS" title="Highest-supported competencies" />
+            {data.strongest_areas.length ? (
+              <div className="competency-readiness-list">
+                {data.strongest_areas.map((competency) => (
+                  <article key={competency.competency_id}>
+                    <div>
+                      <strong>{competency.name}</strong>
+                      <small>{competency.evidence_count} evidence</small>
+                    </div>
+                    <b>{percent(competency.score)}</b>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-copy">Not enough evidence to identify a strongest area yet.</p>
+            )}
+          </div>
+          <div className="panel">
+            <SectionHeading eyebrow="CRITICAL GAPS" title="Skills needing more evidence" />
+            {data.critical_gaps.length ? (
+              <div className="competency-readiness-list">
+                {data.critical_gaps.map((competency) => (
+                  <article key={competency.competency_id}>
+                    <div>
+                      <strong>{competency.name}</strong>
+                      <small>
+                        {competency.evidence_count} evidence · {competency.trend}
+                      </small>
+                    </div>
+                    <b>{percent(competency.score)}</b>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-copy">No critical gap is supported by current evidence.</p>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="panel section-block">
         <SectionHeading eyebrow="SUBMISSION HISTORY" title="Immutable attempts" />

@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from sqlalchemy import Engine, text
+from sqlalchemy import Connection, Engine, text
 
 from .schemas import CandidateQuestionDetail, CatalogQuestion, Page, PublicExample
 
 CatalogSort = Literal["relevance", "title", "difficulty", "duration", "newest"]
+CompletionStatus = Literal["not_started", "attempted", "passed"]
 
 
 class PublishedQuestionNotFoundError(Exception):
@@ -30,6 +31,9 @@ class PublishedCatalogRepository:
         company_style: str | None,
         completion_status: str | None,
         sort: CatalogSort,
+        bookmarked: bool | None = None,
+        question_type: str | None = None,
+        connection: Connection | None = None,
     ) -> Page[CatalogQuestion]:
         conditions = [
             "q.current_published_version_id = v.id",
@@ -52,6 +56,9 @@ class PublishedCatalogRepository:
         if role:
             conditions.append("v.expected_seniority = :role")
             parameters["role"] = role
+        if question_type:
+            conditions.append("v.structured_content->>'question_type' = :question_type")
+            parameters["question_type"] = question_type
         if skill:
             conditions.append(
                 "EXISTS (SELECT 1 FROM question_skills qs JOIN skills s ON s.id=qs.skill_id "
@@ -65,8 +72,29 @@ class PublishedCatalogRepository:
                 "WHERE qct.question_version_id=v.id AND cst.slug=:company_style)"
             )
             parameters["company_style"] = company_style
-        if completion_status and completion_status != "not_started":
+
+        current_user = "NULLIF(current_setting('rigor.user_id', true), '')::uuid"
+        candidate_submission = (
+            "SELECT 1 FROM submissions sub "
+            "WHERE sub.question_version_id=v.id "
+            f"AND sub.candidate_id={current_user}"
+        )
+        if completion_status == "not_started":
+            conditions.append(f"NOT EXISTS ({candidate_submission})")
+        elif completion_status == "attempted":
+            conditions.append(f"EXISTS ({candidate_submission})")
+        elif completion_status == "passed":
+            conditions.append(f"EXISTS ({candidate_submission} AND sub.status='passed')")
+        elif completion_status:
             conditions.append("false")
+
+        if bookmarked is not None:
+            bookmark_exists = (
+                "EXISTS (SELECT 1 FROM candidate_question_bookmarks b "
+                f"WHERE b.question_id=q.id AND b.user_id={current_user})"
+            )
+            conditions.append(bookmark_exists if bookmarked else f"NOT {bookmark_exists}")
+
         where = " AND ".join(conditions)
         order = {
             "relevance": (
@@ -84,9 +112,10 @@ class PublishedCatalogRepository:
             "newest": "v.created_at DESC, v.title ASC",
         }[sort]
         parameters.update({"limit": page_size, "offset": (page - 1) * page_size})
-        with self.engine.connect() as connection:
+
+        def run(active_connection: Connection) -> Page[CatalogQuestion]:
             total = int(
-                connection.execute(
+                active_connection.execute(
                     text(
                         f"""
                         SELECT count(*) FROM questions q
@@ -99,7 +128,7 @@ class PublishedCatalogRepository:
                 ).scalar_one()
             )
             rows = (
-                connection.execute(
+                active_connection.execute(
                     text(
                         f"""
                         SELECT q.external_id, v.title, q.slug, t.slug AS track, v.difficulty,
@@ -131,14 +160,19 @@ class PublishedCatalogRepository:
                 .mappings()
                 .all()
             )
-        items = [CatalogQuestion.model_validate(dict(row)) for row in rows]
-        return Page[CatalogQuestion](
-            items=items,
-            page=page,
-            page_size=page_size,
-            total=total,
-            has_next=page * page_size < total,
-        )
+            items = [CatalogQuestion.model_validate(dict(row)) for row in rows]
+            return Page[CatalogQuestion](
+                items=items,
+                page=page,
+                page_size=page_size,
+                total=total,
+                has_next=page * page_size < total,
+            )
+
+        if connection is not None:
+            return run(connection)
+        with self.engine.connect() as standalone_connection:
+            return run(standalone_connection)
 
     def get(self, slug: str) -> CandidateQuestionDetail:
         with self.engine.connect() as connection:

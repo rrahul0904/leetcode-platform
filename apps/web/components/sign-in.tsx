@@ -67,10 +67,10 @@ export function SignIn() {
   return (
     <main className="sign-in-page">
       <section className="sign-in-brand">
-        <div className="brand__mark">R</div>
-        <span>RIGOR INTERVIEW SYSTEMS LAB</span>
-        <h1>Practice interviews or manage content.</h1>
-        <p>Choose a local workspace to preview the application.</p>
+        <div className="brand__mark">S</div>
+        <span>SKILLFORGE AI</span>
+        <h1>Forge interview-ready engineering skills.</h1>
+        <p>Choose a workspace to enter the SkillForge AI platform.</p>
         <div className="sign-in-security">
           <ShieldCheck size={18} />
           <span>

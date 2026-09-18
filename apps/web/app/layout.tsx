@@ -1,3 +1,4 @@
+import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
@@ -12,25 +13,44 @@ import "./cinematic-support.css";
 import "./cinematic-workflows.css";
 import "./knowledge-bank.css";
 import "./knowledge-collections.css";
+import "./question-bank-operations.css";
+import "./coding-pad.css";
+import "./controlled-code-editor.css";
+import "./attempt-history.css";
 import "./certification-experience.css";
 import "./curriculum-experience.css";
 import "./editorial-experience.css";
 
 export const metadata: Metadata = {
-  title: "Rigor — Interview Systems Lab",
+  title: "SkillsForge AI — Technical Interview Platform",
   description:
-    "Independent, evidence-driven technical interview preparation for senior through principal engineers.",
+    "AI-powered technical interview preparation with persistent practice, secure code execution, evidence-driven progress, and role-focused learning paths.",
 };
 
+function productionAuthMode() {
+  return (
+    process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE ??
+    (process.env.NODE_ENV === "production" ? "clerk" : "local")
+  );
+}
+
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+  const application = (
+    <QueryProvider>
+      <AuthProvider>
+        <AuthGate>{children}</AuthGate>
+      </AuthProvider>
+    </QueryProvider>
+  );
+
   return (
     <html lang="en">
       <body>
-        <QueryProvider>
-          <AuthProvider>
-            <AuthGate>{children}</AuthGate>
-          </AuthProvider>
-        </QueryProvider>
+        {productionAuthMode() === "clerk" ? (
+          <ClerkProvider>{application}</ClerkProvider>
+        ) : (
+          application
+        )}
       </body>
     </html>
   );

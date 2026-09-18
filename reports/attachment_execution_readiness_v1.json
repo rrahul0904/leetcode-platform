@@ -1,0 +1,28 @@
+{
+  "input_rows": 11979,
+  "output_rows": 11979,
+  "runnable_candidates": 844,
+  "runnable_by_subject": {
+    "Python Coding": 824,
+    "SQL": 20
+  },
+  "pyspark_fixture_specs": 19,
+  "gating_reasons": {
+    "ready": 824,
+    "example_not_machine_parseable": 369,
+    "reference_failed_public": 50,
+    "no_function_entrypoint": 96,
+    "source_example_mismatch": 29,
+    "non_executable_question": 9652,
+    "fixture_only": 19,
+    "reference_not_sqlite_compatible": 510,
+    "reference_uses_undeclared_tables": 410,
+    "ready_precheck": 20
+  },
+  "output_sha256": "0c1251ac9f7463ad61cd16acaad1d8ff2e69559d51e6e9e6c547c2a42084c83c",
+  "notes": [
+    "824 Python questions passed source-example parsing, source-reference execution, and at least one generated hidden test.",
+    "20 SQL questions passed a conservative local relational precheck but remain PostgreSQL-confirmation pending.",
+    "19 PySpark items have fixture metadata only; no item is marked runnable without a Spark runtime and concrete source-grounded fixtures."
+  ]
+}

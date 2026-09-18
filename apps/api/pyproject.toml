@@ -5,6 +5,7 @@ description = "Rigor modular-monolith API"
 requires-python = ">=3.13,<3.14"
 dependencies = [
   "alembic==1.18.5",
+  "cryptography==50.0.1",
   "fastapi==0.139.2",
   "hypothesis==6.157.1",
   "opentelemetry-sdk==1.44.0",

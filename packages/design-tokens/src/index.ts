@@ -2,6 +2,9 @@ export const colors = {
   background: "#0B1020",
   surface: "#121A2D",
   surfaceElevated: "#18233A",
+  // Compatibility alias retained for the native client. New code should prefer
+  // surfaceElevated, but both names intentionally resolve to the same token.
+  surfaceRaised: "#18233A",
   text: "#F8FAFC",
   textMuted: "#A8B3C7",
   primary: "#7C9CFF",
@@ -44,12 +47,28 @@ export const typography = {
     normal: 1.5,
     relaxed: 1.7,
   },
+  // Stable semantic aliases used by React Native surfaces.
+  body: 16,
+  bodySmall: 14,
+  label: 13,
+  title: 22,
+  heading: 30,
+  display: 40,
+} as const;
+
+export const breakpoints = {
+  phone: 0,
+  tablet: 768,
+  desktop: 1180,
 } as const;
 
 export const motion = {
   fast: 120,
   normal: 200,
   slow: 320,
+  fastMs: 120,
+  normalMs: 200,
+  slowMs: 320,
 } as const;
 
 export const designTokens = {
@@ -57,5 +76,6 @@ export const designTokens = {
   spacing,
   radius,
   typography,
+  breakpoints,
   motion,
 } as const;

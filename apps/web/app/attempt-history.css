@@ -1,0 +1,116 @@
+.attempt-history-page {
+  min-height: calc(100vh - 68px);
+  padding: clamp(28px, 4vw, 60px);
+  background: var(--kb-background);
+  color: var(--kb-ink);
+}
+
+.attempt-history-page > header,
+.attempt-history-list {
+  max-width: 1180px;
+  margin-inline: auto;
+}
+
+.attempt-history-page > header {
+  padding: 36px 0;
+  border-bottom: 1px solid var(--kb-line);
+}
+
+.attempt-history-page h1 {
+  max-width: 760px;
+  margin: 12px 0;
+  font-family: var(--kb-serif);
+  font-size: clamp(38px, 5vw, 66px);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.attempt-history-page > header p {
+  max-width: 760px;
+  color: var(--kb-muted);
+  line-height: 1.75;
+}
+
+.attempt-history-list {
+  display: grid;
+  gap: 12px;
+  padding: 28px 0;
+}
+
+.attempt-history-list article {
+  display: grid;
+  grid-template-columns: 120px minmax(260px, 1fr) 100px 190px auto;
+  gap: 18px;
+  align-items: center;
+  padding: 18px;
+  border: 1px solid var(--kb-line);
+  background: var(--kb-surface);
+}
+
+.attempt-history-list article > div:first-child,
+.attempt-history-meta span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.attempt-history-list .is-passed {
+  color: var(--kb-success);
+}
+
+.attempt-history-list .is-failed {
+  color: var(--kb-danger);
+}
+
+.attempt-history-list small,
+.attempt-history-list p,
+.attempt-history-score span,
+.attempt-history-meta {
+  color: var(--kb-muted);
+  font-family: var(--kb-mono);
+  font-size: 9px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.attempt-history-list h2 {
+  margin: 4px 0;
+  font-family: var(--kb-serif);
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.attempt-history-score {
+  display: grid;
+  text-align: center;
+}
+
+.attempt-history-score strong {
+  font-family: var(--kb-serif);
+  font-size: 28px;
+  font-weight: 400;
+}
+
+.attempt-history-meta {
+  display: grid;
+  gap: 6px;
+}
+
+.attempt-history-list article > a {
+  color: var(--kb-accent);
+  font-family: var(--kb-mono);
+  font-size: 10px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .attempt-history-list article {
+    grid-template-columns: 1fr auto;
+  }
+
+  .attempt-history-meta,
+  .attempt-history-list article > a {
+    grid-column: 1 / -1;
+  }
+}

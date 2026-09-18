@@ -1,0 +1,515 @@
+.layout {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.sidebar {
+  position: sticky;
+  top: 88px;
+  padding: 18px;
+}
+
+.templates {
+  display: grid;
+  gap: 8px;
+}
+
+.template,
+.templateActive {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink);
+  display: grid;
+  gap: 5px;
+  text-align: left;
+}
+
+.template:hover,
+.template:focus-visible {
+  border-color: #93aaa5;
+  outline: none;
+}
+
+.templateActive {
+  border-color: #2ba68e;
+  background: #eef8f5;
+  box-shadow: inset 3px 0 0 var(--teal);
+}
+
+.template strong,
+.templateActive strong {
+  font-size: 12px;
+}
+
+.template span,
+.templateActive span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.field {
+  margin-top: 18px;
+  display: grid;
+  gap: 7px;
+}
+
+.field > span,
+.titleField > span,
+.notes label > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.field select,
+.titleField input,
+.addNode input,
+.edgeForm input,
+.edgeForm select,
+.notes textarea,
+.tutorForm input,
+.node select,
+.nodeLabel {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  outline: none;
+}
+
+.field select:focus,
+.titleField input:focus,
+.addNode input:focus,
+.edgeForm input:focus,
+.edgeForm select:focus,
+.notes textarea:focus,
+.tutorForm input:focus,
+.node select:focus,
+.nodeLabel:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px #2ba68e18;
+}
+
+.field select {
+  min-height: 40px;
+  padding: 0 10px;
+}
+
+.instructions {
+  margin-top: 18px;
+  padding: 12px;
+  border: 1px solid #d9e2dc;
+  border-radius: 7px;
+  background: #f1f5ef;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 9px;
+  color: #41504d;
+}
+
+.instructions svg {
+  color: var(--teal);
+}
+
+.instructions strong,
+.instructions span {
+  display: block;
+}
+
+.instructions strong {
+  font-size: 11px;
+}
+
+.instructions span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.main {
+  min-width: 0;
+}
+
+.toolbar {
+  margin-bottom: 10px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.toolbar > span {
+  padding-bottom: 9px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.titleField {
+  flex: 1;
+  display: grid;
+  gap: 6px;
+}
+
+.titleField input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.stage {
+  position: relative;
+  min-height: 560px;
+  overflow: hidden;
+  border: 1px solid #30423f;
+  border-radius: 8px;
+  background-color: #101c1b;
+  background-image:
+    linear-gradient(#24363455 1px, transparent 1px),
+    linear-gradient(90deg, #24363455 1px, transparent 1px);
+  background-size: 22px 22px;
+  touch-action: none;
+  user-select: none;
+}
+
+.links {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.links line {
+  stroke: #7c9c95;
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+  opacity: 0.85;
+}
+
+.links polygon {
+  fill: #a8c8bf;
+}
+
+.node {
+  position: absolute;
+  z-index: 2;
+  width: 176px;
+  min-height: 104px;
+  padding: 10px;
+  border: 1px solid #48605b;
+  border-radius: 8px;
+  background: #172725;
+  box-shadow: 0 10px 30px #06100e55;
+  color: #eef7f4;
+}
+
+.node:hover {
+  border-color: #6c8d85;
+}
+
+.nodeTop {
+  display: grid;
+  grid-template-columns: 28px 1fr 28px;
+  gap: 6px;
+  align-items: center;
+}
+
+.nodeTop select {
+  min-width: 0;
+  height: 28px;
+  padding: 0 6px;
+  border-color: #3a514c;
+  background: #10201e;
+  color: #9db5af;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.dragHandle,
+.remove {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #3a514c;
+  border-radius: 5px;
+  background: #10201e;
+  color: #87a29c;
+  display: grid;
+  place-items: center;
+}
+
+.dragHandle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+  color: var(--acid);
+}
+
+.remove:hover,
+.remove:focus-visible {
+  color: #ffad99;
+  border-color: #80564d;
+  outline: none;
+}
+
+.nodeLabel {
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 9px;
+  border-color: #314943;
+  background: #0f1d1b;
+  color: #f2f7f5;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.canvasControls {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.addNode {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.addNode input,
+.edgeForm input,
+.edgeForm select,
+.tutorForm input {
+  min-height: 40px;
+  padding: 0 11px;
+}
+
+.edgeForm {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(120px, 1fr) minmax(150px, 1.2fr) auto;
+  gap: 8px;
+}
+
+.edgeList {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.edgeList > div {
+  padding: 6px 7px 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f7f7f3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.edgeList span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #4b5b58;
+  font-size: 10px;
+}
+
+.edgeList em {
+  color: var(--teal);
+  font-style: normal;
+  font-weight: 700;
+}
+
+.edgeList button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #82908e;
+  display: grid;
+  place-items: center;
+}
+
+.edgeList button:hover,
+.edgeList button:focus-visible {
+  background: #f4dfda;
+  color: #9f4f3e;
+  outline: none;
+}
+
+.notes {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.notes label {
+  display: grid;
+  gap: 7px;
+}
+
+.notes textarea {
+  min-height: 128px;
+  padding: 11px;
+  resize: vertical;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.tutor {
+  margin-top: 14px;
+  padding: 18px;
+}
+
+.tutorHeader {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.tutorHeader svg {
+  color: var(--teal);
+}
+
+.tutorHeader strong,
+.tutorHeader span {
+  display: block;
+}
+
+.tutorHeader strong {
+  font-size: 13px;
+}
+
+.tutorHeader span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.quickPrompts {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.quickPrompts button {
+  padding: 8px 10px;
+  border: 1px solid #ccd7d2;
+  border-radius: 999px;
+  background: #f3f7f4;
+  color: #344944;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.quickPrompts button:hover:not(:disabled),
+.quickPrompts button:focus-visible:not(:disabled) {
+  border-color: var(--teal);
+  background: #e9f6f2;
+  outline: none;
+}
+
+.quickPrompts button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.reply {
+  margin: 14px 0 0;
+  padding: 13px 14px;
+  border-left: 3px solid var(--acid);
+  background: #f1f5df;
+  color: #3f4c39;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.tutorForm {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.error {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #e6b2a7;
+  border-radius: 6px;
+  background: #fff0ec;
+  color: #8b3e2d;
+  font-size: 11px;
+}
+
+@media (max-width: 1080px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+  }
+
+  .templates {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .stage {
+    min-height: 620px;
+    overflow: auto;
+  }
+
+  .notes {
+    grid-template-columns: 1fr;
+  }
+
+  .edgeForm {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .edgeForm input {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 560px) {
+  .templates,
+  .edgeForm,
+  .addNode,
+  .tutorForm {
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .toolbar > span {
+    padding: 0;
+  }
+}

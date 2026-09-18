@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Self
 
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,6 +28,20 @@ class Settings(BaseSettings):
     valkey_url: str = "redis://localhost:6381/0"
     execution_adapter: str = "LOCAL_FUNCTIONAL"
     ai_adapter: str = "DETERMINISTIC"
+    tutor_model: str = "gpt-5.2"
+    arena_generation_limit_per_hour: int = Field(
+        default=30,
+        ge=1,
+        le=10_000,
+        validation_alias=AliasChoices(
+            "RIGOR_ARENA_GENERATION_LIMIT_PER_HOUR",
+            "ARENA_GENERATION_LIMIT_PER_HOUR",
+        ),
+    )
+    openai_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("RIGOR_OPENAI_API_KEY", "OPENAI_API_KEY"),
+    )
     content_root: Path = Field(default_factory=default_content_root)
     allowed_origins: list[str] = ["http://localhost:3001"]
     oidc_issuer: str = "http://localhost:8002/local-oidc"
@@ -35,6 +49,55 @@ class Settings(BaseSettings):
     oidc_jwks_url: str | None = None
     local_oidc_enabled: bool = True
     local_oidc_redirect_uris: list[str] = ["http://localhost:3001/auth/callback"]
+
+    clerk_issuer: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("RIGOR_CLERK_ISSUER", "CLERK_ISSUER"),
+    )
+    clerk_jwks_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("RIGOR_CLERK_JWKS_URL", "CLERK_JWKS_URL"),
+    )
+    clerk_webhook_secret: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("RIGOR_CLERK_WEBHOOK_SECRET", "CLERK_WEBHOOK_SECRET"),
+    )
+    jwt_audience: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("RIGOR_JWT_AUDIENCE", "JWT_AUDIENCE"),
+    )
+    aws_region: str = Field(
+        default="us-east-1",
+        validation_alias=AliasChoices("RIGOR_AWS_REGION", "AWS_REGION"),
+    )
+    sqs_execution_queue_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "RIGOR_SQS_EXECUTION_QUEUE_URL", "SQS_EXECUTION_QUEUE_URL"
+        ),
+    )
+    s3_upload_bucket: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("RIGOR_S3_UPLOAD_BUCKET", "S3_UPLOAD_BUCKET"),
+    )
+    s3_export_bucket: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("RIGOR_S3_EXPORT_BUCKET", "S3_EXPORT_BUCKET"),
+    )
+    sentry_dsn: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("RIGOR_SENTRY_DSN", "SENTRY_DSN"),
+    )
+
+    @model_validator(mode="after")
+    def normalize_identity_provider(self) -> Self:
+        if self.clerk_issuer:
+            self.oidc_issuer = self.clerk_issuer.rstrip("/")
+        if self.clerk_jwks_url:
+            self.oidc_jwks_url = self.clerk_jwks_url
+        if self.jwt_audience:
+            self.oidc_audience = self.jwt_audience
+        return self
 
     @model_validator(mode="after")
     def production_execution_must_fail_closed(self) -> Self:
@@ -44,8 +107,14 @@ class Settings(BaseSettings):
         if environment in {"production", "staging"} and adapter in local_only_adapters:
             raise ValueError(
                 f"{adapter} candidate execution is forbidden in staging and production. "
-                "Configure the isolated Kubernetes execution plane instead."
+                "Configure an approved isolated production execution adapter instead."
             )
+        if (
+            environment in {"production", "staging"}
+            and not self.local_oidc_enabled
+            and (not self.oidc_jwks_url or not self.oidc_issuer)
+        ):
+            raise ValueError("A production OIDC issuer and JWKS URL are required.")
         return self
 
 

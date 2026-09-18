@@ -1,9 +1,9 @@
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "./app-shell";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/journal" }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/question-bank" }));
 vi.mock("@/lib/auth", () => ({
   useAuth: () => ({
     principal: {
@@ -16,51 +16,66 @@ vi.mock("@/lib/auth", () => ({
   }),
 }));
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe("candidate AppShell", () => {
-  it("exposes the recording-grade horizontal candidate navigation", () => {
+  it("exposes the focused SkillsForge AI candidate navigation", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200 }),
+    );
+
     render(
       <AppShell>
-        <div>Candidate journal</div>
+        <div>Candidate question bank</div>
       </AppShell>,
     );
 
     const navigation = screen.getByRole("navigation", {
       name: "Primary navigation",
     });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(8);
-    expect(within(navigation).getByRole("link", { name: "Learn" })).toHaveAttribute(
-      "href",
-      "/learning-paths",
-    );
+    expect(within(navigation).getAllByRole("link")).toHaveLength(10);
     expect(
-      within(navigation).getByRole("link", { name: "Problems" }),
-    ).toHaveAttribute("href", "/problems");
+      within(navigation).getByRole("link", { name: "Overview" }),
+    ).toHaveAttribute("href", "/");
+    expect(
+      within(navigation).getByRole("link", { name: "Question Bank" }),
+    ).toHaveAttribute("href", "/question-bank");
+    expect(
+      within(navigation).getByRole("link", { name: "Question Bank" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      within(navigation).getByRole("link", { name: "AI Arena" }),
+    ).toHaveAttribute("href", "/ai-arena");
     expect(
       within(navigation).getByRole("link", { name: "Companies" }),
     ).toHaveAttribute("href", "/companies");
     expect(
-      within(navigation).getByRole("link", { name: "Mock exams" }),
+      within(navigation).getByRole("link", { name: "Design Lab" }),
+    ).toHaveAttribute("href", "/design-lab");
+    expect(
+      within(navigation).getByRole("link", { name: "PR Review" }),
+    ).toHaveAttribute("href", "/pr-review");
+    expect(
+      within(navigation).getByRole("link", { name: "Mock Interviews" }),
     ).toHaveAttribute("href", "/mock-interviews");
     expect(
-      within(navigation).getByRole("link", { name: "System design" }),
-    ).toHaveAttribute("href", "/system-design-library");
-    expect(within(navigation).getByRole("link", { name: "Journal" })).toHaveAttribute(
-      "href",
-      "/journal",
-    );
-    expect(within(navigation).getByRole("link", { name: "Journal" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+      within(navigation).getByRole("link", { name: "Learning Paths" }),
+    ).toHaveAttribute("href", "/learning-paths");
     expect(
-      within(navigation).getByRole("link", { name: "Resources" }),
-    ).toHaveAttribute("href", "/resources");
+      within(navigation).getByRole("link", { name: "Attempts" }),
+    ).toHaveAttribute("href", "/attempts");
     expect(
-      within(navigation).getByRole("link", { name: "Readiness" }),
+      within(navigation).getByRole("link", { name: "Progress" }),
     ).toHaveAttribute("href", "/progress");
-    expect(screen.getByRole("link", { name: "Search problems" })).toHaveAttribute(
-      "href",
-      "/problems",
+    expect(
+      screen.getByRole("link", { name: "Search question bank" }),
+    ).toHaveAttribute("href", "/question-bank");
+
+    await waitFor(() =>
+      expect(screen.getByTitle("SkillsForge AI API: Connected")).toBeInTheDocument(),
     );
   });
 });

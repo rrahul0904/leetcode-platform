@@ -2,6 +2,7 @@ export const tracks = [
   ["", "All tracks"],
   ["python-engineering", "Python engineering"],
   ["sql-analytics", "SQL & analytics"],
+  ["data-engineering", "Data engineering"],
   ["data-modeling", "Data modeling"],
   ["data-architecture", "Data architecture"],
   ["distributed-systems", "Distributed systems"],
@@ -23,6 +24,26 @@ export function titleCaseSlug(value: string) {
 }
 
 export const learningPaths = [
+  {
+    id: "data-engineering-interviews",
+    title: "Data engineering interviews",
+    role: "Senior → Staff",
+    duration: "8 weeks",
+    hours: "6–8 hrs/week",
+    accent: "green",
+    tracks: [
+      "data-engineering",
+      "sql-analytics",
+      "python-engineering",
+      "data-modeling",
+      "system-design",
+    ],
+    outcomes: [
+      "Batch and streaming design under constraints",
+      "SQL and Python execution fluency",
+      "Warehouse, lakehouse, orchestration, and reliability trade-offs",
+    ],
+  },
   {
     id: "backend-systems",
     title: "Senior backend systems",
@@ -56,6 +77,12 @@ export const learningPaths = [
 ] as const;
 
 export const mockFocuses = [
+  {
+    id: "data",
+    label: "Data engineering",
+    track: "data-engineering",
+    phases: ["Problem framing", "Pipeline & storage", "Reliability & scale", "Trade-offs"],
+  },
   { id: "coding", label: "Python coding", track: "python-engineering", phases: ["Clarify", "Implement", "Test", "Production follow-up"] },
   { id: "sql", label: "SQL reasoning", track: "sql-analytics", phases: ["Inspect schema", "Write query", "Validate edge cases", "Optimize"] },
   { id: "systems", label: "System design", track: "system-design", phases: ["Requirements", "Capacity", "Architecture", "Deep dive", "Operations"] },

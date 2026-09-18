@@ -10,29 +10,56 @@ from .schemas import AuthenticatedPrincipal, CatalogAggregateSummary, PlatformSt
 
 
 def ensure_user(connection: Connection, principal: AuthenticatedPrincipal) -> UUID:
-    user_id = connection.execute(
-        text(
-            """
-            INSERT INTO users (
-                identity_subject, email, display_name, email_verified, last_login_at
-            ) VALUES (
-                :subject, :email, :display_name, true, CURRENT_TIMESTAMP
-            )
-            ON CONFLICT (identity_subject) DO UPDATE SET
-                email = EXCLUDED.email,
-                display_name = EXCLUDED.display_name,
-                email_verified = true,
-                last_login_at = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
-            RETURNING id
-            """
-        ),
-        {
-            "subject": principal.subject_id,
-            "email": principal.email,
-            "display_name": principal.display_name,
-        },
-    ).scalar_one()
+    """Persist identity metadata without letting external identity mutate authorization.
+
+    External Clerk/OIDC requests may refresh trusted identity metadata and last-login
+    timestamps, but PostgreSQL ``user_roles`` remains authoritative and is never
+    rewritten from provider claims. The controlled local OIDC development provider
+    is the only exception: its deterministic identities bootstrap their local test
+    roles so legacy repositories that call ``ensure_user`` directly keep working.
+    """
+
+    user_id = UUID(
+        str(
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO users (
+                        identity_subject, email, display_name, email_verified, last_login_at
+                    ) VALUES (
+                        :subject, :email, :display_name, true, CURRENT_TIMESTAMP
+                    )
+                    ON CONFLICT (identity_subject) DO UPDATE SET
+                        email = EXCLUDED.email,
+                        display_name = EXCLUDED.display_name,
+                        email_verified = true,
+                        last_login_at = CURRENT_TIMESTAMP,
+                        updated_at = CURRENT_TIMESTAMP
+                    RETURNING id
+                    """
+                ),
+                {
+                    "subject": principal.subject_id,
+                    "email": principal.email,
+                    "display_name": principal.display_name,
+                },
+            ).scalar_one()
+        )
+    )
+    if principal.authentication_provider == "local-oidc":
+        synchronize_local_user_roles(connection, principal, user_id)
+    return user_id
+
+
+def synchronize_local_user_roles(
+    connection: Connection,
+    principal: AuthenticatedPrincipal,
+    user_id: UUID,
+) -> None:
+    """Synchronize roles only for the controlled local OIDC development provider."""
+
+    if principal.authentication_provider != "local-oidc":
+        raise ValueError("Only the controlled local OIDC provider may synchronize request roles")
     connection.execute(
         text("DELETE FROM user_roles WHERE user_id = :user_id"), {"user_id": user_id}
     )
@@ -41,7 +68,6 @@ def ensure_user(connection: Connection, principal: AuthenticatedPrincipal) -> UU
             text("INSERT INTO user_roles (user_id, role_slug) VALUES (:user_id, :role)"),
             {"user_id": user_id, "role": role.value},
         )
-    return UUID(str(user_id))
 
 
 def audit_event(

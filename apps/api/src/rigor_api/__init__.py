@@ -1,9 +1,6 @@
 """Rigor API package.
 
-Import route-registration modules before ``rigor_api.main`` builds the FastAPI
-application. Each module attaches its versioned routes to the existing practice
-router, preserving one API surface without introducing a second application.
+Importing :mod:`rigor_api` or one of its library modules must not create the
+FastAPI application, evaluate serving settings, or patch execution behavior.
+Application composition lives in :mod:`rigor_api.main`.
 """
-
-from . import knowledge_progress_routes as knowledge_progress_routes
-from . import knowledge_routes as knowledge_routes
