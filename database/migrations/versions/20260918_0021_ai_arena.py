@@ -97,6 +97,36 @@ def upgrade() -> None:
     )
 
     op.create_table(
+        "ai_arena_rate_limits",
+        sa.Column(
+            "user_id",
+            sa.Uuid(),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
+        sa.Column("scope", sa.String(length=40), primary_key=True),
+        sa.Column(
+            "window_started_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("date_trunc('hour', CURRENT_TIMESTAMP)"),
+        ),
+        sa.Column("used", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+        ),
+        sa.CheckConstraint(
+            "char_length(btrim(scope)) BETWEEN 1 AND 40",
+            name="ck_ai_arena_rate_limits_scope",
+        ),
+        sa.CheckConstraint("used >= 0", name="ck_ai_arena_rate_limits_used"),
+    )
+    owner_policy("ai_arena_rate_limits")
+
+    op.create_table(
         "ai_arena_generations",
         sa.Column(
             "id",
@@ -220,6 +250,7 @@ def upgrade() -> None:
     owner_policy("ai_arena_results")
 
     op.execute("GRANT SELECT, INSERT, UPDATE ON ai_arena_profiles TO rigor_app")
+    op.execute("GRANT SELECT, INSERT, UPDATE ON ai_arena_rate_limits TO rigor_app")
     op.execute("GRANT SELECT, INSERT ON ai_arena_generations TO rigor_app")
     op.execute("GRANT SELECT, INSERT ON ai_arena_results TO rigor_app")
 
@@ -227,4 +258,5 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("ai_arena_results")
     op.drop_table("ai_arena_generations")
+    op.drop_table("ai_arena_rate_limits")
     op.drop_table("ai_arena_profiles")
