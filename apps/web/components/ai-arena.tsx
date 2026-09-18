@@ -11,7 +11,7 @@ import {
   Sparkles,
   Trophy,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import {
   finalizeArenaSubmission,
@@ -58,15 +58,13 @@ export function AIArena() {
   const [busy, setBusy] = useState<"generate" | "submit" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!selectedSlug && challenges.data?.length) {
-      setSelectedSlug(challenges.data[0].slug);
-    }
-  }, [challenges.data, selectedSlug]);
+  const effectiveSelectedSlug =
+    selectedSlug || challenges.data?.[0]?.slug || "";
 
   const selected = useMemo(
-    () => challenges.data?.find((item) => item.slug === selectedSlug) ?? null,
-    [challenges.data, selectedSlug],
+    () =>
+      challenges.data?.find((item) => item.slug === effectiveSelectedSlug) ?? null,
+    [challenges.data, effectiveSelectedSlug],
   );
 
   function selectChallenge(slug: string) {
@@ -220,7 +218,7 @@ export function AIArena() {
           </div>
           {(challenges.data ?? []).map((challenge) => (
             <button
-              className={challenge.slug === selectedSlug ? styles.activeChallenge : ""}
+              className={challenge.slug === effectiveSelectedSlug ? styles.activeChallenge : ""}
               key={challenge.slug}
               onClick={() => selectChallenge(challenge.slug)}
               type="button"
