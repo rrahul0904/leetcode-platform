@@ -289,7 +289,7 @@ def _stored_result(
         ),
         rating_delta=int(row["rating_delta"]),
         rating_after=int(row["rating_after"]),
-        tier=str(row["tier"]),
+        tier=tier_for_rating(int(row["rating_after"])),
     )
 
 
