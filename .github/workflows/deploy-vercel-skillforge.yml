@@ -458,3 +458,57 @@ jobs:
           fi
 
           echo "SkillForge production passed web, BFF, API readiness, auth, tutor, PR-review, AI Arena, mock-interview, CSP, and exact-hostname checks."
+
+      - name: Write production certification evidence
+        env:
+          ECS_RUN_ID: ${{ steps.ecs.outputs.run_id }}
+          VERCEL_DEPLOYMENT_ID: ${{ steps.deploy.outputs.id }}
+          VERCEL_DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg release_sha "$RELEASE_SHA" \
+            --arg release_ref "$RELEASE_REF" \
+            --arg github_run_id "$GITHUB_RUN_ID" \
+            --arg ecs_run_id "$ECS_RUN_ID" \
+            --arg vercel_deployment_id "$VERCEL_DEPLOYMENT_ID" \
+            --arg vercel_deployment_url "$VERCEL_DEPLOYMENT_URL" \
+            --arg canonical_url "$REQUESTED_CANONICAL_URL" \
+            --arg alembic_head "$EXPECTED_ALEMBIC_HEAD" \
+            --arg launch_packages "$EXPECTED_LAUNCH_PACKAGES" \
+            --arg certified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              repository: $repository,
+              release_sha: $release_sha,
+              release_ref: $release_ref,
+              github_run_id: $github_run_id,
+              ecs_run_id: $ecs_run_id,
+              vercel_deployment_id: $vercel_deployment_id,
+              vercel_deployment_url: $vercel_deployment_url,
+              canonical_url: $canonical_url,
+              expected_alembic_head: $alembic_head,
+              expected_launch_packages: ($launch_packages | tonumber),
+              certified_at: $certified_at,
+              result: "production-certified"
+            }' > production-release-evidence.json
+
+          cat production-release-evidence.json
+          {
+            echo "## SkillForge production certification"
+            echo
+            echo "- Release SHA: `$RELEASE_SHA`"
+            echo "- ECS workflow run: `$ECS_RUN_ID`"
+            echo "- Vercel deployment: `$VERCEL_DEPLOYMENT_ID`"
+            echo "- Canonical URL: $REQUESTED_CANONICAL_URL"
+            echo "- Alembic head: `$EXPECTED_ALEMBIC_HEAD`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain production certification evidence
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: skillforge-production-certification-${{ env.RELEASE_SHA }}
+          path: production-release-evidence.json
+          if-no-files-found: error
+          retention-days: 90
