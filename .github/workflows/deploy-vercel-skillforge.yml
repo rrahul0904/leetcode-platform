@@ -3,17 +3,9 @@ name: Deploy existing SkillForge production
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - .github/workflows/deploy-vercel-skillforge.yml
   push:
     branches:
       - main
-      - agent/production-release-execute
-      - agent/vercel-clean-skillforge
-      - agent/layrs-ai-tutor
     paths:
       - .github/workflows/deploy-vercel-skillforge.yml
 
@@ -41,6 +33,7 @@ jobs:
   release:
     name: Build, migrate, deploy API + web, and verify production
     runs-on: ubuntu-latest
+    environment: production
     timeout-minutes: 55
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
