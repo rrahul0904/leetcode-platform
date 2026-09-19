@@ -14,6 +14,10 @@ permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: skillforge-ecs-${{ inputs.environment }}
+  cancel-in-progress: false
+
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
   ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
@@ -21,6 +25,7 @@ env:
   ECS_WORKER_SERVICE: ${{ vars.ECS_WORKER_SERVICE }}
   ECR_API_REPOSITORY: ${{ vars.ECR_API_REPOSITORY }}
   ECR_WORKER_REPOSITORY: ${{ vars.ECR_WORKER_REPOSITORY }}
+  AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
 
 jobs:
   deploy:
@@ -28,6 +33,22 @@ jobs:
     environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Validate production deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in AWS_REGION ECS_CLUSTER ECS_API_SERVICE ECS_WORKER_SERVICE ECR_API_REPOSITORY ECR_WORKER_REPOSITORY AWS_DEPLOY_ROLE_ARN; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required GitHub Actions variable: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "ECS deployment configuration is incomplete; no AWS mutation has occurred."
+            exit 1
+          fi
 
       - name: Configure AWS credentials using GitHub OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -61,10 +82,22 @@ jobs:
           docker push "$REGISTRY/$ECR_WORKER_REPOSITORY:$IMAGE_TAG"
           echo "WORKER_IMAGE=$REGISTRY/$ECR_WORKER_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_ENV"
 
-      - name: Read current task definitions
+      - name: Read current task definitions from deployed services
+        shell: bash
         run: |
-          aws ecs describe-task-definition --task-definition "$ECS_API_SERVICE" --query taskDefinition > api-task.json
-          aws ecs describe-task-definition --task-definition "$ECS_WORKER_SERVICE" --query taskDefinition > worker-task.json
+          set -euo pipefail
+          api_task_definition="$(aws ecs describe-services             --cluster "$ECS_CLUSTER"             --services "$ECS_API_SERVICE"             --query 'services[0].taskDefinition'             --output text)"
+          worker_task_definition="$(aws ecs describe-services             --cluster "$ECS_CLUSTER"             --services "$ECS_WORKER_SERVICE"             --query 'services[0].taskDefinition'             --output text)"
+
+          for value in "$api_task_definition" "$worker_task_definition"; do
+            if [ -z "$value" ] || [ "$value" = "None" ]; then
+              echo "Could not resolve the current ECS task definition from service state."
+              exit 1
+            fi
+          done
+
+          aws ecs describe-task-definition --task-definition "$api_task_definition" --query taskDefinition > api-task.json
+          aws ecs describe-task-definition --task-definition "$worker_task_definition" --query taskDefinition > worker-task.json
           for file in api-task.json worker-task.json; do
             jq 'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)' "$file" > "$file.clean"
             mv "$file.clean" "$file"
@@ -102,7 +135,23 @@ jobs:
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
 
-      - name: Smoke check service state
+      - name: Verify stable ECS service state
+        shell: bash
         run: |
-          test "$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_API_SERVICE" --query 'services[0].runningCount' --output text)" -ge 1
-          test "$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_WORKER_SERVICE" --query 'services[0].runningCount' --output text)" -ge 1
+          set -euo pipefail
+          verify_service() {
+            service="$1"
+            running="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$service" --query 'services[0].runningCount' --output text)"
+            desired="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$service" --query 'services[0].desiredCount' --output text)"
+            rollout="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$service" --query 'services[0].deployments[?status==`PRIMARY`].rolloutState | [0]' --output text)"
+            status="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$service" --query 'services[0].status' --output text)"
+
+            echo "$service status=$status running=$running desired=$desired rollout=$rollout"
+            test "$status" = "ACTIVE"
+            test "$desired" -ge 1
+            test "$running" -eq "$desired"
+            test "$rollout" = "COMPLETED"
+          }
+
+          verify_service "$ECS_API_SERVICE"
+          verify_service "$ECS_WORKER_SERVICE"
