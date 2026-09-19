@@ -128,13 +128,32 @@ jobs:
           fi
           test "$missing" -eq 0
 
-          backend_host="$(python -c 'import sys,urllib.parse; print((urllib.parse.urlparse(sys.argv[1]).hostname or "").lower())' "$RIGOR_BACKEND_ORIGIN")"
-          case "$backend_host" in
-            localhost|*.localhost|0.0.0.0|127.*|::1)
-              echo "Refusing production release with localhost/loopback backend origin: $RIGOR_BACKEND_ORIGIN"
-              exit 1
-              ;;
-          esac
+          python - "$RIGOR_BACKEND_ORIGIN" <<'PY'
+          import ipaddress
+          import sys
+          from urllib.parse import urlparse
+
+          value = sys.argv[1]
+          parsed = urlparse(value)
+          host = (parsed.hostname or "").lower().rstrip(".")
+          if parsed.scheme not in {"http", "https"} or not host:
+              raise SystemExit("RIGOR_BACKEND_ORIGIN must be an HTTP(S) origin.")
+
+          loopback = host == "localhost" or host.endswith(".localhost") or host == "0.0.0.0"
+          try:
+              loopback = loopback or ipaddress.ip_address(host).is_loopback
+          except ValueError:
+              pass
+          if loopback:
+              raise SystemExit(
+                  f"Refusing production release with localhost/loopback backend origin: {value}"
+              )
+
+          if parsed.scheme != "https" and not host.endswith(".vercel.internal"):
+              raise SystemExit(
+                  "RIGOR_BACKEND_ORIGIN must use HTTPS in production unless Vercel supplies an internal service URL."
+              )
+          PY
 
           clerk_domain="$(python -c 'import base64,sys; key=sys.argv[1]; prefixes=("pk_test_","pk_live_"); encoded=next((key[len(p):] for p in prefixes if key.startswith(p)), None); encoded or (_ for _ in ()).throw(SystemExit("Unsupported Clerk publishable key format")); encoded += "=" * (-len(encoded) % 4); print(base64.urlsafe_b64decode(encoded).decode("utf-8").rstrip("$"))' "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY")"
           clerk_issuer="https://$clerk_domain"
