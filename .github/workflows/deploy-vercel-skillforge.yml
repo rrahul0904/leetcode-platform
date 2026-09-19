@@ -518,11 +518,11 @@ jobs:
           {
             echo "## SkillForge production certification"
             echo
-            echo "- Release SHA: `$RELEASE_SHA`"
-            echo "- ECS workflow run: `$ECS_RUN_ID`"
-            echo "- Vercel deployment: `$VERCEL_DEPLOYMENT_ID`"
+            echo "- Release SHA: \`$RELEASE_SHA\`"
+            echo "- ECS workflow run: \`$ECS_RUN_ID\`"
+            echo "- Vercel deployment: \`$VERCEL_DEPLOYMENT_ID\`"
             echo "- Canonical URL: $REQUESTED_CANONICAL_URL"
-            echo "- Alembic head: `$EXPECTED_ALEMBIC_HEAD`"
+            echo "- Alembic head: \`$EXPECTED_ALEMBIC_HEAD\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Retain production certification evidence
