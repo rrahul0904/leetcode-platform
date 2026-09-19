@@ -166,6 +166,7 @@ def test_release_workflow_retains_exact_sha_certification_evidence() -> None:
     assert "skillforge-production-certification-${{ env.RELEASE_SHA }}" in workflow
     assert "retention-days: 90" in workflow
 
+
 def test_release_workflow_targets_existing_project_and_never_skillsforge_ai() -> None:
     workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
         encoding="utf-8"
