@@ -24,9 +24,7 @@ from rigor_api.content_sync import (  # noqa: E402
 )
 from rigor_api.execution_capability import _capability  # noqa: E402
 
-REQUESTED_HOSTNAME = (
-    "skillforge-interactive-demo-bmbpowee0-rrahul0904-5013s-projects.vercel.app"
-)
+REQUESTED_HOSTNAME = "skillforge-interactive-demo.vercel.app"
 CLASS_PYTHON_HOSTED_IDS = {"PY-0001", "PY-0003", "PY-0004"}
 
 
