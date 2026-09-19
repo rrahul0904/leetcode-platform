@@ -143,7 +143,7 @@ jobs:
             service="$1"
             running="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$service" --query 'services[0].runningCount' --output text)"
             desired="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$service" --query 'services[0].desiredCount' --output text)"
-            rollout="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$service" --query 'services[0].deployments[?status==`PRIMARY`].rolloutState | [0]' --output text)"
+            rollout="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$service" --query "services[0].deployments[?status==\`PRIMARY\`].rolloutState | [0]" --output text)"
             status="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$service" --query 'services[0].status' --output text)"
 
             echo "$service status=$status running=$running desired=$desired rollout=$rollout"
