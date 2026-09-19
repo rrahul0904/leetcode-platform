@@ -1,13 +1,11 @@
 name: Deploy existing SkillForge production
-# production-release-trigger: 2026-09-18
+# production-release-trigger: 2026-09-18-execute
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
-      - agent/vercel-clean-skillforge
-      - agent/layrs-ai-tutor
     paths:
       - .github/workflows/deploy-vercel-skillforge.yml
 
@@ -23,23 +21,28 @@ env:
   VERCEL_ORG_ID: team_zmEezpOKGZy2sH5nqTfO44LD
   VERCEL_PROJECT_ID: prj_fnbuYcKQeKrEq5Sax2uWdTg2SHqT
   VERCEL_PROJECT_NAME: skillforge-interactive-demo
-  TRANSITIONAL_PROJECT_URL: https://skillforge-interactive-demo.vercel.app
-  REQUESTED_CANONICAL_HOSTNAME: skillforge-interactive-demo-bmbpowee0-rrahul0904-5013s-projects.vercel.app
-  REQUESTED_CANONICAL_URL: https://skillforge-interactive-demo-bmbpowee0-rrahul0904-5013s-projects.vercel.app
+  TRANSITIONAL_PROJECT_URL: https://skillforge-interactive-demo-rrahul0904-5013s-projects.vercel.app
+  REQUESTED_CANONICAL_HOSTNAME: skillforge-interactive-demo.vercel.app
+  REQUESTED_CANONICAL_URL: https://skillforge-interactive-demo.vercel.app
   EXPECTED_ALEMBIC_HEAD: 20260918_0021
   EXPECTED_LAUNCH_PACKAGES: "50"
+  RELEASE_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
+  RELEASE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
   release:
     name: Build, migrate, deploy API + web, and verify production
     runs-on: ubuntu-latest
+    environment: production
     timeout-minutes: 55
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Checkout deployment commit
-        uses: actions/checkout@v4
+      - name: Checkout exact deployment commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.RELEASE_SHA }}
 
       - name: Require production deployment credential
         shell: bash
@@ -52,17 +55,17 @@ jobs:
           fi
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24.18.0"
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           enable-cache: true
 
@@ -125,12 +128,32 @@ jobs:
           fi
           test "$missing" -eq 0
 
-          case "$RIGOR_BACKEND_ORIGIN" in
-            http://localhost*|http://127.*|https://localhost*|https://127.*)
-              echo "Refusing production release with local backend origin: $RIGOR_BACKEND_ORIGIN"
-              exit 1
-              ;;
-          esac
+          python - "$RIGOR_BACKEND_ORIGIN" <<'PY'
+          import ipaddress
+          import sys
+          from urllib.parse import urlparse
+
+          value = sys.argv[1]
+          parsed = urlparse(value)
+          host = (parsed.hostname or "").lower().rstrip(".")
+          if parsed.scheme not in {"http", "https"} or not host:
+              raise SystemExit("RIGOR_BACKEND_ORIGIN must be an HTTP(S) origin.")
+
+          loopback = host == "localhost" or host.endswith(".localhost") or host == "0.0.0.0"
+          try:
+              loopback = loopback or ipaddress.ip_address(host).is_loopback
+          except ValueError:
+              pass
+          if loopback:
+              raise SystemExit(
+                  f"Refusing production release with localhost/loopback backend origin: {value}"
+              )
+
+          if parsed.scheme != "https" and not host.endswith(".vercel.internal"):
+              raise SystemExit(
+                  "RIGOR_BACKEND_ORIGIN must use HTTPS in production unless Vercel supplies an internal service URL."
+              )
+          PY
 
           clerk_domain="$(python -c 'import base64,sys; key=sys.argv[1]; prefixes=("pk_test_","pk_live_"); encoded=next((key[len(p):] for p in prefixes if key.startswith(p)), None); encoded or (_ for _ in ()).throw(SystemExit("Unsupported Clerk publishable key format")); encoded += "=" * (-len(encoded) % 4); print(base64.urlsafe_b64decode(encoded).decode("utf-8").rstrip("$"))' "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY")"
           clerk_issuer="https://$clerk_domain"
@@ -215,7 +238,7 @@ jobs:
           uv run python scripts/sync_content.py --mode sync --report reports/production-content-sync.json
           RIGOR_ENVIRONMENT=production \
           RIGOR_PRODUCTION_LAUNCH_BOOTSTRAP_ENABLED=true \
-          RIGOR_PRODUCTION_LAUNCH_BOOTSTRAP_REASON="Audited SkillForge release from commit $GITHUB_SHA" \
+          RIGOR_PRODUCTION_LAUNCH_BOOTSTRAP_REASON="Audited SkillForge release from commit $RELEASE_SHA" \
             uv run python scripts/publish_production_launch_catalog.py \
             | tee reports/production-launch-bootstrap.json
 
@@ -251,26 +274,26 @@ jobs:
           set -euo pipefail
           gh workflow run deploy-ecs.yml \
             --repo "$GITHUB_REPOSITORY" \
-            --ref "$GITHUB_REF_NAME" \
+            --ref "$RELEASE_REF" \
             -f environment=production
 
           run_id=""
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             run_id="$(gh run list \
               --repo "$GITHUB_REPOSITORY" \
               --workflow deploy-ecs.yml \
-              --branch "$GITHUB_REF_NAME" \
+              --branch "$RELEASE_REF" \
               --event workflow_dispatch \
               --limit 10 \
               --json databaseId,headSha,createdAt \
-              --jq 'map(select(.headSha == env.GITHUB_SHA)) | sort_by(.createdAt) | last | .databaseId // empty')"
+              --jq 'map(select(.headSha == env.RELEASE_SHA)) | sort_by(.createdAt) | last | .databaseId // empty')"
             if [ -n "$run_id" ]; then
               break
             fi
             sleep 2
           done
           if [ -z "$run_id" ]; then
-            echo "Could not locate dispatched ECS run for $GITHUB_SHA."
+            echo "Could not locate dispatched ECS run for $RELEASE_SHA."
             exit 1
           fi
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
@@ -282,13 +305,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          deployment_url="$(vercel deploy --prebuilt --prod --yes --token="$VERCEL_TOKEN")"
+          deployment_url="$(vercel deploy --prebuilt --prod --yes --meta githubCommitSha="$RELEASE_SHA" --meta githubCommitRef="$RELEASE_REF" --token="$VERCEL_TOKEN")"
           deployment_host="${deployment_url#https://}"
           deployment_host="${deployment_host%/}"
           deployment_json="$(curl --fail --silent --show-error \
             --header "Authorization: Bearer $VERCEL_TOKEN" \
             "https://api.vercel.com/v13/deployments/$deployment_host?teamId=$VERCEL_ORG_ID")"
           deployment_id="$(python -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"$deployment_json")"
+          deployment_sha="$(python -c 'import json,sys; print((json.load(sys.stdin).get("meta") or {}).get("githubCommitSha") or "")' <<<"$deployment_json")"
+          if [ "$deployment_sha" != "$RELEASE_SHA" ]; then
+            echo "Vercel deployment commit mismatch: expected $RELEASE_SHA, got ${deployment_sha:-<missing>}."
+            exit 1
+          fi
+          echo "Exact Vercel deployment commit verified: $deployment_sha"
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
           echo "id=$deployment_id" >> "$GITHUB_OUTPUT"
           echo "Vercel production deployment: $deployment_url ($deployment_id)"
@@ -345,36 +374,22 @@ jobs:
           fi
 
 
-      - name: Assign the exact requested hostname without deleting the old deployment
+      - name: Verify production domain points to the new deployment
         env:
           DEPLOYMENT_ID: ${{ steps.deploy.outputs.id }}
         shell: bash
         run: |
           set -euo pipefail
-          alias_status="$(curl --silent --show-error \
-            --output /tmp/requested-alias.json \
-            --write-out '%{http_code}' \
-            --request POST \
+          canonical_json="$(curl --fail --silent --show-error \
             --header "Authorization: Bearer $VERCEL_TOKEN" \
-            --header 'Content-Type: application/json' \
-            --data "{\"alias\":\"$REQUESTED_CANONICAL_HOSTNAME\",\"redirect\":null}" \
-            "https://api.vercel.com/v2/deployments/$DEPLOYMENT_ID/aliases?teamId=$VERCEL_ORG_ID")"
-
-          if [ "$alias_status" != "200" ]; then
-            echo "EXACT HOSTNAME BLOCKED BY VERCEL PLATFORM/API CONSTRAINT"
-            echo "Requested hostname: $REQUESTED_CANONICAL_HOSTNAME"
-            echo "Vercel alias API HTTP status: $alias_status"
-            cat /tmp/requested-alias.json
-            echo "The old deployment was not deleted or released."
+            "https://api.vercel.com/v13/deployments/$REQUESTED_CANONICAL_HOSTNAME?teamId=$VERCEL_ORG_ID")"
+          canonical_id="$(python -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"$canonical_json")"
+          if [ "$canonical_id" != "$DEPLOYMENT_ID" ]; then
+            echo "Production domain still resolves to deployment $canonical_id, expected $DEPLOYMENT_ID."
+            echo "No manual alias reassignment will be attempted; vercel deploy --prod must own production-domain promotion."
             exit 1
           fi
-
-          assigned="$(python -c 'import json,sys; print(json.load(sys.stdin).get("alias", ""))' </tmp/requested-alias.json)"
-          if [ "$assigned" != "$REQUESTED_CANONICAL_HOSTNAME" ]; then
-            echo "Vercel returned an unexpected alias: $assigned"
-            exit 1
-          fi
-
+          echo "Production domain is attached to the new deployment: $canonical_id"
       - name: Verify exact requested production URL end to end
         env:
           DEPLOYMENT_ID: ${{ steps.deploy.outputs.id }}
@@ -383,7 +398,7 @@ jobs:
           set -euo pipefail
 
           live=0
-          for attempt in $(seq 1 20); do
+          for _ in $(seq 1 20); do
             status="$(curl --silent --location --output /tmp/canonical.html --write-out '%{http_code}' "$REQUESTED_CANONICAL_URL/" || true)"
             health="$(curl --silent --output /tmp/canonical-livez.json --write-out '%{http_code}' "$REQUESTED_CANONICAL_URL/api/backend/livez" || true)"
             if [ "$status" = "200" ] && [ "$health" = "200" ] && grep -q '"status":"ok"' /tmp/canonical-livez.json; then
@@ -463,3 +478,57 @@ jobs:
           fi
 
           echo "SkillForge production passed web, BFF, API readiness, auth, tutor, PR-review, AI Arena, mock-interview, CSP, and exact-hostname checks."
+
+      - name: Write production certification evidence
+        env:
+          ECS_RUN_ID: ${{ steps.ecs.outputs.run_id }}
+          VERCEL_DEPLOYMENT_ID: ${{ steps.deploy.outputs.id }}
+          VERCEL_DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg release_sha "$RELEASE_SHA" \
+            --arg release_ref "$RELEASE_REF" \
+            --arg github_run_id "$GITHUB_RUN_ID" \
+            --arg ecs_run_id "$ECS_RUN_ID" \
+            --arg vercel_deployment_id "$VERCEL_DEPLOYMENT_ID" \
+            --arg vercel_deployment_url "$VERCEL_DEPLOYMENT_URL" \
+            --arg canonical_url "$REQUESTED_CANONICAL_URL" \
+            --arg alembic_head "$EXPECTED_ALEMBIC_HEAD" \
+            --arg launch_packages "$EXPECTED_LAUNCH_PACKAGES" \
+            --arg certified_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              repository: $repository,
+              release_sha: $release_sha,
+              release_ref: $release_ref,
+              github_run_id: $github_run_id,
+              ecs_run_id: $ecs_run_id,
+              vercel_deployment_id: $vercel_deployment_id,
+              vercel_deployment_url: $vercel_deployment_url,
+              canonical_url: $canonical_url,
+              expected_alembic_head: $alembic_head,
+              expected_launch_packages: ($launch_packages | tonumber),
+              certified_at: $certified_at,
+              result: "production-certified"
+            }' > production-release-evidence.json
+
+          cat production-release-evidence.json
+          {
+            echo "## SkillForge production certification"
+            echo
+            echo "- Release SHA: \`$RELEASE_SHA\`"
+            echo "- ECS workflow run: \`$ECS_RUN_ID\`"
+            echo "- Vercel deployment: \`$VERCEL_DEPLOYMENT_ID\`"
+            echo "- Canonical URL: $REQUESTED_CANONICAL_URL"
+            echo "- Alembic head: \`$EXPECTED_ALEMBIC_HEAD\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain production certification evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: skillforge-production-certification-${{ env.RELEASE_SHA }}
+          path: production-release-evidence.json
+          if-no-files-found: error
+          retention-days: 90
