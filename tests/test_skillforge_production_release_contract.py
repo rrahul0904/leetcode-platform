@@ -125,19 +125,7 @@ def test_production_launch_bootstrap_is_fail_closed(monkeypatch: pytest.MonkeyPa
     assert require_bootstrap_authorization("production") == reason
 
 
-def test_release_workflow_preserves_exact_requested_hostname_contract() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
-        encoding="utf-8"
-    )
-
-    assert f"REQUESTED_CANONICAL_HOSTNAME: {REQUESTED_HOSTNAME}" in workflow
-    assert f"REQUESTED_CANONICAL_URL: https://{REQUESTED_HOSTNAME}" in workflow
-    assert "Assign the exact requested hostname without deleting the old deployment" in workflow
-    assert "EXACT HOSTNAME BLOCKED BY VERCEL PLATFORM/API CONSTRAINT" in workflow
-    assert "The old deployment was not deleted or released." in workflow
-
-
-def test_release_workflow_targets_existing_project_and_never_skillsforge_ai() -> None:
+def test_release_workflow_preserves_stable_production_domain_contract() -> None:\n    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(\n        encoding="utf-8"\n    )\n\n    assert f"REQUESTED_CANONICAL_HOSTNAME: {REQUESTED_HOSTNAME}" in workflow\n    assert f"REQUESTED_CANONICAL_URL: https://{REQUESTED_HOSTNAME}" in workflow\n    assert "vercel deploy --prebuilt --prod" in workflow\n    assert "Verify production domain points to the new deployment" in workflow\n    assert "No manual alias reassignment will be attempted" in workflow\n    assert (\n        "skillforge-interactive-demo-bmbpowee0-rrahul0904-5013s-projects.vercel.app"\n        not in workflow\n    )\n\n\ndef test_release_workflow_requires_controlled_production_boundary() -> None:\n    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(\n        encoding="utf-8"\n    )\n    trigger = workflow.split("permissions:", 1)[0]\n\n    assert "workflow_dispatch:" in trigger\n    assert "pull_request:" not in trigger\n    assert "      - main" in trigger\n    assert "      - agent/" not in trigger\n    assert "environment: production" in workflow\n\n\ndef test_release_workflow_retains_exact_sha_certification_evidence() -> None:\n    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(\n        encoding="utf-8"\n    )\n\n    assert "RELEASE_SHA:" in workflow\n    assert '--meta githubCommitSha="$RELEASE_SHA"' in workflow\n    assert 'if [ "$deployment_sha" != "$RELEASE_SHA" ]; then' in workflow\n    assert "production-release-evidence.json" in workflow\n    assert "skillforge-production-certification-${{ env.RELEASE_SHA }}" in workflow\n    assert "retention-days: 90" in workflow\n\ndef test_release_workflow_targets_existing_project_and_never_skillsforge_ai() -> None:
     workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
         encoding="utf-8"
     )
