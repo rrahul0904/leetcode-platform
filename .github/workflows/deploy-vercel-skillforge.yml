@@ -278,7 +278,7 @@ jobs:
             -f environment=production
 
           run_id=""
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             run_id="$(gh run list \
               --repo "$GITHUB_REPOSITORY" \
               --workflow deploy-ecs.yml \
@@ -398,7 +398,7 @@ jobs:
           set -euo pipefail
 
           live=0
-          for attempt in $(seq 1 20); do
+          for _ in $(seq 1 20); do
             status="$(curl --silent --location --output /tmp/canonical.html --write-out '%{http_code}' "$REQUESTED_CANONICAL_URL/" || true)"
             health="$(curl --silent --output /tmp/canonical-livez.json --write-out '%{http_code}' "$REQUESTED_CANONICAL_URL/api/backend/livez" || true)"
             if [ "$status" = "200" ] && [ "$health" = "200" ] && grep -q '"status":"ok"' /tmp/canonical-livez.json; then
