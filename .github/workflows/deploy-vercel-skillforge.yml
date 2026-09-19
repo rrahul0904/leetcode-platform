@@ -128,9 +128,10 @@ jobs:
           fi
           test "$missing" -eq 0
 
-          case "$RIGOR_BACKEND_ORIGIN" in
-            http://localhost*|http://127.*|https://localhost*|https://127.*)
-              echo "Refusing production release with local backend origin: $RIGOR_BACKEND_ORIGIN"
+          backend_host="$(python -c 'import sys,urllib.parse; print((urllib.parse.urlparse(sys.argv[1]).hostname or "").lower())' "$RIGOR_BACKEND_ORIGIN")"
+          case "$backend_host" in
+            localhost|*.localhost|0.0.0.0|127.*|::1)
+              echo "Refusing production release with localhost/loopback backend origin: $RIGOR_BACKEND_ORIGIN"
               exit 1
               ;;
           esac
