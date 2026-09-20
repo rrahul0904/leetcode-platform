@@ -272,21 +272,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          ecs_correlation_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          export ECS_RUN_NAME="SkillForge ECS | production | $RELEASE_SHA | $ecs_correlation_id"
+
           gh workflow run deploy-ecs.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref "$RELEASE_REF" \
-            -f environment=production
+            -f environment=production \
+            -f release_sha="$RELEASE_SHA" \
+            -f correlation_id="$ecs_correlation_id"
 
           run_id=""
           for _ in $(seq 1 30); do
             run_id="$(gh run list \
               --repo "$GITHUB_REPOSITORY" \
               --workflow deploy-ecs.yml \
-              --branch "$RELEASE_REF" \
               --event workflow_dispatch \
-              --limit 10 \
-              --json databaseId,headSha,createdAt \
-              --jq 'map(select(.headSha == env.RELEASE_SHA)) | sort_by(.createdAt) | last | .databaseId // empty')"
+              --limit 20 \
+              --json databaseId,displayTitle,createdAt \
+              --jq 'map(select(.displayTitle == env.ECS_RUN_NAME)) | sort_by(.createdAt) | last | .databaseId // empty')"
             if [ -n "$run_id" ]; then
               break
             fi
