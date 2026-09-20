@@ -1,4 +1,5 @@
 name: Deploy SkillForge ECS
+run-name: SkillForge ECS | ${{ inputs.environment }} | ${{ inputs.release_sha }} | ${{ inputs.correlation_id }}
 
 on:
   workflow_dispatch:
@@ -9,6 +10,14 @@ on:
         default: production
         type: choice
         options: [development, production]
+      release_sha:
+        description: Immutable Git commit SHA to deploy
+        required: true
+        type: string
+      correlation_id:
+        description: Unique caller correlation ID for this deployment run
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -19,6 +28,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  RELEASE_SHA: ${{ inputs.release_sha }}
   AWS_REGION: ${{ vars.AWS_REGION }}
   ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
   ECS_API_SERVICE: ${{ vars.ECS_API_SERVICE }}
@@ -33,6 +43,8 @@ jobs:
     environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.RELEASE_SHA }}
 
       - name: Validate production deployment configuration
         shell: bash
@@ -63,7 +75,7 @@ jobs:
       - name: Build and push API image
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+          IMAGE_TAG: ${{ env.RELEASE_SHA }}
         run: |
           docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt \
             -t "$REGISTRY/$ECR_API_REPOSITORY:$IMAGE_TAG" \
@@ -74,7 +86,7 @@ jobs:
       - name: Build and push trusted background worker image
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+          IMAGE_TAG: ${{ env.RELEASE_SHA }}
         run: |
           docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt \
             -t "$REGISTRY/$ECR_WORKER_REPOSITORY:$IMAGE_TAG" \
