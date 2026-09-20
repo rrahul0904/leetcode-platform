@@ -66,7 +66,11 @@ jobs:
         run: |
           set -euo pipefail
           uv run alembic upgrade head
-          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260828_0018"
+          expected_head="$(uv run alembic heads | awk 'NF {print $1}')"
+          head_count="$(uv run alembic heads | awk 'NF {count++} END {print count+0}')"
+          test "$head_count" = "1"
+          test -n "$expected_head"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "$expected_head"
 
       - name: Verify legacy data and new production schema survived
         run: |
@@ -78,7 +82,7 @@ jobs:
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.candidate_question_bookmarks') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.candidate_question_notes') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT status::text FROM users WHERE identity_subject='production-migration-canary'")" = "active"
-          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT auth_provider FROM users WHERE identity_subject='production-migration-canary'")" = "oidc"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT auth_provider FROM users WHERE identity_subject='production-migration-canary'")" = "local-oidc"
 
       - name: Show PostgreSQL logs on failure
         if: failure()

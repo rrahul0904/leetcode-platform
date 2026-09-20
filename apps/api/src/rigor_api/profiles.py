@@ -18,10 +18,13 @@ class ProfileRepository:
         self.engine = engine
 
     def get(self, principal: AuthenticatedPrincipal) -> CandidateProfile:
+        # Identity reconciliation is durable even when the candidate has not created
+        # a profile yet. A later ProfileNotFoundError must not roll back the user row
+        # that proves the authenticated identity has reached the application.
         with self.engine.begin() as connection:
-            # Identity metadata may be refreshed, but external request claims must
-            # never rewrite PostgreSQL-authoritative application roles.
             user_id = ensure_user(connection, principal)
+
+        with self.engine.connect() as connection:
             row = (
                 connection.execute(
                     text(
