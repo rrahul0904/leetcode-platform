@@ -72,7 +72,7 @@ AI_ADAPTERS = {"DETERMINISTIC", "OPENAI", "ANTHROPIC"}
 
 def database_checks(engine: Engine) -> tuple[list[ReadinessCheck], int]:
     checks: list[ReadinessCheck] = []
-    content_count = 0
+    published_content_count = 0
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1")).scalar_one()
@@ -106,14 +106,23 @@ def database_checks(engine: Engine) -> tuple[list[ReadinessCheck], int]:
                     ),
                 )
             )
-            content_count = int(
-                connection.execute(text("SELECT count(*) FROM question_versions")).scalar_one()
+            published_content_count = int(
+                connection.execute(
+                    text(
+                        """
+                        SELECT count(*)
+                        FROM questions q
+                        JOIN question_versions v ON v.id=q.current_published_version_id
+                        WHERE v.state='published'::content_state
+                        """
+                    )
+                ).scalar_one()
             )
     except SQLAlchemyError as exc:
         checks.append(
             ReadinessCheck(name="postgresql", status="not_ready", detail=type(exc).__name__)
         )
-    return checks, content_count
+    return checks, published_content_count
 
 
 def dependency_check(name: str, url: str) -> ReadinessCheck:
@@ -130,15 +139,15 @@ def dependency_check(name: str, url: str) -> ReadinessCheck:
 
 
 def readiness_report(engine: Engine, settings: Settings) -> ReadinessResponse:
-    checks, content_count = database_checks(engine)
+    checks, published_content_count = database_checks(engine)
     execution_adapter = settings.execution_adapter.upper()
     if execution_adapter != "VERCEL_SANDBOX":
         checks.append(dependency_check("valkey", settings.valkey_url))
     checks.append(
         ReadinessCheck(
             name="content",
-            status="ready" if content_count > 0 else "not_ready",
-            detail=f"question_versions={content_count}",
+            status="ready" if published_content_count > 0 else "not_ready",
+            detail=f"published_questions={published_content_count}",
         )
     )
     checks.append(

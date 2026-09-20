@@ -66,7 +66,11 @@ def _capability(payload: dict[str, object]) -> ExecutionCapability:
 
     mode = question_mode(payload)
     if runtime is SubmissionRuntime.postgresql:
-        schema_sql = mode.get("schema_sql")
+        # The normalized execution queue accepts both the newer schema_sql field
+        # and the first-party content package's established ddl field. The
+        # availability gate must use the same trusted contract or it will mark
+        # valid launch SQL questions hosted-only even though dispatch can run them.
+        schema_sql = mode.get("schema_sql", mode.get("ddl"))
         if not isinstance(schema_sql, str) or not schema_sql.strip():
             return ExecutionCapability(
                 question_version_id=question_version_id,
