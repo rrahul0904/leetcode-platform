@@ -24,9 +24,7 @@ from rigor_api.content_sync import (  # noqa: E402
 )
 from rigor_api.execution_capability import _capability  # noqa: E402
 
-REQUESTED_HOSTNAME = (
-    "skillforge-interactive-demo-bmbpowee0-rrahul0904-5013s-projects.vercel.app"
-)
+REQUESTED_HOSTNAME = "skillforge-interactive-demo.vercel.app"
 CLASS_PYTHON_HOSTED_IDS = {"PY-0001", "PY-0003", "PY-0004"}
 
 
@@ -125,16 +123,75 @@ def test_production_launch_bootstrap_is_fail_closed(monkeypatch: pytest.MonkeyPa
     assert require_bootstrap_authorization("production") == reason
 
 
-def test_release_workflow_preserves_exact_requested_hostname_contract() -> None:
+def test_release_workflow_preserves_stable_production_domain_contract() -> None:
     workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
         encoding="utf-8"
     )
 
     assert f"REQUESTED_CANONICAL_HOSTNAME: {REQUESTED_HOSTNAME}" in workflow
     assert f"REQUESTED_CANONICAL_URL: https://{REQUESTED_HOSTNAME}" in workflow
-    assert "Assign the exact requested hostname without deleting the old deployment" in workflow
-    assert "EXACT HOSTNAME BLOCKED BY VERCEL PLATFORM/API CONSTRAINT" in workflow
-    assert "The old deployment was not deleted or released." in workflow
+    assert "vercel deploy --prebuilt --prod" in workflow
+    assert "Verify production domain points to the new deployment" in workflow
+    assert "No manual alias reassignment will be attempted" in workflow
+    assert (
+        "skillforge-interactive-demo-bmbpowee0-rrahul0904-5013s-projects.vercel.app"
+        not in workflow
+    )
+
+
+def test_release_workflow_requires_controlled_production_boundary() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
+        encoding="utf-8"
+    )
+    trigger = workflow.split("permissions:", 1)[0]
+
+    assert "workflow_dispatch:" in trigger
+    assert "pull_request:" not in trigger
+    assert "      - main" in trigger
+    assert "      - agent/" not in trigger
+    assert "environment: production" in workflow
+
+
+def test_release_workflow_retains_exact_sha_certification_evidence() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "RELEASE_SHA:" in workflow
+    assert '--meta githubCommitSha="$RELEASE_SHA"' in workflow
+    assert 'if [ "$deployment_sha" != "$RELEASE_SHA" ]; then' in workflow
+    assert "production-release-evidence.json" in workflow
+    assert "skillforge-production-certification-${{ env.RELEASE_SHA }}" in workflow
+    assert "retention-days: 90" in workflow
+
+
+def test_release_workflow_dispatches_ecs_with_immutable_sha_and_unique_correlation() -> None:
+    release_workflow = (
+        ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml"
+    ).read_text(encoding="utf-8")
+    ecs_workflow = (ROOT / ".github" / "workflows" / "deploy-ecs.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert '-f release_sha="$RELEASE_SHA"' in release_workflow
+    assert '-f correlation_id="$ecs_correlation_id"' in release_workflow
+    assert "displayTitle == env.ECS_RUN_NAME" in release_workflow
+    assert ".headSha == env.RELEASE_SHA" not in release_workflow
+    assert "release_sha:" in ecs_workflow
+    assert "correlation_id:" in ecs_workflow
+    assert "ref: ${{ env.RELEASE_SHA }}" in ecs_workflow
+    assert ecs_workflow.count("IMAGE_TAG: ${{ env.RELEASE_SHA }}") == 2
+
+
+def test_ci_concurrency_separates_push_and_pull_request_runs() -> None:
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    evidence = (
+        ROOT / ".github" / "workflows" / "python-test-evidence.yml"
+    ).read_text(encoding="utf-8")
+
+    expected = "${{ github.event_name }}-${{ github.event.pull_request.number || github.ref_name }}"
+    assert expected in ci
+    assert expected in evidence
 
 
 def test_release_workflow_targets_existing_project_and_never_skillsforge_ai() -> None:

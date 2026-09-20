@@ -1,5 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 
+import { resolveBackendOrigin } from "@/lib/backend-origin";
+
 export const dynamic = "force-dynamic";
 
 type RouteContext = {
@@ -13,23 +15,10 @@ type ClerkEmailAddress = {
 };
 
 function backendOrigin(): string {
-  const value = process.env.RIGOR_BACKEND_ORIGIN?.trim().replace(/\/+$/, "");
-  if (!value) {
-    throw new Error("RIGOR_BACKEND_ORIGIN is not configured.");
-  }
-  if (!value.startsWith("https://") && !value.startsWith("http://")) {
-    throw new Error("RIGOR_BACKEND_ORIGIN must be an HTTP(S) origin.");
-  }
-  if (
-    process.env.VERCEL_ENV === "production" &&
-    value.startsWith("http://") &&
-    !value.includes(".vercel.internal")
-  ) {
-    throw new Error(
-      "RIGOR_BACKEND_ORIGIN must use HTTPS in production unless Vercel supplies an internal service URL.",
-    );
-  }
-  return value;
+  return resolveBackendOrigin(
+    process.env.RIGOR_BACKEND_ORIGIN,
+    process.env.VERCEL_ENV,
+  );
 }
 
 function forwardedHeaders(request: Request, token: string) {

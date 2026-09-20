@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: python-test-evidence-${{ github.ref }}
+  group: python-test-evidence-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
