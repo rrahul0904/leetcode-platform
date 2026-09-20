@@ -165,6 +165,35 @@ def test_release_workflow_retains_exact_sha_certification_evidence() -> None:
     assert "retention-days: 90" in workflow
 
 
+def test_release_workflow_dispatches_ecs_with_immutable_sha_and_unique_correlation() -> None:
+    release_workflow = (
+        ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml"
+    ).read_text(encoding="utf-8")
+    ecs_workflow = (ROOT / ".github" / "workflows" / "deploy-ecs.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert '-f release_sha="$RELEASE_SHA"' in release_workflow
+    assert '-f correlation_id="$ecs_correlation_id"' in release_workflow
+    assert "displayTitle == env.ECS_RUN_NAME" in release_workflow
+    assert ".headSha == env.RELEASE_SHA" not in release_workflow
+    assert "release_sha:" in ecs_workflow
+    assert "correlation_id:" in ecs_workflow
+    assert "ref: ${{ env.RELEASE_SHA }}" in ecs_workflow
+    assert ecs_workflow.count("IMAGE_TAG: ${{ env.RELEASE_SHA }}") == 2
+
+
+def test_ci_concurrency_separates_push_and_pull_request_runs() -> None:
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    evidence = (
+        ROOT / ".github" / "workflows" / "python-test-evidence.yml"
+    ).read_text(encoding="utf-8")
+
+    expected = "${{ github.event_name }}-${{ github.event.pull_request.number || github.ref_name }}"
+    assert expected in ci
+    assert expected in evidence
+
+
 def test_release_workflow_targets_existing_project_and_never_skillsforge_ai() -> None:
     workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
         encoding="utf-8"
