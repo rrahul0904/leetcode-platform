@@ -52,6 +52,7 @@ def test_postgresql_statistics_and_readiness_are_derived() -> None:
         checks = {check.name: check for check in report.checks}
         assert checks["migration"].detail.startswith(f"database={EXPECTED_MIGRATION_VERSION}")
         assert checks["required_tables"].status == "ready"
+        assert checks["content"].detail.startswith("published_questions=")
         assert {
             "postgresql",
             "valkey",
