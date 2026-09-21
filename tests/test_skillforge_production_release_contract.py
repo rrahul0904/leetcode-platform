@@ -211,3 +211,44 @@ def test_release_workflow_targets_existing_project_and_never_skillsforge_ai() ->
     assert "VERCEL_PROJECT_ID: prj_fnbuYcKQeKrEq5Sax2uWdTg2SHqT" in workflow
     assert "VERCEL_PROJECT_NAME: skillforge-interactive-demo" in workflow
     assert "skillsforge-ai" not in workflow
+
+
+def test_documented_production_migration_head_matches_release_contract() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
+        encoding="utf-8"
+    )
+    production_stack = (ROOT / "docs" / "SKILLFORGE_PRODUCTION_STACK.md").read_text(
+        encoding="utf-8"
+    )
+    aws_deployment = (ROOT / "docs" / "skillforge-aws-deployment.md").read_text(
+        encoding="utf-8"
+    )
+
+    expected_head = "20260918_0021"
+    assert f"EXPECTED_ALEMBIC_HEAD: {expected_head}" in workflow
+    assert expected_head in production_stack
+    assert expected_head in aws_deployment
+    assert "20260826_0017" not in production_stack
+    assert "20260826_0017" not in aws_deployment
+
+
+def test_production_web_defaults_never_point_to_loopback() -> None:
+    production_env = (ROOT / "apps" / "web" / ".env.production").read_text(
+        encoding="utf-8"
+    )
+
+    assert "NEXT_PUBLIC_RIGOR_API_URL=/api/backend" in production_env
+    assert "localhost" not in production_env
+    assert "127.0.0.1" not in production_env
+    assert "0.0.0.0" not in production_env
+
+
+def test_launch_week_control_record_keeps_external_release_gates_visible() -> None:
+    launch_record = (ROOT / "docs" / "LAUNCH_WEEK_2026-09-27.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "VERCEL_TOKEN" in launch_record
+    assert "AWS_DEPLOY_ROLE_ARN" in launch_record
+    assert "20260918_0021" in launch_record
+    assert "skillforge-interactive-demo.vercel.app" in launch_record
