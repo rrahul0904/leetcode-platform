@@ -24,7 +24,6 @@ from rigor_api.content_sync import (  # noqa: E402
 )
 from rigor_api.execution_capability import _capability  # noqa: E402
 
-REQUESTED_HOSTNAME = "skillforge-interactive-demo.vercel.app"
 CLASS_PYTHON_HOSTED_IDS = {"PY-0001", "PY-0003", "PY-0004"}
 
 
@@ -123,20 +122,19 @@ def test_production_launch_bootstrap_is_fail_closed(monkeypatch: pytest.MonkeyPa
     assert require_bootstrap_authorization("production") == reason
 
 
-def test_release_workflow_preserves_stable_production_domain_contract() -> None:
+def test_release_workflow_requires_customer_owned_production_domain() -> None:
     workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
         encoding="utf-8"
     )
 
-    assert f"REQUESTED_CANONICAL_HOSTNAME: {REQUESTED_HOSTNAME}" in workflow
-    assert f"REQUESTED_CANONICAL_URL: https://{REQUESTED_HOSTNAME}" in workflow
+    assert "REQUESTED_CANONICAL_HOSTNAME: ${{ vars.SKILLFORGE_PRODUCTION_HOSTNAME }}" in workflow
+    assert "REQUESTED_CANONICAL_URL: https://${{ vars.SKILLFORGE_PRODUCTION_HOSTNAME }}" in workflow
+    assert "SKILLFORGE_PRODUCTION_HOSTNAME GitHub Actions production variable" in workflow
+    assert "Clerk production requires a customer-owned domain" in workflow
+    assert 'host.endswith(".vercel.app")' in workflow
     assert "vercel deploy --prebuilt --prod" in workflow
     assert "Verify production domain points to the new deployment" in workflow
     assert "No manual alias reassignment will be attempted" in workflow
-    assert (
-        "skillforge-interactive-demo-bmbpowee0-rrahul0904-5013s-projects.vercel.app"
-        not in workflow
-    )
 
 
 def test_release_workflow_requires_controlled_production_boundary() -> None:
@@ -251,7 +249,7 @@ def test_launch_week_control_record_keeps_external_release_gates_visible() -> No
     assert "VERCEL_TOKEN" in launch_record
     assert "AWS_DEPLOY_ROLE_ARN" in launch_record
     assert "20260918_0021" in launch_record
-    assert "skillforge-interactive-demo.vercel.app" in launch_record
+    assert "SKILLFORGE_PRODUCTION_HOSTNAME" in launch_record
 
 
 def test_production_release_rejects_test_mode_identity_and_loopback_database() -> None:
