@@ -277,3 +277,12 @@ def test_production_csp_uses_verified_clerk_issuer() -> None:
     assert "const clerkOrigin = clerkFrontendOrigin(configuredClerkIssuer)" in next_config
     assert "${clerkOrigin}" in next_config
     assert 'set_env RIGOR_CLERK_ISSUER "$clerk_issuer"' in release_workflow
+
+
+def test_production_cors_allows_only_customer_owned_browser_origin() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "TRANSITIONAL_PROJECT_URL" not in workflow
+    assert 'set_env RIGOR_ALLOWED_ORIGINS "[\\\"$REQUESTED_CANONICAL_URL\\\"]"' in workflow
