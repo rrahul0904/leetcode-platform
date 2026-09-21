@@ -36,6 +36,7 @@ The connected GitHub API used for repository work does not expose repository/env
 secrets, so the following values must be verified in GitHub rather than assumed present:
 
 - `VERCEL_TOKEN`
+- `SKILLFORGE_PRODUCTION_HOSTNAME` (customer-owned; `*.vercel.app` is not a Clerk production domain)
 - `AWS_REGION`
 - `AWS_DEPLOY_ROLE_ARN`
 - `ECS_CLUSTER`
@@ -50,8 +51,8 @@ PostgreSQL URL, and a non-loopback HTTPS `RIGOR_BACKEND_ORIGIN` required by
 
 ## Live-production drift
 
-As observed on 2026-09-21, the canonical Vercel hostname is serving a READY production
-deployment built from Git SHA `7b64d7b3183eb0e6f5dba74ce0f83055b2da494a`, not the current
+As observed on 2026-09-21, the current Vercel project hostname is serving a READY deployment
+built from Git SHA `7b64d7b3183eb0e6f5dba74ce0f83055b2da494a`, not the current
 mainline release. That old deployment still exposes a localhost backend origin in its CSP.
 
 The launch is therefore not production-certified until the hardened workflow deploys and
@@ -65,7 +66,7 @@ Production is complete only when the exact release SHA has evidence for:
 2. publication/verification of the audited 50-package launch catalog;
 3. ECS API and trusted worker deployment from the same immutable SHA;
 4. Vercel production deployment from the same immutable SHA;
-5. canonical-host verification with no localhost/loopback backend origin;
+5. customer-owned canonical-host verification with no localhost/loopback backend origin;
 6. production Clerk authentication;
 7. representative Python and SQL Run/Submit flows with durable persistence;
 8. candidate isolation checks and production runtime/error review;
