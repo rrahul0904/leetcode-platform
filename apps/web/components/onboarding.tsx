@@ -107,7 +107,7 @@ function OnboardingForm({ initial }: { initial: CandidateProfile | undefined }) 
       queryClient.setQueryData(["candidate-profile", "auth-gate"], saved);
       await queryClient.invalidateQueries({ queryKey: ["candidate-readiness"] });
       await queryClient.invalidateQueries({ queryKey: ["next-action"] });
-      router.replace("/");
+      router.replace("/workspace");
     } catch {
       setError("The profile could not be saved. Check each field and retry.");
       setSaving(false);
