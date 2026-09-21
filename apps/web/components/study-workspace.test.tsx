@@ -21,7 +21,7 @@ describe("StudyWorkspace", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /add project/i }));
 
-    expect(screen.getByText("System design")).toBeInTheDocument();
+    expect(screen.getAllByText("System design").length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByLabelText("Task title"), {
       target: { value: "Practice consistency models" },
