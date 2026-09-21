@@ -24,7 +24,6 @@ from rigor_api.content_sync import (  # noqa: E402
 )
 from rigor_api.execution_capability import _capability  # noqa: E402
 
-REQUESTED_HOSTNAME = "skillforge-interactive-demo.vercel.app"
 CLASS_PYTHON_HOSTED_IDS = {"PY-0001", "PY-0003", "PY-0004"}
 
 
@@ -123,20 +122,19 @@ def test_production_launch_bootstrap_is_fail_closed(monkeypatch: pytest.MonkeyPa
     assert require_bootstrap_authorization("production") == reason
 
 
-def test_release_workflow_preserves_stable_production_domain_contract() -> None:
+def test_release_workflow_requires_customer_owned_production_domain() -> None:
     workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
         encoding="utf-8"
     )
 
-    assert f"REQUESTED_CANONICAL_HOSTNAME: {REQUESTED_HOSTNAME}" in workflow
-    assert f"REQUESTED_CANONICAL_URL: https://{REQUESTED_HOSTNAME}" in workflow
+    assert "REQUESTED_CANONICAL_HOSTNAME: ${{ vars.SKILLFORGE_PRODUCTION_HOSTNAME }}" in workflow
+    assert "REQUESTED_CANONICAL_URL: https://${{ vars.SKILLFORGE_PRODUCTION_HOSTNAME }}" in workflow
+    assert "SKILLFORGE_PRODUCTION_HOSTNAME GitHub Actions production variable" in workflow
+    assert "Clerk production requires a customer-owned domain" in workflow
+    assert 'host.endswith(".vercel.app")' in workflow
     assert "vercel deploy --prebuilt --prod" in workflow
     assert "Verify production domain points to the new deployment" in workflow
     assert "No manual alias reassignment will be attempted" in workflow
-    assert (
-        "skillforge-interactive-demo-bmbpowee0-rrahul0904-5013s-projects.vercel.app"
-        not in workflow
-    )
 
 
 def test_release_workflow_requires_controlled_production_boundary() -> None:
@@ -211,3 +209,80 @@ def test_release_workflow_targets_existing_project_and_never_skillsforge_ai() ->
     assert "VERCEL_PROJECT_ID: prj_fnbuYcKQeKrEq5Sax2uWdTg2SHqT" in workflow
     assert "VERCEL_PROJECT_NAME: skillforge-interactive-demo" in workflow
     assert "skillsforge-ai" not in workflow
+
+
+def test_documented_production_migration_head_matches_release_contract() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
+        encoding="utf-8"
+    )
+    production_stack = (ROOT / "docs" / "SKILLFORGE_PRODUCTION_STACK.md").read_text(
+        encoding="utf-8"
+    )
+    aws_deployment = (ROOT / "docs" / "skillforge-aws-deployment.md").read_text(
+        encoding="utf-8"
+    )
+
+    expected_head = "20260918_0021"
+    assert f"EXPECTED_ALEMBIC_HEAD: {expected_head}" in workflow
+    assert expected_head in production_stack
+    assert expected_head in aws_deployment
+    assert "20260826_0017" not in production_stack
+    assert "20260826_0017" not in aws_deployment
+
+
+def test_production_web_defaults_never_point_to_loopback() -> None:
+    production_env = (ROOT / "apps" / "web" / ".env.production").read_text(
+        encoding="utf-8"
+    )
+
+    assert "NEXT_PUBLIC_RIGOR_API_URL=/api/backend" in production_env
+    assert "localhost" not in production_env
+    assert "127.0.0.1" not in production_env
+    assert "0.0.0.0" not in production_env
+
+
+def test_launch_week_control_record_keeps_external_release_gates_visible() -> None:
+    launch_record = (ROOT / "docs" / "LAUNCH_WEEK_2026-09-27.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "VERCEL_TOKEN" in launch_record
+    assert "AWS_DEPLOY_ROLE_ARN" in launch_record
+    assert "20260918_0021" in launch_record
+    assert "SKILLFORGE_PRODUCTION_HOSTNAME" in launch_record
+
+
+def test_production_release_rejects_test_mode_identity_and_loopback_database() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'pk_live_*)' in workflow
+    assert 'sk_live_*)' in workflow
+    assert "Production requires a Clerk live publishable key" in workflow
+    assert "Production requires a Clerk live secret key" in workflow
+    assert "Refusing production release with localhost/loopback database" in workflow
+    assert 'prefix="pk_live_"' in workflow
+
+
+def test_production_csp_uses_verified_clerk_issuer() -> None:
+    next_config = (ROOT / "apps" / "web" / "next.config.ts").read_text(
+        encoding="utf-8"
+    )
+    release_workflow = (
+        ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "RIGOR_CLERK_ISSUER" in next_config
+    assert "const clerkOrigin = clerkFrontendOrigin(configuredClerkIssuer)" in next_config
+    assert "${clerkOrigin}" in next_config
+    assert 'set_env RIGOR_CLERK_ISSUER "$clerk_issuer"' in release_workflow
+
+
+def test_production_cors_allows_only_customer_owned_browser_origin() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "TRANSITIONAL_PROJECT_URL" not in workflow
+    assert 'set_env RIGOR_ALLOWED_ORIGINS "[\\\"$REQUESTED_CANONICAL_URL\\\"]"' in workflow

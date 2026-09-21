@@ -21,9 +21,8 @@ env:
   VERCEL_ORG_ID: team_zmEezpOKGZy2sH5nqTfO44LD
   VERCEL_PROJECT_ID: prj_fnbuYcKQeKrEq5Sax2uWdTg2SHqT
   VERCEL_PROJECT_NAME: skillforge-interactive-demo
-  TRANSITIONAL_PROJECT_URL: https://skillforge-interactive-demo-rrahul0904-5013s-projects.vercel.app
-  REQUESTED_CANONICAL_HOSTNAME: skillforge-interactive-demo.vercel.app
-  REQUESTED_CANONICAL_URL: https://skillforge-interactive-demo.vercel.app
+  REQUESTED_CANONICAL_HOSTNAME: ${{ vars.SKILLFORGE_PRODUCTION_HOSTNAME }}
+  REQUESTED_CANONICAL_URL: https://${{ vars.SKILLFORGE_PRODUCTION_HOSTNAME }}
   EXPECTED_ALEMBIC_HEAD: 20260918_0021
   EXPECTED_LAUNCH_PACKAGES: "50"
   RELEASE_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
@@ -44,10 +43,33 @@ jobs:
         with:
           ref: ${{ env.RELEASE_SHA }}
 
-      - name: Require production deployment credential
+      - name: Require production release inputs
         shell: bash
         run: |
           set -euo pipefail
+          if [ -z "${REQUESTED_CANONICAL_HOSTNAME:-}" ]; then
+            echo "SKILLFORGE_PRODUCTION_HOSTNAME GitHub Actions production variable is not configured."
+            echo "Production has not been modified."
+            exit 1
+          fi
+
+          python - "$REQUESTED_CANONICAL_HOSTNAME" <<'PY'
+          import sys
+
+          raw = sys.argv[1]
+          host = raw.strip().lower().rstrip(".")
+          if raw != raw.strip() or host != raw.lower().rstrip("."):
+              raise SystemExit("Production hostname must be normalized without whitespace or a trailing dot.")
+          if "://" in host or "/" in host or ":" in host or "." not in host:
+              raise SystemExit("Production hostname must be a bare DNS hostname.")
+          if host.endswith(".vercel.app"):
+              raise SystemExit(
+                  "Clerk production requires a customer-owned domain; *.vercel.app is not allowed."
+              )
+          if host == "localhost" or host.endswith(".localhost"):
+              raise SystemExit("Production hostname must not be localhost.")
+          PY
+
           if [ -z "${VERCEL_TOKEN:-}" ]; then
             echo "VERCEL_TOKEN GitHub Actions secret is not configured."
             echo "Production has not been modified."
@@ -128,13 +150,30 @@ jobs:
           fi
           test "$missing" -eq 0
 
-          python - "$RIGOR_BACKEND_ORIGIN" <<'PY'
+          case "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" in
+            pk_live_*) ;;
+            *)
+              echo "Production requires a Clerk live publishable key (pk_live_*)."
+              exit 1
+              ;;
+          esac
+          case "$CLERK_SECRET_KEY" in
+            sk_live_*) ;;
+            *)
+              echo "Production requires a Clerk live secret key (sk_live_*)."
+              exit 1
+              ;;
+          esac
+
+          python - "$RIGOR_BACKEND_ORIGIN" "$database_url" <<'PY'
           import ipaddress
           import sys
           from urllib.parse import urlparse
 
-          value = sys.argv[1]
-          parsed = urlparse(value)
+          backend_origin = sys.argv[1]
+          database_url = sys.argv[2]
+
+          parsed = urlparse(backend_origin)
           host = (parsed.hostname or "").lower().rstrip(".")
           if parsed.scheme not in {"http", "https"} or not host:
               raise SystemExit("RIGOR_BACKEND_ORIGIN must be an HTTP(S) origin.")
@@ -146,16 +185,35 @@ jobs:
               pass
           if loopback:
               raise SystemExit(
-                  f"Refusing production release with localhost/loopback backend origin: {value}"
+                  "Refusing production release with localhost/loopback backend origin: "
+                  f"{backend_origin}"
               )
 
           if parsed.scheme != "https" and not host.endswith(".vercel.internal"):
               raise SystemExit(
                   "RIGOR_BACKEND_ORIGIN must use HTTPS in production unless Vercel supplies an internal service URL."
               )
+
+          database = urlparse(database_url)
+          database_host = (database.hostname or "").lower().rstrip(".")
+          if database.scheme not in {"postgres", "postgresql", "postgresql+psycopg"} or not database_host:
+              raise SystemExit("Production database URL must be PostgreSQL.")
+          database_loopback = (
+              database_host == "localhost"
+              or database_host.endswith(".localhost")
+              or database_host == "0.0.0.0"
+          )
+          try:
+              database_loopback = database_loopback or ipaddress.ip_address(database_host).is_loopback
+          except ValueError:
+              pass
+          if database_loopback:
+              raise SystemExit(
+                  f"Refusing production release with localhost/loopback database: {database_host}"
+              )
           PY
 
-          clerk_domain="$(python -c 'import base64,sys; key=sys.argv[1]; prefixes=("pk_test_","pk_live_"); encoded=next((key[len(p):] for p in prefixes if key.startswith(p)), None); encoded or (_ for _ in ()).throw(SystemExit("Unsupported Clerk publishable key format")); encoded += "=" * (-len(encoded) % 4); print(base64.urlsafe_b64decode(encoded).decode("utf-8").rstrip("$"))' "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY")"
+          clerk_domain="$(python -c 'import base64,sys; key=sys.argv[1]; prefix="pk_live_"; key.startswith(prefix) or (_ for _ in ()).throw(SystemExit("Production requires pk_live_ Clerk key")); encoded=key[len(prefix):]; encoded += "=" * (-len(encoded) % 4); print(base64.urlsafe_b64decode(encoded).decode("utf-8").rstrip("$"))' "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY")"
           clerk_issuer="https://$clerk_domain"
 
           set_env() {
@@ -171,7 +229,7 @@ jobs:
           set_env NEXT_PUBLIC_APP_URL "$REQUESTED_CANONICAL_URL"
           set_env NEXT_PUBLIC_RIGOR_AUTH_MODE "clerk"
           set_env NEXT_PUBLIC_RIGOR_API_URL "/api/backend"
-          set_env RIGOR_ALLOWED_ORIGINS "[\"$REQUESTED_CANONICAL_URL\",\"$TRANSITIONAL_PROJECT_URL\"]"
+          set_env RIGOR_ALLOWED_ORIGINS "[\"$REQUESTED_CANONICAL_URL\"]"
 
       - name: Re-pull aligned production environment
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"

@@ -1,5 +1,7 @@
 # SkillForge AWS deployment
 
+For the active cutover sequence and go/no-go gates, see `docs/LAUNCH_WEEK_2026-09-27.md`.
+
 ## 1. Provision infrastructure
 
 Use `infra/terraform/environments/dev` for a cloud development environment and `infra/terraform/environments/prod` for production. Local development continues to use Docker Compose.
@@ -42,7 +44,7 @@ Run migrations with the migrator database role before deploying a new API revisi
 uv run alembic upgrade head
 ```
 
-Expected head: `20260826_0017`.
+Expected head: `20260918_0021`.
 
 ## 5. GitHub deployment variables
 

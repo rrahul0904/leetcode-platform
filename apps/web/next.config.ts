@@ -3,6 +3,27 @@ import type { NextConfig } from "next";
 const configuredApiUrl = process.env.NEXT_PUBLIC_RIGOR_API_URL?.trim();
 const apiUrl = configuredApiUrl || "/api/backend";
 
+const configuredClerkIssuer = process.env.RIGOR_CLERK_ISSUER?.trim().replace(
+  /\/+$/,
+  "",
+);
+
+function clerkFrontendOrigin(value: string | undefined) {
+  if (!value) return "https://*.clerk.accounts.dev";
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("RIGOR_CLERK_ISSUER must be a valid HTTPS origin.");
+  }
+  if (parsed.protocol !== "https:" || parsed.pathname !== "/") {
+    throw new Error("RIGOR_CLERK_ISSUER must be a valid HTTPS origin.");
+  }
+  return parsed.origin;
+}
+
+const clerkOrigin = clerkFrontendOrigin(configuredClerkIssuer);
+
 if (process.env.VERCEL && apiUrl !== "/api/backend") {
   throw new Error(
     "SkillForge Vercel deployments must use the same-origin /api/backend boundary.",
@@ -24,7 +45,7 @@ function apiConnectSources(value: string) {
 const connectSources = [
   "'self'",
   ...apiConnectSources(apiUrl),
-  "https://*.clerk.accounts.dev",
+  clerkOrigin,
   "https://clerk-telemetry.com",
   "https://*.clerk-telemetry.com",
   "https://*.protect.clerk.com:*",
@@ -38,7 +59,7 @@ const contentSecurityPolicy = [
   "img-src 'self' data: blob: https://img.clerk.com",
   "font-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://challenges.cloudflare.com https://*.protect.clerk.com",
+  `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${clerkOrigin} https://challenges.cloudflare.com https://*.protect.clerk.com`,
   `connect-src ${connectSources.join(" ")}`,
   "frame-src 'self' https://challenges.cloudflare.com https://*.protect.clerk.com",
   "worker-src 'self' blob:",
