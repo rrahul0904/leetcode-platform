@@ -252,3 +252,16 @@ def test_launch_week_control_record_keeps_external_release_gates_visible() -> No
     assert "AWS_DEPLOY_ROLE_ARN" in launch_record
     assert "20260918_0021" in launch_record
     assert "skillforge-interactive-demo.vercel.app" in launch_record
+
+
+def test_production_release_rejects_test_mode_identity_and_loopback_database() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'pk_live_*)' in workflow
+    assert 'sk_live_*)' in workflow
+    assert "Production requires a Clerk live publishable key" in workflow
+    assert "Production requires a Clerk live secret key" in workflow
+    assert "Refusing production release with localhost/loopback database" in workflow
+    assert 'prefix="pk_live_"' in workflow
