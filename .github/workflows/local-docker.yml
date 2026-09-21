@@ -107,6 +107,11 @@ jobs:
           }, result
           PY
 
+      - name: Run launch load smoke
+        run: |
+          python3 scripts/load_smoke.py --url http://127.0.0.1:8002/livez --requests 200 --concurrency 20 --p95-ms 1200
+          python3 scripts/load_smoke.py --url http://127.0.0.1:3001/sign-in --requests 100 --concurrency 10 --p95-ms 2500
+
       - name: Backup and restore application PostgreSQL
         run: |
           backup_dir=$(sh scripts/backup-local)
