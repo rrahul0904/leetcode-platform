@@ -7,7 +7,7 @@ export default function SignInPage() {
   if (process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE === "clerk") {
     return (
       <main className="sign-in-page">
-        <ClerkSignIn fallbackRedirectUrl="/onboarding" signUpUrl="/sign-up" />
+        <ClerkSignIn fallbackRedirectUrl="/workspace" signUpUrl="/sign-up" />
       </main>
     );
   }

@@ -66,12 +66,12 @@ describe("AuthGate", () => {
   it("returns a candidate with a stale admin destination to candidate home", async () => {
     pathname = "/admin/questions";
     renderGate("Admin content");
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/workspace"));
     expect(screen.queryByText("Admin content")).not.toBeInTheDocument();
   });
 
   it("forces a new candidate through onboarding", async () => {
-    pathname = "/";
+    pathname = "/workspace";
     getProfileMock.mockRejectedValueOnce(
       new ApiError(404, "Candidate profile not found"),
     );
@@ -93,7 +93,7 @@ describe("AuthGate", () => {
   });
 
   it("opens the app for a candidate with a persisted profile", async () => {
-    pathname = "/";
+    pathname = "/workspace";
     renderGate("Candidate home");
     expect(await screen.findByText("Candidate home")).toBeInTheDocument();
     expect(router.replace).not.toHaveBeenCalledWith("/onboarding");

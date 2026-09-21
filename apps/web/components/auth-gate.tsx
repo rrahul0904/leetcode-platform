@@ -10,7 +10,7 @@ import { useAuth } from "@/lib/auth";
 
 import { AppShell } from "./app-shell";
 
-const publicRoutes = ["/sign-in", "/sign-up", "/auth/callback"];
+const publicRoutes = ["/", "/sign-in", "/sign-up", "/auth/callback"];
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -21,7 +21,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
   );
   const isCandidate = principal?.roles.includes("candidate") ?? false;
   const candidateRoute = [
-    "/",
     "/problems",
     "/questions",
     "/companies",
@@ -70,11 +69,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
       (pathname === "/sign-in" || pathname === "/sign-up") &&
       status === "authenticated"
     ) {
-      router.replace("/");
+      router.replace("/workspace");
       return;
     }
     if (wrongWorkspace) {
-      router.replace("/");
+      router.replace("/workspace");
       return;
     }
     if (onboardingRequired) router.replace("/onboarding");
