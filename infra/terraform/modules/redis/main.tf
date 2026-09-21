@@ -40,14 +40,7 @@ resource "aws_security_group" "this" {
     security_groups = var.allowed_security_group_ids
   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 }
-
 resource "aws_elasticache_subnet_group" "this" {
   name       = var.name
   subnet_ids = var.private_subnet_ids
