@@ -105,4 +105,16 @@ describe("AuthGate", () => {
     expect(await screen.findByText("Practice workspace")).toBeInTheDocument();
     expect(router.replace).not.toHaveBeenCalledWith("/");
   });
+
+  it.each([
+    ["/pr-review", "PR Review"],
+    ["/ai-arena", "AI Arena"],
+    ["/attempts", "Attempts"],
+    ["/design-lab", "Design Lab"],
+  ])("keeps a candidate on launch navigation route %s", async (route, label) => {
+    pathname = route;
+    renderGate(label);
+    expect(await screen.findByText(label)).toBeInTheDocument();
+    expect(router.replace).not.toHaveBeenCalledWith("/");
+  });
 });
