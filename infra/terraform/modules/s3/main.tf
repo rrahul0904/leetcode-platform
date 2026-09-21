@@ -7,6 +7,17 @@ variable "force_destroy" {
   default = false
 }
 
+resource "aws_kms_key" "storage" {
+  description             = "Customer-managed encryption key for private SkillForge objects"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+}
+
+resource "aws_kms_alias" "storage" {
+  name          = "alias/skillforge-storage"
+  target_key_id = aws_kms_key.storage.key_id
+}
+
 resource "aws_s3_bucket" "uploads" {
   bucket_prefix = "${var.name_prefix}-uploads-"
   force_destroy = var.force_destroy
@@ -39,8 +50,11 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "private" {
   bucket   = each.value
 
   rule {
+    bucket_key_enabled = true
+
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.storage.arn
     }
   }
 }
@@ -81,4 +95,9 @@ output "export_bucket_name" {
 
 output "export_bucket_arn" {
   value = aws_s3_bucket.exports.arn
+}
+
+
+output "kms_key_arn" {
+  value = aws_kms_key.storage.arn
 }
