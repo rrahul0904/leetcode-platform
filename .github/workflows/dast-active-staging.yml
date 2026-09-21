@@ -1,0 +1,70 @@
+name: OWASP ZAP active staging test
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: Authorized public HTTPS staging URL
+        required: true
+        type: string
+      authorization:
+        description: Type I_HAVE_AUTHORIZATION to permit active security testing
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  active-dast:
+    name: Authorized active DAST
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TARGET_URL: ${{ inputs.target_url }}
+      AUTHORIZATION: ${{ inputs.authorization }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate authorization and target
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$AUTHORIZATION" = "I_HAVE_AUTHORIZATION"
+          python - "$TARGET_URL" <<'PY'
+          import ipaddress
+          import sys
+          from urllib.parse import urlparse
+
+          value = sys.argv[1].strip()
+          parsed = urlparse(value)
+          if parsed.scheme != "https" or not parsed.hostname:
+              raise SystemExit("Active DAST requires a public HTTPS target.")
+          if parsed.query or parsed.fragment or parsed.username or parsed.password:
+              raise SystemExit("Provide only the authorized application origin/path.")
+          host = parsed.hostname.lower().rstrip(".")
+          if host == "localhost" or host.endswith(".localhost"):
+              raise SystemExit("Active DAST target must not be localhost.")
+          try:
+              address = ipaddress.ip_address(host)
+          except ValueError:
+              address = None
+          if address and (
+              address.is_private
+              or address.is_loopback
+              or address.is_link_local
+              or address.is_reserved
+          ):
+              raise SystemExit("Active DAST target must not be a private or special-use address.")
+          print(f"Authorized active DAST target: {value}")
+          PY
+
+      - name: Run OWASP ZAP full active scan
+        uses: zaproxy/action-full-scan@v0.13.0
+        with:
+          target: ${{ env.TARGET_URL }}
+          fail_action: true
+          allow_issue_writing: false
+          artifact_name: zap-active-staging-report
+          cmd_options: "-a"
