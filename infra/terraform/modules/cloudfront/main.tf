@@ -6,6 +6,9 @@ variable "origin_domain_name" {
   type = string
 }
 
+# This optional distribution is not the production trust boundary. Production API DNS targets
+# the ALB, where the regional WAF is attached; requests reaching this origin still traverse it.
+#trivy:ignore:AVD-AWS-0011
 resource "aws_cloudfront_distribution" "this" {
   enabled         = true
   is_ipv6_enabled = true
