@@ -33,7 +33,7 @@ Clerk webhook processing is signature-verified and idempotent. External identity
 
 ## Persistence
 
-PostgreSQL is the transactional system of record. The migration chain includes identity/onboarding, content/practice/progress, governed attachment question-bank metadata, and the SkillForge SaaS foundation in revision `20260918_0021`.
+PostgreSQL is the transactional system of record. The migration chain includes identity/onboarding, content/practice/progress, governed attachment question-bank metadata, and the SkillForge SaaS foundation in revision `20260921_0023`.
 
 The SaaS foundation includes user preferences, identity webhook events, login events, candidate-file metadata, generated reports, data-export and deletion requests, plans, subscriptions, and entitlements. Sensitive candidate-owned tables use row-level security policies.
 

@@ -44,7 +44,7 @@ Run migrations with the migrator database role before deploying a new API revisi
 uv run alembic upgrade head
 ```
 
-Expected head: `20260918_0021`.
+Expected head: `20260921_0023`.
 
 ## 5. GitHub deployment variables
 
