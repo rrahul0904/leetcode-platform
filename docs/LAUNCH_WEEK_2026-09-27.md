@@ -7,7 +7,8 @@ This document is the release control record for the one-week SkillForge launch. 
 - Repository: `rrahul0904/leetcode-platform`
 - Release branch: `agent/launch-week-2026-09-27`
 - Branch point / certified main SHA: `a4565272fdc36498d0f081115e88154c270a7575`
-- Canonical web hostname: `https://skillforge-interactive-demo.vercel.app`
+- Current preview/staging hostname: `https://skillforge-interactive-demo.vercel.app`
+- Final authenticated production hostname: GitHub production variable `SKILLFORGE_PRODUCTION_HOSTNAME` (must be a customer-owned domain, not `*.vercel.app`)
 - Current production deployment observed on 2026-09-21: Vercel deployment `dpl_8vEknv8ELjmHV9JDwAtBe2zt58BH`, built from old SHA `7b64d7b3183eb0e6f5dba74ce0f83055b2da494a`
 - Current production therefore remains stale until an exact-SHA release completes.
 
@@ -48,6 +49,7 @@ All gates below must be green against the same immutable release SHA.
 ### External production configuration
 
 - [ ] GitHub production secret `VERCEL_TOKEN` is configured
+- [ ] GitHub production variable `SKILLFORGE_PRODUCTION_HOSTNAME` points to a customer-owned domain attached to the Vercel project and configured as the Clerk production domain
 - [ ] GitHub production variables are configured: `AWS_REGION`, `AWS_DEPLOY_ROLE_ARN`, `ECS_CLUSTER`, `ECS_API_SERVICE`, `ECS_WORKER_SERVICE`, `ECR_API_REPOSITORY`, `ECR_WORKER_REPOSITORY`
 - [ ] Vercel production environment contains Clerk live keys (`pk_live_*` / `sk_live_*`), a non-loopback HTTPS `RIGOR_BACKEND_ORIGIN`, and a non-loopback production PostgreSQL URL
 - [ ] AWS OIDC role trust permits this repository/environment
@@ -62,7 +64,7 @@ All gates below must be green against the same immutable release SHA.
 - [ ] ECS API and worker deploy the same release SHA
 - [ ] ECS services are ACTIVE, running == desired, and PRIMARY rollout is COMPLETED
 - [ ] Vercel production deployment reports the same Git SHA
-- [ ] canonical hostname points to the new deployment
+- [ ] customer-owned canonical hostname points to the new deployment
 - [ ] no production CSP/backend origin references localhost or loopback
 - [ ] retained production certification artifact identifies the same SHA, ECS run, Vercel deployment, canonical URL and Alembic head
 
