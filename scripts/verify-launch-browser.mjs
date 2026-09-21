@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { existsSync, join } from "node:path";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 
 const baseUrl = process.env.LAUNCH_BROWSER_BASE_URL ?? "http://127.0.0.1:3001";
 const driverPort = 9516;
