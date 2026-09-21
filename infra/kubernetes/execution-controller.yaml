@@ -22,6 +22,10 @@ metadata:
 # Candidate service accounts never receive this identity.
 automountServiceAccountToken: true
 ---
+# The controller creates/deletes one deny-all NetworkPolicy per execution as defense-in-depth
+# in addition to the namespace-wide default deny. It has no cluster-scoped RBAC and cannot
+# update arbitrary NetworkPolicies.
+#trivy:ignore:KSV-0056
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:

@@ -2,6 +2,16 @@ name: Local Docker release
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - "apps/**"
+      - "services/**"
+      - "database/**"
+      - "content/**"
+      - "scripts/**"
+      - "docker-compose.yml"
+      - "Makefile"
+      - ".github/workflows/local-docker.yml"
 
 permissions:
   contents: read
@@ -12,6 +22,7 @@ concurrency:
 
 jobs:
   local-docker:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'agent/launch-assurance-')
     name: Clean bootstrap, execution health, backup, and restore
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -95,6 +106,16 @@ jobs:
               "rows": [[1], [2]],
           }, result
           PY
+
+      - name: Run full-stack candidate browser UAT
+        env:
+          LOCAL_UAT_BASE_URL: http://localhost:3001
+        run: node scripts/verify-local-user-journey.mjs
+
+      - name: Run launch load smoke
+        run: |
+          python3 scripts/load_smoke.py --url http://127.0.0.1:8002/livez --requests 200 --concurrency 20 --p95-ms 1200
+          python3 scripts/load_smoke.py --url http://127.0.0.1:3001/sign-in --requests 100 --concurrency 10 --p95-ms 2500
 
       - name: Backup and restore application PostgreSQL
         run: |

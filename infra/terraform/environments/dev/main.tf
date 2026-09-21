@@ -37,6 +37,7 @@ module "application" {
   background_queue_arn = module.background_queue.queue_arn
   upload_bucket_arn    = module.storage.upload_bucket_arn
   export_bucket_arn    = module.storage.export_bucket_arn
+  storage_kms_key_arn  = module.storage.kms_key_arn
 
   api_desired_count    = 1
   worker_desired_count = 1

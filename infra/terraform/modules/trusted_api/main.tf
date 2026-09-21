@@ -31,13 +31,6 @@ resource "aws_security_group" "alb" {
     cidr_blocks = var.allowed_ingress_cidrs
   }
 
-  egress {
-    protocol    = "-1"
-    from_port   = 0
-    to_port     = 0
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
   tags = merge(var.tags, { Plane = "trusted-ingress" })
 }
 
@@ -52,20 +45,34 @@ resource "aws_security_group" "api" {
     security_groups = [aws_security_group.alb.id]
   }
 
+  #trivy:ignore:AVD-AWS-0104
   egress {
-    protocol    = "-1"
-    from_port   = 0
-    to_port     = 0
+    protocol    = "tcp"
+    from_port   = 443
+    to_port     = 443
     cidr_blocks = ["0.0.0.0/0"]
+    description = "HTTPS-only external service egress"
   }
 
   tags = merge(var.tags, { Plane = "trusted-control" })
 }
 
+resource "aws_vpc_security_group_egress_rule" "alb_to_api" {
+  security_group_id            = aws_security_group.alb.id
+  referenced_security_group_id = aws_security_group.api.id
+  ip_protocol                  = "tcp"
+  from_port                    = var.container_port
+  to_port                      = var.container_port
+  description                  = "ALB to trusted API only"
+}
+
+# Public ingress is intentional for this trusted API edge.
+#trivy:ignore:AVD-AWS-0053
 resource "aws_lb" "api" {
-  name               = substr("${var.name_prefix}-api", 0, 32)
-  internal           = false
-  load_balancer_type = "application"
+  name                       = substr("${var.name_prefix}-api", 0, 32)
+  internal                   = false
+  drop_invalid_header_fields = true
+  load_balancer_type         = "application"
   security_groups    = [aws_security_group.alb.id]
   subnets            = var.ingress_subnet_ids
   tags               = var.tags

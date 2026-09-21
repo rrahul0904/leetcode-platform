@@ -1,0 +1,62 @@
+name: OWASP ZAP baseline
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: Public staging or production HTTPS URL owned by this project
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    name: Passive DAST baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TARGET_URL: ${{ inputs.target_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate public HTTPS target
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "$TARGET_URL" <<'PY'
+          import ipaddress
+          import sys
+          from urllib.parse import urlparse
+
+          value = sys.argv[1].strip()
+          parsed = urlparse(value)
+          if parsed.scheme != "https" or not parsed.hostname:
+              raise SystemExit("DAST target must be a public HTTPS URL.")
+          host = parsed.hostname.lower().rstrip(".")
+          if host == "localhost" or host.endswith(".localhost"):
+              raise SystemExit("DAST target must not be localhost.")
+          try:
+              address = ipaddress.ip_address(host)
+          except ValueError:
+              address = None
+          if address and (
+              address.is_private
+              or address.is_loopback
+              or address.is_link_local
+              or address.is_reserved
+          ):
+              raise SystemExit("DAST target must not be a private or special-use address.")
+          print(f"Authorized baseline target: {value}")
+          PY
+
+      - name: Run OWASP ZAP baseline
+        uses: zaproxy/action-baseline@v0.15.0
+        with:
+          target: ${{ env.TARGET_URL }}
+          fail_action: true
+          allow_issue_writing: false
+          artifact_name: zap-baseline-report
+          cmd_options: "-a"
