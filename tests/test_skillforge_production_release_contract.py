@@ -265,3 +265,17 @@ def test_production_release_rejects_test_mode_identity_and_loopback_database() -
     assert "Production requires a Clerk live secret key" in workflow
     assert "Refusing production release with localhost/loopback database" in workflow
     assert 'prefix="pk_live_"' in workflow
+
+
+def test_production_csp_uses_verified_clerk_issuer() -> None:
+    next_config = (ROOT / "apps" / "web" / "next.config.ts").read_text(
+        encoding="utf-8"
+    )
+    release_workflow = (
+        ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "RIGOR_CLERK_ISSUER" in next_config
+    assert "const clerkOrigin = clerkFrontendOrigin(configuredClerkIssuer)" in next_config
+    assert "${clerkOrigin}" in next_config
+    assert 'set_env RIGOR_CLERK_ISSUER "$clerk_issuer"' in release_workflow
