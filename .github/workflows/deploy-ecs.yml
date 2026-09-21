@@ -42,9 +42,29 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
+      - name: Validate immutable release SHA input
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "release_sha must be a full 40-character lowercase Git commit SHA."
+            exit 1
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.RELEASE_SHA }}
+
+      - name: Verify exact checked-out release commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          if [ "$actual_sha" != "$RELEASE_SHA" ]; then
+            echo "Checked-out commit mismatch: expected $RELEASE_SHA, got $actual_sha."
+            exit 1
+          fi
+          echo "Exact release commit verified: $actual_sha"
 
       - name: Validate production deployment configuration
         shell: bash
