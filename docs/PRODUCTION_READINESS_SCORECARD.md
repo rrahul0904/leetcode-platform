@@ -1,5 +1,7 @@
 # Rigor Platform Production Readiness Scorecard
 
+> **Historical snapshot.** This scorecard was captured on 2026-07-30 and must not be used as the current launch status. For the 2026-09-27 release, use `docs/LAUNCH_WEEK_2026-09-27.md` and exact-SHA production evidence.
+
 Updated: 2026-07-30
 
 These percentages are engineering estimates, not deployment claims. Implementation measures source coverage of the target architecture. Validation measures executed evidence. Production readiness heavily discounts source and CI work until a representative AWS/EKS/gVisor environment proves the hostile execution boundary live.
