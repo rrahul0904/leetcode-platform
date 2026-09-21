@@ -55,7 +55,7 @@ jobs:
 
       - name: Verify candidate launch routes in Chrome
         env:
-          LAUNCH_BROWSER_BASE_URL: http://127.0.0.1:3001
+          LAUNCH_BROWSER_BASE_URL: http://localhost:3001
         run: node scripts/verify-launch-browser.mjs
 
       - name: Show development server log on failure

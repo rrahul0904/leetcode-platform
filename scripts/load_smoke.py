@@ -46,13 +46,11 @@ def main() -> int:
     if args.requests <= 0 or args.concurrency <= 0:
         raise SystemExit("requests and concurrency must be positive")
 
+    def perform_request(_: int) -> tuple[bool, float, str]:
+        return request_once(args.url, args.timeout_seconds)
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.concurrency) as pool:
-        results = list(
-            pool.map(
-                lambda _: request_once(args.url, args.timeout_seconds),
-                range(args.requests),
-            )
-        )
+        results = list(pool.map(perform_request, range(args.requests)))
 
     failures = [result for result in results if not result[0]]
     latencies = [result[1] for result in results if result[0]]

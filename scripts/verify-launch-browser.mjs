@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
-const baseUrl = process.env.LAUNCH_BROWSER_BASE_URL ?? "http://127.0.0.1:3001";
+const baseUrl = process.env.LAUNCH_BROWSER_BASE_URL ?? "http://localhost:3001";
 const driverPort = 9516;
 const driverUrl = `http://127.0.0.1:${driverPort}`;
 const webdriverElementKey = "element-6066-11e4-a52e-4f735466cecf";

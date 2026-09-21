@@ -107,14 +107,15 @@ describe("AuthGate", () => {
   });
 
   it.each([
-    ["/pr-review", "PR Review"],
-    ["/ai-arena", "AI Arena"],
-    ["/attempts", "Attempts"],
-    ["/design-lab", "Design Lab"],
-  ])("keeps a candidate on launch navigation route %s", async (route, label) => {
+    "/pr-review",
+    "/ai-arena",
+    "/attempts",
+    "/design-lab",
+  ])("keeps a candidate on launch navigation route %s", async (route) => {
     pathname = route;
-    renderGate(label);
-    expect(await screen.findByText(label)).toBeInTheDocument();
+    const marker = `Launch content for ${route}`;
+    renderGate(marker);
+    expect(await screen.findByText(marker)).toBeInTheDocument();
     expect(router.replace).not.toHaveBeenCalledWith("/");
   });
 });
