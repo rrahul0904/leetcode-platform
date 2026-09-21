@@ -21,7 +21,6 @@ env:
   VERCEL_ORG_ID: team_zmEezpOKGZy2sH5nqTfO44LD
   VERCEL_PROJECT_ID: prj_fnbuYcKQeKrEq5Sax2uWdTg2SHqT
   VERCEL_PROJECT_NAME: skillforge-interactive-demo
-  TRANSITIONAL_PROJECT_URL: https://skillforge-interactive-demo-rrahul0904-5013s-projects.vercel.app
   REQUESTED_CANONICAL_HOSTNAME: ${{ vars.SKILLFORGE_PRODUCTION_HOSTNAME }}
   REQUESTED_CANONICAL_URL: https://${{ vars.SKILLFORGE_PRODUCTION_HOSTNAME }}
   EXPECTED_ALEMBIC_HEAD: 20260918_0021
@@ -230,7 +229,7 @@ jobs:
           set_env NEXT_PUBLIC_APP_URL "$REQUESTED_CANONICAL_URL"
           set_env NEXT_PUBLIC_RIGOR_AUTH_MODE "clerk"
           set_env NEXT_PUBLIC_RIGOR_API_URL "/api/backend"
-          set_env RIGOR_ALLOWED_ORIGINS "[\"$REQUESTED_CANONICAL_URL\",\"$TRANSITIONAL_PROJECT_URL\"]"
+          set_env RIGOR_ALLOWED_ORIGINS "[\"$REQUESTED_CANONICAL_URL\"]"
 
       - name: Re-pull aligned production environment
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
