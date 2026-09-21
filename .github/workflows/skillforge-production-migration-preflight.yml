@@ -4,7 +4,9 @@ on:
   pull_request:
   push:
     branches:
+      - main
       - agent/vercel-clean-skillforge
+      - agent/launch-week-careeros-rebased
 
 permissions:
   contents: read
@@ -66,7 +68,7 @@ jobs:
         run: |
           set -euo pipefail
           uv run alembic upgrade head
-          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260918_0021"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260921_0023"
 
       - name: Verify legacy data and new production schema survived
         run: |
@@ -77,6 +79,9 @@ jobs:
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.candidate_files') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.candidate_question_bookmarks') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.candidate_question_notes') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.career_documents') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.career_jobs') IS NOT NULL")" = "t"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.career_job_analyses') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.tutor_sessions') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.tutor_events') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.mock_interview_sessions') IS NOT NULL")" = "t"
