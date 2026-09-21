@@ -44,7 +44,7 @@ All gates below must be green against the same immutable release SHA.
 - [x] production release evidence artifact retained for 90 days
 - [x] first-party launch allowlist fixed at 50 packages
 - [x] source-controlled launch content validates rights and schema
-- [x] production database migration preflight exists through Alembic `20260918_0021`
+- [x] production database migration preflight exists through Alembic `20260921_0023`
 
 ### External production configuration
 
@@ -59,7 +59,7 @@ All gates below must be green against the same immutable release SHA.
 ### Exact-SHA production release
 
 - [ ] run `deploy-vercel-skillforge.yml` for the final immutable SHA
-- [ ] production migration reaches `20260918_0021`
+- [ ] production migration reaches `20260921_0023`
 - [ ] production launch catalog publishes exactly the audited 50 packages
 - [ ] ECS API and worker deploy the same release SHA
 - [ ] ECS services are ACTIVE, running == desired, and PRIMARY rollout is COMPLETED

@@ -13,6 +13,7 @@ dependencies = [
   "psycopg[binary]==3.3.4",
   "pyjwt[crypto]==2.13.0",
   "pydantic-settings==2.14.2",
+  "pypdf==6.16.2",
   "pytest==9.1.1",
   "rigor-question-schema",
   "sqlalchemy==2.0.51",

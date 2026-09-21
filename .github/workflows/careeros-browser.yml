@@ -1,0 +1,68 @@
+name: CareerOS browser evidence
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/**"
+      - "scripts/verify-careeros-browser.mjs"
+      - ".github/workflows/careeros-browser.yml"
+  push:
+    branches:
+      - main
+      - "agent/**"
+    paths:
+      - "apps/web/**"
+      - "scripts/verify-careeros-browser.mjs"
+      - ".github/workflows/careeros-browser.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: careeros-browser-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    name: Real-browser resume upload flow
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up pinned pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.10.0
+          run_install: false
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.18.0"
+          cache: pnpm
+      - name: Install locked JavaScript workspace
+        run: pnpm install --frozen-lockfile
+      - name: Verify CareerOS upload flow in Chrome
+        env:
+          CAREEROS_BROWSER_BASE_URL: http://localhost:3001
+          NEXT_PUBLIC_RIGOR_AUTH_MODE: local
+          NEXT_PUBLIC_RIGOR_API_URL: /api/backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @rigor/web dev >/tmp/careeros-web.log 2>&1 &
+          web_pid=$!
+
+          set +e
+          node scripts/verify-careeros-browser.mjs
+          status=$?
+          set -e
+
+          kill "$web_pid" 2>/dev/null || true
+          wait "$web_pid" 2>/dev/null || true
+
+          if [ "$status" -ne 0 ]; then
+            echo "CareerOS development server log:"
+            cat /tmp/careeros-web.log
+            exit "$status"
+          fi

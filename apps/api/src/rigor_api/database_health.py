@@ -13,7 +13,7 @@ from .execution_routes import (
 )
 from .schemas import ReadinessCheck, ReadinessResponse
 
-EXPECTED_MIGRATION_VERSION = "20260918_0021"
+EXPECTED_MIGRATION_VERSION = "20260921_0023"
 REQUIRED_TABLES = (
     "users",
     "user_roles",
@@ -56,6 +56,9 @@ REQUIRED_TABLES = (
     "candidate_files",
     "candidate_question_bookmarks",
     "candidate_question_notes",
+    "career_documents",
+    "career_jobs",
+    "career_job_analyses",
     "generated_reports",
     "data_export_requests",
     "deletion_requests",

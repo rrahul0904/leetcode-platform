@@ -36,6 +36,8 @@ from .candidate_submission_routes import (
     list_candidate_session_submissions,
     list_candidate_submissions,
 )
+from .career_resume_routes import router as career_resume_router
+from .careeros import router as career_os_router
 from .execution_capability import router as execution_capability_router
 from .execution_routes import (
     CanonicalExecutionAccepted,
@@ -192,6 +194,8 @@ app.add_api_route(
 app.include_router(question_engagement_router)
 app.include_router(bookmarked_catalog_router)
 app.include_router(attachment_solution_router)
+app.include_router(career_resume_router)
+app.include_router(career_os_router)
 app.include_router(saas_router)
 app.include_router(tutor_router)
 app.include_router(tutor_chat_router)

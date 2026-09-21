@@ -15,7 +15,7 @@ Cognito/early-corpus assumptions are not release instructions. See
 - The production release path is fail-closed, binds ECS and Vercel work to one immutable Git
   SHA, retains certification evidence, and targets the existing
   `skillforge-interactive-demo` Vercel project.
-- The expected production Alembic head is `20260918_0021`.
+- The expected production Alembic head is `20260921_0023`.
 - Current production Terraform defines the trusted application plane, including ECS, Aurora
   PostgreSQL, Valkey, SQS, S3, ECR, TLS/DNS, WAF, CloudWatch logs, Container Insights, and
   deployment rollback controls.
@@ -62,7 +62,7 @@ verifies one exact current release SHA end to end.
 
 Production is complete only when the exact release SHA has evidence for:
 
-1. production database migration to `20260918_0021`;
+1. production database migration to `20260921_0023`;
 2. publication/verification of the audited 50-package launch catalog;
 3. ECS API and trusted worker deployment from the same immutable SHA;
 4. Vercel production deployment from the same immutable SHA;

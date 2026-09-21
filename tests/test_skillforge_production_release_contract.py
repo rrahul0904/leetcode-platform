@@ -222,7 +222,7 @@ def test_documented_production_migration_head_matches_release_contract() -> None
         encoding="utf-8"
     )
 
-    expected_head = "20260918_0021"
+    expected_head = "20260921_0023"
     assert f"EXPECTED_ALEMBIC_HEAD: {expected_head}" in workflow
     assert expected_head in production_stack
     assert expected_head in aws_deployment
@@ -248,7 +248,7 @@ def test_launch_week_control_record_keeps_external_release_gates_visible() -> No
 
     assert "VERCEL_TOKEN" in launch_record
     assert "AWS_DEPLOY_ROLE_ARN" in launch_record
-    assert "20260918_0021" in launch_record
+    assert "20260921_0023" in launch_record
     assert "SKILLFORGE_PRODUCTION_HOSTNAME" in launch_record
 
 
