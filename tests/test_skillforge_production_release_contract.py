@@ -180,7 +180,16 @@ def test_release_workflow_dispatches_ecs_with_immutable_sha_and_unique_correlati
     assert "release_sha:" in ecs_workflow
     assert "correlation_id:" in ecs_workflow
     assert "ref: ${{ env.RELEASE_SHA }}" in ecs_workflow
+    assert '[[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]' in ecs_workflow
+    assert 'actual_sha="$(git rev-parse HEAD)"' in ecs_workflow
+    assert 'if [ "$actual_sha" != "$RELEASE_SHA" ]; then' in ecs_workflow
     assert ecs_workflow.count("IMAGE_TAG: ${{ env.RELEASE_SHA }}") == 2
+
+    validate_input = ecs_workflow.index("Validate immutable release SHA input")
+    checkout = ecs_workflow.index("- uses: actions/checkout")
+    verify_checkout = ecs_workflow.index("Verify exact checked-out release commit")
+    aws_credentials = ecs_workflow.index("Configure AWS credentials using GitHub OIDC")
+    assert validate_input < checkout < verify_checkout < aws_credentials
 
 
 def test_ci_concurrency_separates_push_and_pull_request_runs() -> None:
