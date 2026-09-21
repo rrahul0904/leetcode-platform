@@ -49,7 +49,7 @@ All gates below must be green against the same immutable release SHA.
 
 - [ ] GitHub production secret `VERCEL_TOKEN` is configured
 - [ ] GitHub production variables are configured: `AWS_REGION`, `AWS_DEPLOY_ROLE_ARN`, `ECS_CLUSTER`, `ECS_API_SERVICE`, `ECS_WORKER_SERVICE`, `ECR_API_REPOSITORY`, `ECR_WORKER_REPOSITORY`
-- [ ] Vercel production environment contains Clerk keys, a non-loopback HTTPS `RIGOR_BACKEND_ORIGIN`, and a production PostgreSQL URL
+- [ ] Vercel production environment contains Clerk live keys (`pk_live_*` / `sk_live_*`), a non-loopback HTTPS `RIGOR_BACKEND_ORIGIN`, and a non-loopback production PostgreSQL URL
 - [ ] AWS OIDC role trust permits this repository/environment
 - [ ] ECS services, ECR repositories, database, cache, S3 and queues referenced by the release workflow exist
 - [ ] production DNS/TLS for the API origin is valid
@@ -69,7 +69,7 @@ All gates below must be green against the same immutable release SHA.
 ### User-path verification
 
 - [ ] landing page loads anonymously
-- [ ] sign-up/sign-in works with the production Clerk tenant
+- [ ] sign-up/sign-in works with the production Clerk live tenant
 - [ ] candidate onboarding/profile persistence works
 - [ ] question-bank search/filter/detail works
 - [ ] at least one Python Run and Submit completes end to end
