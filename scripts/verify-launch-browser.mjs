@@ -166,6 +166,16 @@ try {
   if (!sessionId) throw new Error("ChromeDriver did not return a session id");
 
   await webdriver("POST", `/session/${sessionId}/url`, {
+    url: `${baseUrl}/`,
+  });
+  await waitFor("public landing", () =>
+    execute(
+      'return location.pathname === "/" && document.body.innerText.includes("Prepare for the interview as a system") && document.body.innerText.includes("Create an account");',
+    ),
+  );
+  console.log("PASS / (anonymous public landing)");
+
+  await webdriver("POST", `/session/${sessionId}/url`, {
     url: `${baseUrl}/sign-in`,
   });
   await execute(
@@ -192,6 +202,32 @@ try {
     const path = await execute("return location.pathname;");
     if (path !== route) {
       throw new Error(`Candidate route ${route} redirected to ${path}`);
+    }
+
+    const unnamedInteractive = await execute(`
+      const visible = (element) => Boolean(
+        element.getClientRects().length
+        && getComputedStyle(element).visibility !== "hidden"
+      );
+      return Array.from(document.querySelectorAll("a,button,input,select,textarea"))
+        .filter(visible)
+        .filter((element) => {
+          const explicitName = [
+            element.getAttribute("aria-label"),
+            element.getAttribute("title"),
+            element.textContent,
+          ].find((value) => value && value.trim());
+          if (explicitName) return false;
+          if ("labels" in element && element.labels && element.labels.length > 0) return false;
+          return true;
+        })
+        .slice(0, 10)
+        .map((element) => element.outerHTML.slice(0, 240));
+    `);
+    if (unnamedInteractive.length > 0) {
+      throw new Error(
+        `Candidate route ${route} has unnamed interactive controls: ${unnamedInteractive.join(" | ")}`,
+      );
     }
     console.log(`PASS ${route}`);
   }
