@@ -2,6 +2,16 @@ name: Local Docker release
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - "apps/**"
+      - "services/**"
+      - "database/**"
+      - "content/**"
+      - "scripts/**"
+      - "docker-compose.yml"
+      - "Makefile"
+      - ".github/workflows/local-docker.yml"
 
 permissions:
   contents: read
@@ -12,6 +22,7 @@ concurrency:
 
 jobs:
   local-docker:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'agent/launch-assurance-')
     name: Clean bootstrap, execution health, backup, and restore
     runs-on: ubuntu-latest
     timeout-minutes: 45
