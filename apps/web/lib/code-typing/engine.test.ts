@@ -4,7 +4,7 @@ import { applyText, cancelSession, newSession, normalizeInput, sessionMetrics, t
 import { LANGUAGES, SNIPPETS, snippetLength, snippetsFor } from "./snippets";
 import { appendHistory, clearHistory, historyEntry, HISTORY_KEY, readHistory } from "./history";
 
-const sample = { ...SNIPPETS[0], expectedText: "abc" };
+const sample = { ...SNIPPETS[0]!, expectedText: "abc" };
 const make = () => newSession(sample, 30);
 
 describe("original versioned manifest", () => {
