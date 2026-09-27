@@ -137,9 +137,8 @@ describe("guest history", () => {
   });
   it("rejects corrupted/unversioned entries without losing valid records", () => {
     const storage = memoryStorage();
-    const record = historyEntry(applyText(make(), "a", 1), "one", 100);
-    // Partial sessions do not enter history
-    expect(record).toBeDefined();
+    // Partial sessions do not enter history.
+    expect(() => historyEntry(applyText(make(), "a", 1), "one", 100)).toThrow();
   });
   it("validates malformed storage and caps guest history at 30", () => {
     const storage = memoryStorage();
