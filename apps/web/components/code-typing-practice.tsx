@@ -32,10 +32,22 @@ export function CodeTypingPractice() {
   const composing = useRef(false);
 
   useEffect(() => {
-    setHistory(readHistory(window.localStorage));
-    const syncHistory = () => setHistory(readHistory(window.localStorage));
+    let live = true;
+    const syncHistory = () => {
+      if (!live) return;
+      try {
+        setHistory(readHistory(window.localStorage));
+      } catch {
+        setStorageWarning("Guest storage is not available in this browser.");
+      }
+    };
+    // Read after hydration so a browser's saved records cannot change SSR markup.
+    queueMicrotask(syncHistory);
     window.addEventListener("storage", syncHistory);
-    return () => window.removeEventListener("storage", syncHistory);
+    return () => {
+      live = false;
+      window.removeEventListener("storage", syncHistory);
+    };
   }, []);
 
   useEffect(() => {
@@ -192,7 +204,7 @@ export function CodeTypingPractice() {
             ))}
           </ol>
         )}
-        <p className={styles.instructions}>The last 30 finished attempts are stored locally. Input text, identity and results are not sent to a server. Clear history removes this module’s guest results.</p>
+        <p className={styles.instructions}>The last 30 finished attempts are stored locally. This module does not upload transcription text or result history. Clear history removes this module’s guest results.</p>
       </section>
     </main>
   );
