@@ -63,6 +63,7 @@ describe("CodeTypingPractice DOM/browser integration", () => {
     for (let index = 1; index < expected.length; index++) {
       fireEvent.change(editor, { target: { value: expected.slice(0, index + 1) } });
     }
+    act(() => vi.runAllTicks());
     expect(screen.getByText(/Snippet completed/)).toBeInTheDocument();
     expect(Number(screen.getByLabelText("Net CPM").textContent)).toBeGreaterThan(0);
     expect(screen.getAllByRole("listitem")).toHaveLength(1);
@@ -71,6 +72,7 @@ describe("CodeTypingPractice DOM/browser integration", () => {
     expect(JSON.parse(window.localStorage.getItem(HISTORY_KEY) ?? "{}").entries).toHaveLength(1);
     view.unmount();
     render(<CodeTypingPractice />);
+    act(() => vi.runAllTicks());
     expect(screen.getAllByRole("listitem")).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Clear history" }));
     expect(window.localStorage.getItem(HISTORY_KEY)).toBeNull();
@@ -83,6 +85,7 @@ describe("CodeTypingPractice DOM/browser integration", () => {
     const editor = screen.getByRole("textbox", { name: "Type the displayed snippet" }) as HTMLTextAreaElement;
     fireEvent.change(editor, { target: { value: "d" } });
     act(() => vi.advanceTimersByTime(30_100));
+    act(() => vi.runAllTicks());
     expect(screen.getByText("Time expired")).toBeInTheDocument();
     expect(editor).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Time remaining")).toHaveTextContent("00:00");
