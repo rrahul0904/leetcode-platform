@@ -53,7 +53,7 @@ describe("CodeTypingPractice DOM/browser integration", () => {
     expect(drop.defaultPrevented).toBe(true);
   });
 
-  it("starts on first change, persists a single real completion, survives remount, and clears guest history", () => {
+  it("starts on first change, persists a single real completion, survives remount, and clears guest history", async () => {
     const view = render(<CodeTypingPractice />);
     const editor = screen.getByRole("textbox", { name: "Type the displayed snippet" }) as HTMLTextAreaElement;
     const expected = snippetsFor("python")[0]!.expectedText;
@@ -63,7 +63,7 @@ describe("CodeTypingPractice DOM/browser integration", () => {
     for (let index = 1; index < expected.length; index++) {
       fireEvent.change(editor, { target: { value: expected.slice(0, index + 1) } });
     }
-    act(() => vi.runAllTicks());
+    await act(async () => { await Promise.resolve(); });
     expect(screen.getByText(/Snippet completed/)).toBeInTheDocument();
     expect(Number(screen.getByLabelText("Net CPM").textContent)).toBeGreaterThan(0);
     expect(screen.getAllByRole("listitem")).toHaveLength(1);
@@ -72,20 +72,20 @@ describe("CodeTypingPractice DOM/browser integration", () => {
     expect(JSON.parse(window.localStorage.getItem(HISTORY_KEY) ?? "{}").entries).toHaveLength(1);
     view.unmount();
     render(<CodeTypingPractice />);
-    act(() => vi.runAllTicks());
+    await act(async () => { await Promise.resolve(); });
     expect(screen.getAllByRole("listitem")).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Clear history" }));
     expect(window.localStorage.getItem(HISTORY_KEY)).toBeNull();
     expect(screen.getByText("No finished attempts saved in this browser.")).toBeInTheDocument();
   });
 
-  it("expires unfinished attempts and keeps editor read-only after the deadline", () => {
+  it("expires unfinished attempts and keeps editor read-only after the deadline", async () => {
     render(<CodeTypingPractice />);
     fireEvent.click(screen.getByRole("button", { name: "30s" }));
     const editor = screen.getByRole("textbox", { name: "Type the displayed snippet" }) as HTMLTextAreaElement;
     fireEvent.change(editor, { target: { value: "d" } });
     act(() => vi.advanceTimersByTime(30_100));
-    act(() => vi.runAllTicks());
+    await act(async () => { await Promise.resolve(); });
     expect(screen.getByText("Time expired")).toBeInTheDocument();
     expect(editor).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Time remaining")).toHaveTextContent("00:00");
