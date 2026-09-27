@@ -10,7 +10,8 @@ import { useAuth } from "@/lib/auth";
 
 import { AppShell } from "./app-shell";
 
-const publicRoutes = ["/sign-in", "/sign-up", "/auth/callback"];
+// The guest typing module has no API or account dependency; all other practice routes stay gated.
+const publicRoutes = ["/sign-in", "/sign-up", "/auth/callback", "/practice/code-typing"];
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
