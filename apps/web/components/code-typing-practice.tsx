@@ -68,9 +68,10 @@ export function CodeTypingPractice() {
     try {
       const id = typeof window.crypto.randomUUID === "function"
         ? window.crypto.randomUUID() : `${Date.now()}-${attempt}-${Math.random()}`;
-      setHistory(appendHistory(window.localStorage, historyEntry(session, id, Date.now())));
+      const entries = appendHistory(window.localStorage, historyEntry(session, id, Date.now()));
+      queueMicrotask(() => setHistory(entries));
     } catch {
-      setStorageWarning("Local history could not be saved in this browser.");
+      queueMicrotask(() => setStorageWarning("Local history could not be saved in this browser."));
     }
   }, [session, attempt]);
 
