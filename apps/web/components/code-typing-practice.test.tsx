@@ -56,7 +56,7 @@ describe("CodeTypingPractice DOM/browser integration", () => {
   it("starts on first change, persists a single real completion, survives remount, and clears guest history", () => {
     const view = render(<CodeTypingPractice />);
     const editor = screen.getByRole("textbox", { name: "Type the displayed snippet" }) as HTMLTextAreaElement;
-    const expected = snippetsFor("python")[0].expectedText;
+    const expected = snippetsFor("python")[0]!.expectedText;
     expect(screen.queryAllByRole("listitem")).toHaveLength(0);
     fireEvent.change(editor, { target: { value: expected.slice(0, 1) } });
     act(() => vi.advanceTimersByTime(1000));
