@@ -57,14 +57,14 @@ describe("CodeTypingPractice DOM/browser integration", () => {
     const view = render(<CodeTypingPractice />);
     const editor = screen.getByRole("textbox", { name: "Type the displayed snippet" }) as HTMLTextAreaElement;
     const expected = snippetsFor("python")[0].expectedText;
-    expect(screen.getByRole("listitem", { hidden: true, name: /completed/ })).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("listitem")).toHaveLength(0);
     fireEvent.change(editor, { target: { value: expected.slice(0, 1) } });
     act(() => vi.advanceTimersByTime(1000));
     for (let index = 1; index < expected.length; index++) {
       fireEvent.change(editor, { target: { value: expected.slice(0, index + 1) } });
     }
     expect(screen.getByText(/Snippet completed/)).toBeInTheDocument();
-    expect(screen.getByLabelText("Net CPM")).not.toHaveTextContent("0");
+    expect(Number(screen.getByLabelText("Net CPM").textContent)).toBeGreaterThan(0);
     expect(screen.getAllByRole("listitem")).toHaveLength(1);
     expect(JSON.parse(window.localStorage.getItem(HISTORY_KEY) ?? "{}").entries).toHaveLength(1);
     act(() => vi.advanceTimersByTime(2000));
