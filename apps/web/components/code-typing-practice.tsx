@@ -23,7 +23,7 @@ export function CodeTypingPractice() {
   const [language, setLanguage] = useState<TypingLanguage>("python");
   const [duration, setDuration] = useState<number>(60);
   const [index, setIndex] = useState(0);
-  const [session, setSession] = useState(() => newSession(snippetsFor("python")[0], 60));
+  const [session, setSession] = useState(() => newSession(snippetsFor("python")[0]!, 60));
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [storageWarning, setStorageWarning] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -68,7 +68,7 @@ export function CodeTypingPractice() {
     setDuration(nextDuration);
     setIndex(nextIndex);
     composing.current = false;
-    setSession(newSession(options[nextIndex], nextDuration));
+    setSession(newSession(options[nextIndex]!, nextDuration));
     setAttempt((previous) => previous + 1);
     inputRef.current?.focus();
   }
