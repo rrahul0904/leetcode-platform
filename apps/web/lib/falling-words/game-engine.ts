@@ -140,8 +140,8 @@ export class GameEngine {
       matchedWords: this.matchedValue,
       missedWords: this.missedValue,
       activeElapsedMs: this.elapsedValue,
-      lastResult: this.completed.at(-1) ?? null,
-      results: [...this.completed],
+      lastResult: this.completed.length > 0 ? { ...this.completed[this.completed.length - 1]! } : null,
+      results: this.completed.map((result) => ({ ...result })),
     };
   }
 
