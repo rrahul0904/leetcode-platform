@@ -159,7 +159,7 @@ describe("RE-326 headless falling-word GameEngine", () => {
     game.tick(2400);
     game.submit("a");
     expect(game.snapshot.level).toBe(21);
-    game.tick(473); // The pending spawn uses the interval scheduled at level 11.
+    game.tick(472); // The pending spawn uses the rounded interval scheduled at level 11.
     expect(game.snapshot.words).toHaveLength(2);
     expect(game.submit("a")).toBe(2); // Lowest duplicate wins even as a new word spawns.
     expect(game.snapshot.level).toBe(27);
