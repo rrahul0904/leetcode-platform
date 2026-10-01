@@ -1,5 +1,5 @@
-import { CinematicDashboard } from "@/components/cinematic-dashboard";
+import { PublicLanding } from "@/components/public-landing";
 
 export default function Home() {
-  return <CinematicDashboard />;
+  return <PublicLanding />;
 }

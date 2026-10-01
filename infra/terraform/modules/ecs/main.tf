@@ -85,6 +85,10 @@ variable "export_bucket_arn" {
   type = string
 }
 
+variable "storage_kms_key_arn" {
+  type = string
+}
+
 variable "worker_command" {
   type    = list(string)
   default = []
@@ -127,12 +131,6 @@ resource "aws_security_group" "alb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 }
 
 resource "aws_security_group" "app" {
@@ -146,18 +144,53 @@ resource "aws_security_group" "app" {
     security_groups = [aws_security_group.alb.id]
   }
 
+  # External identity/AWS service calls leave through NAT over HTTPS only.
+  #trivy:ignore:AVD-AWS-0104
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+    description = "HTTPS-only external service egress"
+  }
+
+  egress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = [data.aws_vpc.selected.cidr_block]
+    description = "Aurora PostgreSQL inside VPC"
+  }
+
+  egress {
+    from_port   = 6379
+    to_port     = 6379
+    protocol    = "tcp"
+    cidr_blocks = [data.aws_vpc.selected.cidr_block]
+    description = "Valkey inside VPC"
   }
 }
 
+data "aws_vpc" "selected" {
+  id = var.vpc_id
+}
+
+resource "aws_vpc_security_group_egress_rule" "alb_to_api" {
+  security_group_id            = aws_security_group.alb.id
+  referenced_security_group_id = aws_security_group.app.id
+  ip_protocol                  = "tcp"
+  from_port                    = var.api_container_port
+  to_port                      = var.api_container_port
+  description                  = "ALB to API tasks only"
+}
+
+# Internet-facing API edge; production attaches a regional WAF.
+#trivy:ignore:AVD-AWS-0053
 resource "aws_lb" "api" {
-  name               = substr("${var.name}-api", 0, 32)
-  internal           = false
-  load_balancer_type = "application"
+  name                       = substr("${var.name}-api", 0, 32)
+  internal                   = false
+  drop_invalid_header_fields = true
+  load_balancer_type         = "application"
   security_groups    = [aws_security_group.alb.id]
   subnets            = var.public_subnet_ids
 }
@@ -175,6 +208,9 @@ resource "aws_lb_target_group" "api" {
   }
 }
 
+# Certificate-less HTTP forwarding is development-only; production supplies a certificate
+# and creates only the redirect + HTTPS path.
+#trivy:ignore:AVD-AWS-0054
 resource "aws_lb_listener" "http_forward" {
   count = var.certificate_arn == null ? 1 : 0
 
@@ -303,6 +339,17 @@ resource "aws_iam_role_policy" "task" {
           "${var.upload_bucket_arn}/*",
           "${var.export_bucket_arn}/*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:Encrypt",
+          "kms:GenerateDataKey",
+          "kms:ReEncryptFrom",
+          "kms:ReEncryptTo"
+        ]
+        Resource = [var.storage_kms_key_arn]
       }
     ]
   })

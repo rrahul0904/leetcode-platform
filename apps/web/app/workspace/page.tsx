@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { CinematicDashboard } from "@/components/cinematic-dashboard";
 
 export default function WorkspacePage() {
-  redirect("/");
+  return <CinematicDashboard />;
 }
