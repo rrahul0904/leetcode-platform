@@ -1,0 +1,160 @@
+name: Vercel Preview candidate
+
+on:
+  push:
+    branches:
+      - codex/release-integration
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vercel-preview-candidate
+  cancel-in-progress: true
+
+env:
+  VERCEL_ORG_ID: team_zmEezpOKGZy2sH5nqTfO44LD
+  VERCEL_PROJECT_ID: prj_fnbuYcKQeKrEq5Sax2uWdTg2SHqT
+  VERCEL_PROJECT_NAME: skillforge-interactive-demo
+
+jobs:
+  preview:
+    name: Inspect existing project and deploy Preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout candidate source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.18.0"
+
+      - name: Install pinned Vercel CLI
+        run: npm install --global vercel@59.7.0
+
+      - name: Verify linked project and inspect Preview settings
+        id: inspect
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${VERCEL_TOKEN:-}" ]; then
+            echo "The repository VERCEL_TOKEN secret is unavailable to this branch push."
+            exit 1
+          fi
+
+          project_json="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID")"
+          python - "$project_json" "$VERCEL_PROJECT_ID" "$VERCEL_PROJECT_NAME" <<'PY'
+          import json
+          import sys
+
+          project = json.loads(sys.argv[1])
+          if project.get("id") != sys.argv[2] or project.get("name") != sys.argv[3]:
+              raise SystemExit("Vercel project identity does not match the checked-in release target.")
+          link = project.get("link") or {}
+          if link.get("type") != "github" or link.get("repo") != "leetcode-platform":
+              raise SystemExit("Vercel project is not linked to the expected GitHub repository.")
+          if link.get("org", "").lower() != "rrahul0904":
+              raise SystemExit("Vercel project is linked to a different GitHub owner.")
+          print(f"Verified Vercel project: {project['name']} ({project['id']})")
+          print(f"GitHub link: {link.get('org')}/{link.get('repo')}")
+          print(f"Configured production branch: {link.get('productionBranch', 'not reported')}")
+          PY
+
+          mkdir -p .vercel
+          printf '{"orgId":"%s","projectId":"%s"}\n' \
+            "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+
+          env_json="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env?teamId=$VERCEL_ORG_ID")"
+          python - "$env_json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json
+          import sys
+
+          items = json.loads(sys.argv[1]).get("envs", [])
+          names = sorted(
+              {
+                  item.get("key", "")
+                  for item in items
+                  if "preview" in (item.get("target") or []) and item.get("key")
+              }
+          )
+          print("### Existing Vercel Preview environment variable names")
+          if names:
+              for name in names:
+                  print(f"- `{name}`")
+          else:
+              print("No Preview variables are configured.")
+          PY
+
+          deployments_json="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&target=preview&limit=20")"
+          existing_url="$(python - "$deployments_json" "$GITHUB_SHA" <<'PY'
+          import json
+          import sys
+
+          deployments = json.loads(sys.argv[1]).get("deployments", [])
+          for deployment in deployments:
+              meta = deployment.get("meta") or {}
+              if meta.get("githubCommitSha") == sys.argv[2] and deployment.get("readyState") == "READY":
+                  print(deployment.get("url", ""))
+                  break
+          PY
+          )"
+          if [ -n "$existing_url" ]; then
+            echo "preview_url=https://$existing_url" >> "$GITHUB_OUTPUT"
+            echo "existing=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "existing=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pull Preview environment
+        if: steps.inspect.outputs.existing != 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
+
+      - name: Build Preview candidate
+        if: steps.inspect.outputs.existing != 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: env -u VERCEL_TOKEN vercel build --token="$VERCEL_TOKEN"
+
+      - name: Deploy without production promotion
+        if: steps.inspect.outputs.existing != 'true'
+        id: deploy
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          url="$(vercel deploy --prebuilt --yes \
+            --meta githubCommitSha="$GITHUB_SHA" \
+            --meta githubCommitRef="$GITHUB_REF_NAME" \
+            --token="$VERCEL_TOKEN")"
+          echo "preview_url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Record Preview URL
+        env:
+          PREVIEW_URL: ${{ steps.inspect.outputs.preview_url || steps.deploy.outputs.preview_url }}
+          EXISTING: ${{ steps.inspect.outputs.existing }}
+        run: |
+          {
+            echo "### Vercel Preview candidate"
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- URL: $PREVIEW_URL"
+            if [ "$EXISTING" = "true" ]; then
+              echo "- Reused the existing ready Preview for this commit."
+            else
+              echo "- Created a Preview deployment; the production alias was not requested."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
