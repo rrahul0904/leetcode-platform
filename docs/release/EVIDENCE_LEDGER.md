@@ -25,6 +25,8 @@ Last updated: 2026-10-01. Statuses distinguish implementation, tests, CI, deploy
 
 ## Required production configuration (names only)
 
+See [the owner-ready deployment checklist](DEPLOYMENT_CHECKLIST.md) for the exact GitHub, Vercel, AWS/ECS, and tracker actions.
+
 The process environment has no production hostname, Vercel token, Clerk production keys/domain, production database URL, HTTPS backend origin, or AWS/ECS deployment credentials. The workflow pulls protected project settings from Vercel and requires the customer-owned hostname (`SKILLFORGE_PRODUCTION_HOSTNAME`), `VERCEL_TOKEN`, live Clerk keys, `RIGOR_BACKEND_ORIGIN`, and PostgreSQL URL before release. GitHub Actions permissions and ECS deploy secrets must also be available. Secret values are not exposed by the public GitHub API.
 
 ## Unrun release gates
