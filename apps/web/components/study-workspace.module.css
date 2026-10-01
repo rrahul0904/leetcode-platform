@@ -1,0 +1,378 @@
+.shell {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 48px 0 80px;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(220px, .5fr);
+  gap: 28px;
+  align-items: end;
+  margin-bottom: 28px;
+}
+
+.hero h1 {
+  max-width: 780px;
+  margin: 10px 0 12px;
+  font-size: clamp(38px, 5vw, 72px);
+  line-height: .96;
+  letter-spacing: -.045em;
+}
+
+.hero p {
+  max-width: 760px;
+  margin: 0;
+  line-height: 1.65;
+  opacity: .72;
+}
+
+.eyebrow,
+.kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+}
+
+.heroActions {
+  display: grid;
+  gap: 10px;
+}
+
+.heroActions a,
+.compactForm button,
+.taskForm button,
+.cardForm button,
+.noteForm button,
+.focusButton,
+.reviewCard > button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  color: inherit;
+  background: transparent;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.summaryGrid article,
+.panel,
+.boundary {
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, currentColor 3%, transparent);
+}
+
+.summaryGrid article {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 12px;
+  padding: 18px;
+}
+
+.summaryGrid article svg {
+  grid-row: 1 / 4;
+  margin-top: 3px;
+}
+
+.summaryGrid article span,
+.summaryGrid article small {
+  opacity: .62;
+}
+
+.summaryGrid article strong {
+  font-size: 24px;
+}
+
+.twoColumn {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.panel {
+  padding: 20px;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.panelHeader h2 {
+  margin: 5px 0 0;
+  font-size: 24px;
+}
+
+.panelHeader select,
+.compactForm input,
+.taskForm input,
+.cardForm input,
+.cardForm textarea,
+.noteForm textarea {
+  width: 100%;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+}
+
+.panelHeader select {
+  width: auto;
+  max-width: 230px;
+}
+
+.compactForm,
+.taskForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 150px auto;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.taskForm {
+  grid-template-columns: minmax(0, 1fr) 145px 88px auto;
+}
+
+.projectMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.projectMeta div {
+  display: grid;
+  gap: 4px;
+}
+
+.projectMeta span,
+.projectMeta small {
+  opacity: .65;
+}
+
+.taskList,
+.planList,
+.noteList {
+  display: grid;
+  gap: 8px;
+}
+
+.task,
+.taskDone {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  border-radius: 8px;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.task span,
+.taskDone span {
+  display: grid;
+  gap: 3px;
+}
+
+.task small,
+.taskDone small {
+  opacity: .6;
+}
+
+.taskDone {
+  opacity: .55;
+  text-decoration: line-through;
+}
+
+.planList article {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.planList article > span,
+.planList small {
+  opacity: .55;
+}
+
+.planList article div {
+  display: grid;
+  gap: 3px;
+}
+
+.focusButton {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.badge {
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.reviewCard {
+  min-height: 220px;
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 24px;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 12px;
+}
+
+.reviewCard > span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  opacity: .55;
+}
+
+.reviewCard h3,
+.reviewCard p {
+  margin: 0;
+}
+
+.ratingRow {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.ratingRow button {
+  display: grid;
+  gap: 2px;
+  padding: 9px 5px;
+  border: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+  border-radius: 7px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.ratingRow button span {
+  font-size: 10px;
+}
+
+.cardForm,
+.noteForm {
+  display: grid;
+  gap: 8px;
+}
+
+.noteList {
+  max-height: 300px;
+  overflow: auto;
+  margin-top: 16px;
+}
+
+.noteList article {
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 8px;
+}
+
+.noteList p {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+
+.noteList small {
+  opacity: .55;
+}
+
+.empty {
+  padding: 18px;
+  border: 1px dashed color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 8px;
+  opacity: .6;
+}
+
+.boundary {
+  display: flex;
+  gap: 14px;
+  margin-top: 12px;
+  padding: 20px;
+}
+
+.boundary p {
+  margin: 5px 0 0;
+  line-height: 1.55;
+  opacity: .65;
+}
+
+button:disabled,
+input:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+@media (max-width: 900px) {
+  .hero,
+  .twoColumn,
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .compactForm,
+  .taskForm {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .shell {
+    width: min(100% - 20px, 1180px);
+    padding-top: 28px;
+  }
+
+  .compactForm,
+  .taskForm,
+  .ratingRow {
+    grid-template-columns: 1fr;
+  }
+
+  .panelHeader,
+  .projectMeta {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .panelHeader select {
+    width: 100%;
+    max-width: none;
+  }
+}
