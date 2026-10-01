@@ -10,14 +10,25 @@ import { useAuth } from "@/lib/auth";
 
 import { AppShell } from "./app-shell";
 
-const publicRoutes = ["/", "/sign-in", "/sign-up", "/auth/callback"];
+// Public routes contain only marketing or self-contained guest practice surfaces.
+const publicRoutes = [
+  "/",
+  "/sign-in",
+  "/sign-up",
+  "/auth/callback",
+  "/practice/code-typing",
+  "/practice/typing-arcade",
+];
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { principal, status } = useAuth();
   const isPublic = publicRoutes.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`),
+    (route) =>
+      route === "/"
+        ? pathname === "/"
+        : pathname === route || pathname.startsWith(`${route}/`),
   );
   const isCandidate = principal?.roles.includes("candidate") ?? false;
   const candidateRoute = [
@@ -35,6 +46,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     "/attempts",
     "/design-lab",
     "/progress",
+    "/study-workspace",
     "/onboarding",
     "/profile",
     "/settings",

@@ -6,6 +6,7 @@ import {
   FileCheck2,
   FileUp,
   History,
+  Keyboard,
   LayoutDashboard,
   Link2,
   Menu,
@@ -14,6 +15,7 @@ import {
   Route,
   Search,
   Trophy,
+  Timer,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -31,6 +33,9 @@ const candidateNav = [
   ["AI Arena", "/ai-arena", Trophy],
   ["Mock Interviews", "/mock-interviews", MessageSquareText],
   ["Learning Paths", "/learning-paths", Route],
+  ["Study Workspace", "/study-workspace", BookOpen],
+  ["Code Typing", "/practice/code-typing", Keyboard],
+  ["Typing Arcade", "/practice/typing-arcade", Timer],
   ["Attempts", "/attempts", History],
   ["Progress", "/progress", CircleGauge],
 ] as const;

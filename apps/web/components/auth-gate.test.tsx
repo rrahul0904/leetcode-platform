@@ -106,6 +106,13 @@ describe("AuthGate", () => {
     expect(router.replace).not.toHaveBeenCalledWith("/");
   });
 
+  it("keeps a candidate on the Study Workspace", async () => {
+    pathname = "/study-workspace";
+    renderGate("Study Workspace");
+    expect(await screen.findByText("Study Workspace")).toBeInTheDocument();
+    expect(router.replace).not.toHaveBeenCalledWith("/");
+  });
+
   it.each([
     "/pr-review",
     "/ai-arena",

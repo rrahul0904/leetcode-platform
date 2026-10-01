@@ -88,11 +88,6 @@ const nextConfig: NextConfig = {
         permanent: true,
       },
       {
-        source: "/attempts",
-        destination: "/progress",
-        permanent: true,
-      },
-      {
         source: "/workspace",
         destination: "/",
         permanent: true,
