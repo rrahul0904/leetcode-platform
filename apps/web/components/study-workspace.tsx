@@ -22,7 +22,9 @@ import {
   reviewFlashcard,
   type ReviewRating,
   type StudyWorkspaceState,
+  parseStudyWorkspace,
 } from "@/lib/study-workspace";
+import { useAuth } from "@/lib/auth";
 
 import styles from "./study-workspace.module.css";
 
@@ -48,6 +50,14 @@ function formatDueDate(value: string | null) {
 }
 
 export function StudyWorkspace() {
+  const { principal } = useAuth();
+  const accountId = principal?.subject_id;
+  if (!accountId) return <main className={styles.shell}>Sign in to open your study workspace.</main>;
+  const storageKey = `${STORAGE_KEY}.${encodeURIComponent(accountId)}`;
+  return <StudyWorkspaceForAccount key={storageKey} storageKey={storageKey} />;
+}
+
+function StudyWorkspaceForAccount({ storageKey }: { storageKey: string }) {
   const [workspace, setWorkspace] = useState<StudyWorkspaceState>(EMPTY_STUDY_WORKSPACE);
   const [hydrated, setHydrated] = useState(false);
   const [projectTitle, setProjectTitle] = useState("");
@@ -60,26 +70,39 @@ export function StudyWorkspace() {
   const [cardFront, setCardFront] = useState("");
   const [cardBack, setCardBack] = useState("");
   const [revealedCardId, setRevealedCardId] = useState<string | null>(null);
+  const [availableMinutes, setAvailableMinutes] = useState(90);
+  const [storageWarning, setStorageWarning] = useState("");
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (saved) {
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
       try {
-        const parsed = JSON.parse(saved) as StudyWorkspaceState;
-        if (parsed.version === 1 && Array.isArray(parsed.projects) && Array.isArray(parsed.flashcards)) {
-          setWorkspace(parsed);
+        const saved = window.localStorage.getItem(storageKey);
+        if (saved) {
+          const parsed = parseStudyWorkspace(JSON.parse(saved) as unknown);
+          if (parsed) setWorkspace(parsed);
+          else {
+            window.localStorage.removeItem(storageKey);
+            setStorageWarning("Saved workspace data was malformed and has been cleared.");
+          }
         }
       } catch {
-        window.localStorage.removeItem(STORAGE_KEY);
+        setStorageWarning("Browser storage is unavailable. Changes may not survive a refresh.");
       }
-    }
-    setHydrated(true);
-  }, []);
+      setHydrated(true);
+    });
+    return () => { active = false; };
+  }, [storageKey]);
 
   useEffect(() => {
     if (!hydrated) return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(workspace));
-  }, [hydrated, workspace]);
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(workspace));
+    } catch {
+      queueMicrotask(() => setStorageWarning("Browser storage is unavailable. Changes may not survive a refresh."));
+    }
+  }, [hydrated, storageKey, workspace]);
 
   const activeProject =
     workspace.projects.find((project) => project.id === workspace.activeProjectId) ??
@@ -87,8 +110,8 @@ export function StudyWorkspace() {
     null;
 
   const dailyPlan = useMemo(
-    () => buildDailyPlan(workspace.projects, 90),
-    [workspace.projects],
+    () => buildDailyPlan(workspace.projects, availableMinutes),
+    [availableMinutes, workspace.projects],
   );
 
   const dueCards = useMemo(() => {
@@ -170,6 +193,60 @@ export function StudyWorkspace() {
           : project,
       ),
     }));
+  }
+
+  function deleteTask(taskId: string) {
+    setWorkspace((current) => ({
+      ...current,
+      projects: current.projects.map((project) => ({
+        ...project,
+        tasks: project.tasks.filter((task) => task.id !== taskId),
+      })),
+    }));
+  }
+
+  function deleteProject(projectId: string) {
+    setWorkspace((current) => {
+      const projects = current.projects.filter((project) => project.id !== projectId);
+      const flashcards = current.flashcards.filter((card) => card.projectId !== projectId);
+      const activeProjectId = current.activeProjectId === projectId
+        ? projects[0]?.id ?? null
+        : current.activeProjectId;
+      return { ...current, activeProjectId, projects, flashcards };
+    });
+  }
+
+  function deleteNote(noteId: string) {
+    setWorkspace((current) => ({
+      ...current,
+      projects: current.projects.map((project) => ({
+        ...project,
+        notes: project.notes.filter((note) => note.id !== noteId),
+      })),
+    }));
+  }
+
+  function deleteFlashcard(cardId: string) {
+    setWorkspace((current) => ({
+      ...current,
+      flashcards: current.flashcards.filter((card) => card.id !== cardId),
+    }));
+    setRevealedCardId(null);
+  }
+
+  function resetWorkspace() {
+    setWorkspace(EMPTY_STUDY_WORKSPACE);
+    setAvailableMinutes(90);
+    setProjectTitle("");
+    setProjectGoal("");
+    setProjectDate("");
+    setTaskTitle("");
+    setTaskDate("");
+    setTaskMinutes("30");
+    setNoteBody("");
+    setCardFront("");
+    setCardBack("");
+    setRevealedCardId(null);
   }
 
   function completeFocusBlock() {
@@ -271,6 +348,8 @@ export function StudyWorkspace() {
         </div>
       </header>
 
+      {storageWarning && <p role="status" className={styles.storageWarning}>{storageWarning}</p>}
+
       <section className={styles.summaryGrid}>
         <article>
           <CalendarDays size={20} />
@@ -357,6 +436,7 @@ export function StudyWorkspace() {
                 </div>
                 <small>{activeProject.targetDate ? `Target ${formatDueDate(activeProject.targetDate)}` : "Open-ended"}</small>
               </div>
+              <button className={styles.deleteButton} onClick={() => deleteProject(activeProject.id)} type="button">Delete project and its study records</button>
 
               <form className={styles.taskForm} onSubmit={addTask}>
                 <input
@@ -384,18 +464,21 @@ export function StudyWorkspace() {
 
               <div className={styles.taskList}>
                 {activeProject.tasks.map((task) => (
-                  <button
-                    className={task.completed ? styles.taskDone : styles.task}
-                    key={task.id}
-                    onClick={() => toggleTask(task.id)}
-                    type="button"
-                  >
-                    <CheckCircle2 size={16} />
-                    <span>
-                      <strong>{task.title}</strong>
-                      <small>{formatDueDate(task.dueOn)} · {task.estimatedMinutes} min</small>
-                    </span>
-                  </button>
+                  <div className={styles.taskRow} key={task.id}>
+                    <button
+                      className={task.completed ? styles.taskDone : styles.task}
+                      onClick={() => toggleTask(task.id)}
+                      type="button"
+                      aria-pressed={task.completed}
+                    >
+                      <CheckCircle2 size={16} />
+                      <span>
+                        <strong>{task.title}</strong>
+                        <small>{formatDueDate(task.dueOn)} · {task.estimatedMinutes} min</small>
+                      </span>
+                    </button>
+                    <button className={styles.removeButton} onClick={() => deleteTask(task.id)} type="button" aria-label={`Delete ${task.title}`}>Delete</button>
+                  </div>
                 ))}
                 {activeProject.tasks.length === 0 && (
                   <div className={styles.empty}>No tasks yet. Add a concrete next action.</div>
@@ -411,7 +494,9 @@ export function StudyWorkspace() {
               <span className={styles.kicker}>TODAY</span>
               <h2>Adaptive study plan</h2>
             </div>
-            <span className={styles.badge}>90 min budget</span>
+            <label className={styles.budget}>Minutes available
+              <input aria-label="Minutes available for today's plan" type="number" min="0" max="1440" step="5" value={availableMinutes} onChange={(event) => setAvailableMinutes(Math.max(0, Math.min(1440, Number.parseInt(event.target.value, 10) || 0)))} />
+            </label>
           </div>
 
           <div className={styles.planList}>
@@ -455,6 +540,7 @@ export function StudyWorkspace() {
             <div className={styles.reviewCard}>
               <span>QUESTION</span>
               <h3>{nextCard.front}</h3>
+              <button className={styles.removeButton} onClick={() => deleteFlashcard(nextCard.id)} type="button">Delete card</button>
               {revealedCardId === nextCard.id ? (
                 <>
                   <p>{nextCard.back}</p>
@@ -525,6 +611,7 @@ export function StudyWorkspace() {
               <article key={note.id}>
                 <p>{note.body}</p>
                 <small>{new Date(note.createdAt).toLocaleString()}</small>
+                <button className={styles.removeButton} onClick={() => deleteNote(note.id)} type="button" aria-label="Delete note">Delete</button>
               </article>
             ))}
             {(activeProject?.notes.length ?? 0) === 0 && (
@@ -532,6 +619,11 @@ export function StudyWorkspace() {
             )}
           </div>
         </div>
+      </section>
+
+      <section className={styles.resetPanel} aria-label="Study workspace reset">
+        <div><strong>Clear this account&apos;s study workspace</strong><p>Projects, tasks, notes, cards, and focus records are stored in this browser for this signed-in account.</p></div>
+        <button className={styles.deleteButton} onClick={resetWorkspace} type="button">Reset workspace</button>
       </section>
 
       <section className={styles.boundary}>

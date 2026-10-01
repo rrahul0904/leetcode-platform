@@ -1,6 +1,6 @@
-# RE-292 Phase A — independent guest code typing
+# Code Typing Phase A — repository history alias RE-292 (collision unresolved)
 
-Tracking: issue #41; research-only PR #42. This implementation branch is separate from the research PR.
+Repository history: issue #41; research-only PR #42; implementation PR #43. The repository's former RE-292 label conflicts with canonical tracker RE-292 (DustByte). This document preserves the old identifier as provenance only; it does not claim the canonical row. Allocate a new ID after checking the canonical tracker.
 
 ## Boundary and content
 
@@ -13,8 +13,9 @@ exercise does not attempt to reproduce any third-party layout, source or scoring
 The manifest holds six independently authored teaching examples (two each: Python,
 SQL and JavaScript). Each has schemaVersion=1, a stable ID, content version, difficulty,
 topic, text, 2/4-space indentation, attribution/provenance, rights-status text and
-deprecation flag. All six are project-authored for this implementation; **editorial
-rights review is still pending** before wider distribution. Change `version` when
+deprecation flag. All six are first-party text without donor code, assets, or branding.
+The repository has no standalone content license, so public redistribution rights remain
+**unresolved** until the product owner selects one. Change `version` when
 changing the expected text; preserve older versions when historical interpretation
 matters. Length is computed by Unicode code points rather than hand-maintained.
 

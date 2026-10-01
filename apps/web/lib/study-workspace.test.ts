@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildDailyPlan,
+  parseStudyWorkspace,
   reviewFlashcard,
   type Flashcard,
   type StudyProject,
@@ -47,6 +48,38 @@ describe("study workspace domain", () => {
       expect.objectContaining({ taskId: "first", minutes: 60 }),
       expect.objectContaining({ taskId: "later", minutes: 15 }),
     ]);
+  });
+
+  it("uses a date-only deterministic order at timezone boundaries and stable ID ties", () => {
+    const project = (id: string, dueOn: string): StudyProject => ({
+      id, title: "Study", goal: "", targetDate: null, focusedMinutes: 0, notes: [],
+      tasks: [{ id, title: "Same title", dueOn, estimatedMinutes: 10, completed: false }],
+    });
+    expect(buildDailyPlan([project("z", "2026-11-01"), project("a", "2026-11-01")], 20)
+      .map(({ taskId }) => taskId)).toEqual(["a", "z"]);
+    expect(buildDailyPlan([project("a", "2026-11-01")], 0)).toEqual([]);
+  });
+
+  it("drops duplicate and malformed records before returning stored workspace data", () => {
+    const parsed = parseStudyWorkspace({
+      version: 1,
+      activeProjectId: "bad-id",
+      projects: [
+        { id: "p1", title: "Valid", goal: "", targetDate: null, focusedMinutes: 0, tasks: [
+          { id: "t1", title: "First", dueOn: "2026-11-01", estimatedMinutes: 20, completed: false },
+          { id: "t1", title: "Duplicate", dueOn: null, estimatedMinutes: 10, completed: false },
+          { id: "broken", title: "Broken", dueOn: "yesterday", estimatedMinutes: -1, completed: false },
+        ], notes: [] },
+        { id: "p1", title: "Duplicate project", goal: "", targetDate: null, focusedMinutes: 0, tasks: [], notes: [] },
+        { id: "bad", title: "Missing arrays", goal: "", targetDate: null, focusedMinutes: 0 },
+      ],
+      flashcards: [],
+    });
+    expect(parsed?.activeProjectId).toBe("p1");
+    expect(parsed?.projects).toHaveLength(1);
+    expect(parsed?.projects[0]?.tasks.map(({ id }) => id)).toEqual(["t1"]);
+    expect(parseStudyWorkspace({ version: 99, projects: [], flashcards: [] })).toBeNull();
+    expect(parseStudyWorkspace(null)).toBeNull();
   });
 
   it("uses SM-2 style recovery after a failed recall", () => {

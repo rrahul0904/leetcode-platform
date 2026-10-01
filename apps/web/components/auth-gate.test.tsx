@@ -108,9 +108,19 @@ describe("AuthGate", () => {
 
   it("keeps a candidate on the Study Workspace", async () => {
     pathname = "/study-workspace";
-    renderGate("Study Workspace");
-    expect(await screen.findByText("Study Workspace")).toBeInTheDocument();
+    renderGate("Study Workspace page content");
+    expect(await screen.findByText("Study Workspace page content")).toBeInTheDocument();
     expect(router.replace).not.toHaveBeenCalledWith("/");
+  });
+
+  it.each([
+    ["/practice/code-typing", "Code Typing"],
+    ["/practice/typing-arcade", "Typing Arcade"],
+  ])("shows candidate navigation around guest-capable practice at %s", async (route, label) => {
+    pathname = route;
+    renderGate(`Practice page ${label}`);
+    expect(await screen.findByText(`Practice page ${label}`)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: label })).toHaveAttribute("href", route);
   });
 
   it.each([

@@ -39,6 +39,8 @@ def test_controller_manifest_supplies_all_runtime_images_and_is_least_privileged
 
     assert 'resources: ["jobs"]' in manifest
     assert 'verbs: ["create", "get", "delete"]' in manifest
+    assert 'resources: ["networkpolicies"]' not in manifest
+    assert "trivy:ignore:KSV-0056" not in manifest
     assert 'resources: ["pods/log"]' in manifest
     assert "allowPrivilegeEscalation: false" in manifest
     assert "readOnlyRootFilesystem: true" in manifest

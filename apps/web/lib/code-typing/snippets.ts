@@ -1,4 +1,4 @@
-/** Original examples for RE-292. No external snippets or code are imported. */
+/** First-party examples; repository-history RE-292 is a collision alias, not the tracker row. */
 export type TypingLanguage = "python" | "sql" | "javascript";
 export type TypingSnippet = {
   schemaVersion: 1;
@@ -13,8 +13,8 @@ export type TypingSnippet = {
   license: string;
   deprecated: boolean;
 };
-const provenance = "Original project-authored teaching example for RE-292 (2026-09-27); editorial review pending.";
-const license = "Project-authored; distribution subject to editorial review.";
+const provenance = "First-party, project-authored Rigor teaching text in the Code Typing implementation (2026-09-27); no donor snippets, source files, assets, or branding were used.";
+const license = "Original project work; repository has no standalone license file, so these examples are limited to this product pending an explicit public content license.";
 export const SNIPPETS: readonly TypingSnippet[] = [
   {
     schemaVersion: 1, id: "py-indexed-total", version: 1, language: "python",

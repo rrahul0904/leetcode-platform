@@ -195,6 +195,17 @@
   cursor: pointer;
 }
 
+.taskRow { display: flex; align-items: center; gap: 8px; }
+.taskRow > button:first-child { flex: 1; min-width: 0; }
+.removeButton, .deleteButton { min-height: 34px; padding: 6px 10px; border: 1px solid color-mix(in srgb, currentColor 20%, transparent); border-radius: 7px; background: transparent; color: inherit; cursor: pointer; }
+.removeButton { font-size: 12px; }
+.deleteButton { color: #d49c9c; font-size: 12px; }
+.storageWarning { padding: 12px; border: 1px solid #a47b38; border-radius: 8px; }
+.budget { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.budget input { width: 78px; min-height: 34px; padding: 5px 8px; border: 1px solid color-mix(in srgb, currentColor 18%, transparent); border-radius: 7px; color: inherit; background: transparent; font: inherit; }
+.resetPanel { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; padding: 16px 20px; border: 1px solid color-mix(in srgb, currentColor 16%, transparent); border-radius: 12px; }
+.resetPanel p { margin: 5px 0 0; font-size: 13px; opacity: .65; }
+
 .task span,
 .taskDone span {
   display: grid;

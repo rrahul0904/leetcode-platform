@@ -16,7 +16,23 @@ function begin(game: GameEngine) {
   expect(game.start()).toBe(true);
 }
 
-describe("RE-326 headless falling-word GameEngine", () => {
+describe("Falling Words headless GameEngine", () => {
+  it("changes difficulty only between runs and applies it to the next life count", () => {
+    const { game } = harness();
+    expect(game.setStartingLives(5)).toBe(true);
+    expect(game.snapshot.lives).toBe(5);
+    begin(game);
+    expect(game.setStartingLives(1)).toBe(false);
+    game.pause();
+    expect(game.setStartingLives(1)).toBe(false);
+    game.restart();
+    expect(game.snapshot.lives).toBe(5);
+    expect(game.setStartingLives(1)).toBe(true);
+    game.restart();
+    expect(game.snapshot.lives).toBe(1);
+    expect(() => game.setStartingLives(0)).toThrow(RangeError);
+  });
+
   it("keeps finite lifecycle transitions explicit and nonduplicating", () => {
     const { game } = harness();
     expect(game.snapshot.state).toBe("menu");

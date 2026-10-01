@@ -1,5 +1,5 @@
 /**
- * RE-326: independently specified, headless falling-word rules.
+ * Falling Words: independently specified rules; RE-326 is a repository-history collision alias.
  *
  * No browser, storage, terminal, timer, or third-party game dependency. Consumers
  * must explicitly supply a monotonic clock and a deterministic [0, 1) RNG.
@@ -77,7 +77,7 @@ export class GameEngine {
   private readonly width: number;
   private readonly height: number;
   private readonly pool: readonly string[];
-  private readonly startingLives: number;
+  private startingLives: number;
   private readonly pointsPerLevel: number;
   private readonly winningLevel: number;
   private readonly now: () => number;
@@ -178,6 +178,16 @@ export class GameEngine {
   prepare(): boolean {
     if (this.phase !== "menu") return false;
     this.phase = "ready";
+    return true;
+  }
+
+  /** Device-level difficulty may change only between runs. */
+  setStartingLives(value: number): boolean {
+    const lives = integerInRange(value, "startingLives", 1, 99);
+    if (this.phase !== "menu" && this.phase !== "ready" && this.phase !== "won" &&
+        this.phase !== "lost" && this.phase !== "exited") return false;
+    this.startingLives = lives;
+    this.livesValue = lives;
     return true;
   }
 

@@ -18,6 +18,8 @@ RUN --mount=type=cache,target=/pnpm/store \
 
 COPY apps/web apps/web
 COPY packages/api-client packages/api-client
+ARG NEXT_PUBLIC_RIGOR_AUTH_MODE=clerk
+ENV NEXT_PUBLIC_RIGOR_AUTH_MODE=${NEXT_PUBLIC_RIGOR_AUTH_MODE}
 RUN pnpm --filter @rigor/web build
 
 FROM ${NODE_IMAGE} AS runtime
@@ -40,4 +42,3 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=5 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:3001/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
 
 CMD ["node", "apps/web/server.js"]
-

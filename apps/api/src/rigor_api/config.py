@@ -109,6 +109,11 @@ class Settings(BaseSettings):
                 f"{adapter} candidate execution is forbidden in staging and production. "
                 "Configure an approved isolated production execution adapter instead."
             )
+        if environment in {"production", "staging"} and self.local_oidc_enabled:
+            raise ValueError(
+                "Local OIDC authentication is forbidden in staging and production. "
+                "Configure the production identity provider instead."
+            )
         if (
             environment in {"production", "staging"}
             and not self.local_oidc_enabled

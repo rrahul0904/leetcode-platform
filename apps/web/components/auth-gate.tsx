@@ -31,6 +31,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
         : pathname === route || pathname.startsWith(`${route}/`),
   );
   const isCandidate = principal?.roles.includes("candidate") ?? false;
+  const isStandalonePractice = ["/practice/code-typing", "/practice/typing-arcade"].some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
   const candidateRoute = [
     "/problems",
     "/questions",
@@ -91,7 +94,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     if (onboardingRequired) router.replace("/onboarding");
   }, [isPublic, onboardingRequired, pathname, router, status, wrongWorkspace]);
 
-  if (isPublic) return children;
+  if (isPublic && !(isStandalonePractice && status === "authenticated")) return children;
   if (
     status !== "authenticated" ||
     wrongWorkspace ||

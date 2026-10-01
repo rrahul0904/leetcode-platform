@@ -1,7 +1,9 @@
-# RE-326 Phase A: owned falling-word simulation core
+# Falling Words Phase A: owned simulation core (repository alias RE-326)
 
 **Tracking:** [issue #44](https://github.com/rrahul0904/leetcode-platform/issues/44)
-**Scope:** original TypeScript engine and focused Vitest tests only. No borrowed source, assets, dictionaries or upstream branding are included.
+**Scope:** original TypeScript engine, browser route, first-party vocabulary, device-local settings/history, and focused Vitest tests. No borrowed source, assets, dictionaries, or upstream branding are included.
+
+**Identity:** The repository's former RE-326 label collides with canonical tracker RE-326 (Sky Reach). It is retained as repository-history provenance only. Falling Words / Typing Arcade is a separate capability and requires a new ID allocated after the canonical tracker is available; do not map it to Sky Reach or Gravitype.
 
 ## Engine interface
 

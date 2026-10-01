@@ -1,9 +1,15 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StudyWorkspace } from "./study-workspace";
 
+vi.mock("@/lib/auth", () => ({
+  useAuth: () => ({ principal: { subject_id: "candidate-account-1" } }),
+}));
+
 describe("StudyWorkspace", () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
     window.localStorage.clear();
   });
@@ -19,7 +25,7 @@ describe("StudyWorkspace", () => {
     fireEvent.change(screen.getByLabelText("Project goal"), {
       target: { value: "Explain trade-offs clearly" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /add project/i }));
+    fireEvent.submit(screen.getByLabelText("Project title").closest("form")!);
 
     expect(screen.getAllByText("System design").length).toBeGreaterThan(0);
 
@@ -46,5 +52,16 @@ describe("StudyWorkspace", () => {
     expect(
       screen.getByText("Operations appear to occur atomically in real-time order."),
     ).toBeInTheDocument();
+  });
+
+  it("keeps study data in the signed-in account scope and deletes its project records", async () => {
+    render(<StudyWorkspace />);
+    const title = (await screen.findAllByLabelText("Project title"))[0]!;
+    fireEvent.change(title, { target: { value: "Private study" } });
+    fireEvent.submit(title.closest("form")!);
+    expect((await screen.findAllByText("Private study")).length).toBeGreaterThan(0);
+    expect(window.localStorage.getItem("skillforge.study-workspace.v1.candidate-account-1")).toContain("Private study");
+    fireEvent.click(screen.getByRole("button", { name: /delete project/i }));
+    expect(screen.queryAllByText("Private study")).toHaveLength(0);
   });
 });
