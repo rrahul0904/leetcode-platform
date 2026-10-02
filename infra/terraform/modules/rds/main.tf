@@ -77,7 +77,6 @@ resource "aws_rds_cluster" "this" {
   db_subnet_group_name          = aws_db_subnet_group.this.name
   vpc_security_group_ids        = [aws_security_group.this.id]
   storage_encrypted             = true
-  kms_key_id                    = aws_kms_key.database.arn
   master_user_secret_kms_key_id = aws_kms_key.database.arn
   backup_retention_period       = 14
   deletion_protection           = var.deletion_protection

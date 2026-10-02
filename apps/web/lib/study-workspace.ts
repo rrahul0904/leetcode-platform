@@ -182,7 +182,7 @@ export function parseStudyWorkspace(value: unknown): StudyWorkspaceState | null 
     return null;
   }
 
-  const projects = uniqueRows(source.projects.flatMap((item): StudyProject[] => {
+  const parsedProjects = uniqueRows(source.projects.flatMap((item): StudyProject[] => {
     const row = record(item);
     const id = boundedText(row?.id, 100);
     const title = boundedText(row?.title, 160);
@@ -212,6 +212,18 @@ export function parseStudyWorkspace(value: unknown): StudyWorkspaceState | null 
     }));
 
     return [{ id, title, goal, targetDate, focusedMinutes: Number(row.focusedMinutes), tasks, notes }];
+  }));
+
+  // Task IDs are workspace-wide identities used by the planner and task actions.
+  // Malformed browser data must not let one ID refer to tasks in multiple projects.
+  const seenTaskIds = new Set<string>();
+  const projects = parsedProjects.map((project) => ({
+    ...project,
+    tasks: project.tasks.filter((task) => {
+      if (seenTaskIds.has(task.id)) return false;
+      seenTaskIds.add(task.id);
+      return true;
+    }),
   }));
 
   const projectIds = new Set(projects.map(({ id }) => id));

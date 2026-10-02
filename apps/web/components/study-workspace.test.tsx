@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StudyWorkspace } from "./study-workspace";
@@ -63,5 +63,33 @@ describe("StudyWorkspace", () => {
     expect(window.localStorage.getItem("skillforge.study-workspace.v1.candidate-account-1")).toContain("Private study");
     fireEvent.click(screen.getByRole("button", { name: /delete project/i }));
     expect(screen.queryAllByText("Private study")).toHaveLength(0);
+  });
+
+  it("caps new task durations to the range accepted by browser-storage parsing", async () => {
+    render(<StudyWorkspace />);
+    await screen.findByText("Plan the work, practice the skill, keep the evidence.");
+    const projectTitle = (await screen.findAllByLabelText("Project title"))[0]!;
+    fireEvent.change(projectTitle, { target: { value: "Bounded plan" } });
+    fireEvent.submit(projectTitle.closest("form")!);
+
+    fireEvent.change(screen.getByLabelText("Task title"), {
+      target: { value: "Long study block" },
+    });
+    fireEvent.change(screen.getByLabelText("Task minutes"), {
+      target: { value: "1500" },
+    });
+    fireEvent.submit(screen.getByLabelText("Task title").closest("form")!);
+    expect(await screen.findAllByText("Long study block")).toHaveLength(2);
+
+    const stored = await waitFor(() => {
+      const value = window.localStorage.getItem(
+        "skillforge.study-workspace.v1.candidate-account-1",
+      );
+      const parsed = value ? JSON.parse(value) : null;
+      expect(parsed?.projects[0]?.tasks[0]?.estimatedMinutes).toBeDefined();
+      return parsed;
+    });
+    expect(stored.projects[0].tasks[0].estimatedMinutes).toBe(1440);
+    expect(screen.getByLabelText("Task minutes")).toHaveAttribute("max", "1440");
   });
 });

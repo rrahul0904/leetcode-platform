@@ -151,7 +151,7 @@ function StudyWorkspaceForAccount({ storageKey }: { storageKey: string }) {
     event.preventDefault();
     if (!activeProject) return;
     const title = taskTitle.trim();
-    const estimatedMinutes = Math.max(5, Number.parseInt(taskMinutes, 10) || 30);
+    const estimatedMinutes = Math.min(1440, Math.max(5, Number.parseInt(taskMinutes, 10) || 30));
     if (!title) return;
     setWorkspace((current) => ({
       ...current,
@@ -453,6 +453,7 @@ function StudyWorkspaceForAccount({ storageKey }: { storageKey: string }) {
                 />
                 <input
                   aria-label="Task minutes"
+                  max="1440"
                   min="5"
                   onChange={(event) => setTaskMinutes(event.target.value)}
                   step="5"

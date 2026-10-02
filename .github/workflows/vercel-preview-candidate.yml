@@ -49,87 +49,37 @@ jobs:
           fi
 
           project_json="$(curl --fail --silent --show-error \
-            --header "Authorization: Bearer $VERCEL_TOKEN" \
-            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID")"
-          python - "$project_json" "$VERCEL_PROJECT_ID" "$VERCEL_PROJECT_NAME" <<'PY'
-          import json
-          import sys
-
-          project = json.loads(sys.argv[1])
-          if project.get("id") != sys.argv[2] or project.get("name") != sys.argv[3]:
-              raise SystemExit("Vercel project identity does not match the checked-in release target.")
-          link = project.get("link") or {}
-          if link.get("type") != "github" or link.get("repo") != "leetcode-platform":
-              raise SystemExit("Vercel project is not linked to the expected GitHub repository.")
-          if link.get("org", "").lower() != "rrahul0904":
-              raise SystemExit("Vercel project is linked to a different GitHub owner.")
-          print(f"Verified Vercel project: {project['name']} ({project['id']})")
-          print(f"GitHub link: {link.get('org')}/{link.get('repo')}")
-          print(f"Configured production branch: {link.get('productionBranch', 'not reported')}")
-          PY
+            --header @- \
+            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID" \
+            <<<"Authorization: Bearer $VERCEL_TOKEN")"
+          python -c 'import json,sys; project=json.load(sys.stdin); expected_id,expected_name=sys.argv[1:3]; link=project.get("link") or {}; assert project.get("id")==expected_id and project.get("name")==expected_name, "Vercel project identity does not match the checked-in release target."; assert link.get("type")=="github" and link.get("repo")=="leetcode-platform", "Vercel project is not linked to the expected GitHub repository."; assert link.get("org", "").lower()=="rrahul0904", "Vercel project is linked to a different GitHub owner."; print("Verified Vercel project: {} ({})".format(project.get("name"), project.get("id"))); print("GitHub link: {}/{}".format(link.get("org"), link.get("repo"))); print("Configured production branch: {}".format(link.get("productionBranch", "not reported")))' "$VERCEL_PROJECT_ID" "$VERCEL_PROJECT_NAME" <<<"$project_json"
 
           mkdir -p .vercel
           printf '{"orgId":"%s","projectId":"%s"}\n' \
             "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
 
           env_json="$(curl --fail --silent --show-error \
-            --header "Authorization: Bearer $VERCEL_TOKEN" \
-            "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env?teamId=$VERCEL_ORG_ID")"
-          python - "$env_json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
-          import json
-          import sys
-
-          items = json.loads(sys.argv[1]).get("envs", [])
-          names = sorted(
-              {
-                  item.get("key", "")
-                  for item in items
-                  if "preview" in (item.get("target") or []) and item.get("key")
-              }
-          )
-          print("### Existing Vercel Preview environment variable names")
-          if names:
-              for name in names:
-                  print(f"- `{name}`")
-          else:
-              print("No Preview variables are configured.")
-          PY
+            --header @- \
+            "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env?teamId=$VERCEL_ORG_ID" \
+            <<<"Authorization: Bearer $VERCEL_TOKEN")"
+          python -c 'import json,sys; items=json.load(sys.stdin).get("envs", []); names=sorted({item.get("key", "") for item in items if "preview" in (item.get("target") or []) and item.get("key")}); print("### Existing Vercel Preview environment variable names"); print("\n".join(f"- `{name}`" for name in names) if names else "No Preview variables are configured.")' <<<"$env_json" >> "$GITHUB_STEP_SUMMARY"
 
           deployments_json="$(curl --fail --silent --show-error \
-            --header "Authorization: Bearer $VERCEL_TOKEN" \
-            "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&target=preview&limit=20")"
-          existing_url="$(python - "$deployments_json" "$GITHUB_SHA" <<'PY'
-          import json
-          import sys
-
-          deployments = json.loads(sys.argv[1]).get("deployments", [])
-          for deployment in deployments:
-              meta = deployment.get("meta") or {}
-              if meta.get("githubCommitSha") == sys.argv[2] and deployment.get("readyState") == "READY":
-                  print(deployment.get("url", ""))
-                  break
-          PY
-          )"
-          if [ -n "$existing_url" ]; then
+            --header @- \
+            "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&target=preview&limit=20" \
+            <<<"Authorization: Bearer $VERCEL_TOKEN")"
+          existing_deployment="$(python -c 'import json,sys; sha=sys.argv[1]; deployments=json.load(sys.stdin).get("deployments", []); match=next((d for d in deployments if (d.get("meta") or {}).get("githubCommitSha")==sha and d.get("readyState")=="READY"), None); print(json.dumps({"id": match.get("uid") or match.get("id", ""), "url": match.get("url", "")}) if match else "")' "$GITHUB_SHA" <<<"$deployments_json")"
+          if [ -n "$existing_deployment" ]; then
+            existing_url="$(python -c 'import json,sys; print(json.load(sys.stdin)["url"])' <<<"$existing_deployment")"
+            existing_id="$(python -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"$existing_deployment")"
             echo "preview_url=https://$existing_url" >> "$GITHUB_OUTPUT"
+            echo "deployment_id=$existing_id" >> "$GITHUB_OUTPUT"
             echo "existing=true" >> "$GITHUB_OUTPUT"
           else
             echo "existing=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Pull Preview environment
-        if: steps.inspect.outputs.existing != 'true'
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
-
-      - name: Build Preview candidate
-        if: steps.inspect.outputs.existing != 'true'
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: env -u VERCEL_TOKEN vercel build --token="$VERCEL_TOKEN"
-
-      - name: Deploy without production promotion
+      - name: Build and deploy as Preview
         if: steps.inspect.outputs.existing != 'true'
         id: deploy
         shell: bash
@@ -137,24 +87,50 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
-          url="$(vercel deploy --prebuilt --yes \
+          url="$(vercel deploy --yes \
             --meta githubCommitSha="$GITHUB_SHA" \
-            --meta githubCommitRef="$GITHUB_REF_NAME" \
-            --token="$VERCEL_TOKEN")"
+            --meta githubCommitRef="$GITHUB_REF_NAME")"
           echo "preview_url=$url" >> "$GITHUB_OUTPUT"
 
-      - name: Record Preview URL
+      - name: Verify exact Preview deployment
+        id: verify
+        shell: bash
         env:
           PREVIEW_URL: ${{ steps.inspect.outputs.preview_url || steps.deploy.outputs.preview_url }}
-          EXISTING: ${{ steps.inspect.outputs.existing }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
+          set -euo pipefail
+          host="${PREVIEW_URL#https://}"
+          host="${host#http://}"
+          host="${host%/}"
+          for attempt in $(seq 1 40); do
+            deployment_json="$(curl --fail --silent --show-error \
+              --header @- \
+              "https://api.vercel.com/v13/deployments/$host?teamId=$VERCEL_ORG_ID" \
+              <<<"Authorization: Bearer $VERCEL_TOKEN")"
+            state="$(python -c 'import json,sys; print(json.load(sys.stdin).get("readyState", ""))' <<<"$deployment_json")"
+            case "$state" in
+              READY) break ;;
+              ERROR|FAILED|CANCELED)
+                echo "Vercel Preview deployment failed in state $state."
+                exit 1
+                ;;
+            esac
+            if [ "$attempt" -eq 40 ]; then
+              echo "Vercel Preview did not become READY within ten minutes (state: $state)."
+              exit 1
+            fi
+            sleep 15
+          done
+
+          python -c 'import json,sys; d=json.load(sys.stdin); sha,project_id,output_path=sys.argv[1:4]; assert d.get("readyState")=="READY", "Vercel Preview deployment is not READY."; assert d.get("target")=="preview", "Vercel deployment target is not Preview."; assert d.get("projectId")==project_id, "Vercel deployment belongs to a different project."; assert (d.get("meta") or {}).get("githubCommitSha")==sha, "Vercel deployment metadata does not match the candidate SHA."; print("Verified ready Preview deployment {} for commit {}.".format(d.get("id"), sha)); open(output_path, "a", encoding="utf-8").write("deployment_id={}\npreview_url=https://{}\n".format(d.get("id", ""), d.get("url", "")))' "$GITHUB_SHA" "$VERCEL_PROJECT_ID" "$GITHUB_OUTPUT" <<<"$deployment_json"
+
           {
             echo "### Vercel Preview candidate"
-            echo "- Commit: \`$GITHUB_SHA\`"
-            echo "- URL: $PREVIEW_URL"
-            if [ "$EXISTING" = "true" ]; then
-              echo "- Reused the existing ready Preview for this commit."
-            else
-              echo "- Created a Preview deployment; the production alias was not requested."
-            fi
+            echo "- Candidate SHA: \`$GITHUB_SHA\`"
+            echo "- Vercel deployment ID: \`$(python -c 'import json,sys; print(json.load(sys.stdin).get("id", ""))' <<<"$deployment_json")\`"
+            echo "- Verified target: Preview"
+            echo "- Verified state: READY"
+            echo "- URL: https://$(python -c 'import json,sys; print(json.load(sys.stdin).get("url", ""))' <<<"$deployment_json")"
+            echo "- Deployment commit metadata matches the candidate SHA."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -87,11 +87,6 @@ const nextConfig: NextConfig = {
         destination: "/question-bank",
         permanent: true,
       },
-      {
-        source: "/workspace",
-        destination: "/",
-        permanent: true,
-      },
     ];
   },
   async headers() {

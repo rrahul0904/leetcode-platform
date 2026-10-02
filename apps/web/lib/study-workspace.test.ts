@@ -71,13 +71,18 @@ describe("study workspace domain", () => {
           { id: "broken", title: "Broken", dueOn: "yesterday", estimatedMinutes: -1, completed: false },
         ], notes: [] },
         { id: "p1", title: "Duplicate project", goal: "", targetDate: null, focusedMinutes: 0, tasks: [], notes: [] },
+        { id: "p2", title: "Second project", goal: "", targetDate: null, focusedMinutes: 0, tasks: [
+          { id: "t1", title: "Cross-project duplicate", dueOn: null, estimatedMinutes: 15, completed: false },
+          { id: "t2", title: "Distinct task", dueOn: null, estimatedMinutes: 15, completed: false },
+        ], notes: [] },
         { id: "bad", title: "Missing arrays", goal: "", targetDate: null, focusedMinutes: 0 },
       ],
       flashcards: [],
     });
     expect(parsed?.activeProjectId).toBe("p1");
-    expect(parsed?.projects).toHaveLength(1);
+    expect(parsed?.projects).toHaveLength(2);
     expect(parsed?.projects[0]?.tasks.map(({ id }) => id)).toEqual(["t1"]);
+    expect(parsed?.projects[1]?.tasks.map(({ id }) => id)).toEqual(["t2"]);
     expect(parseStudyWorkspace({ version: 99, projects: [], flashcards: [] })).toBeNull();
     expect(parseStudyWorkspace(null)).toBeNull();
   });
