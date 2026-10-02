@@ -1,6 +1,6 @@
 # Reverse-engineering tracker reconciliation
 
-Audit date: 2026-10-01. Repository baseline: `403b28afe7498e273c5183adbea8da274af72017`.
+Audit date: 2026-10-02. Repository release SHA: `8009deec1fa24ced1cb6a00a92e884af24e1ea39` (merged by PR #46 from candidate `9fd7d7e370afd48a9c90e73c133458c7b97a5741`). The canonical tracker remains unavailable in this checkout.
 
 ## Existing canonical rows and repository evidence
 
@@ -20,13 +20,17 @@ Audit date: 2026-10-01. Repository baseline: `403b28afe7498e273c5183adbea8da274a
 
 No free canonical ID is asserted here. The canonical tracker is not present in this checkout and no tracker connector or write credential is available, so collision-free allocation and edits to the external tracker remain pending. Repository issue/PR labels are historical provenance; they are not proof that the same ID belongs to this product in the canonical tracker.
 
+## Source PR disposition
+
+PRs #39 (launch assurance), #40 (Study Workspace), #43 (Code Typing implementation), and #45 (Typing Arcade engine) are already merged to `main`; PR #46 integrates their release candidate and exact-main checks. PR #42 remains open and contains documentation-only Codestroke public-behavior research and a clean-room contract, with no application code or deployment claim. Its research file is not in the PR #46 release tree, so it is preserved as historical/provenance material rather than closed as superseded. No source PR was closed during this release audit.
+
 ## Candidate capability rows to add after ID allocation
 
 | Proposed row | Why it qualifies | Repository state | Release state |
 | --- | --- | --- | --- |
-| Mookti-inspired Study Workspace | Distinct outcomes, task planning, study log, focus evidence, flashcards, and spaced review capability | Route `/study-workspace`; local state is account-keyed in browser storage; no API or migration | Implemented locally. Keep behind an explicit feature boundary until the public content license policy, ownership/storage behavior, browser accessibility, and exact-head CI are reviewed. |
-| Code Typing | Distinct language-specific transcription practice with its own scoring and history contract | Route `/practice/code-typing`; Python, SQL, JavaScript; local history; no code execution/API | Implemented as bounded guest practice. First-party snippets have no donor source/assets. Public content redistribution license remains unresolved. |
-| Typing Arcade / Falling Words | Distinct deterministic game and keyboard practice, not the Sky Reach/Gravitype capability | Route `/practice/typing-arcade`; local device history/settings; no API | Browser vertical slice is implemented in this branch. Real-browser, keyboard/mobile, accessibility and exact-head CI certification remain outstanding. |
+| Mookti-inspired Study Workspace | Distinct outcomes, task planning, study log, focus evidence, flashcards, and spaced review capability | Route `/study-workspace`; local state is account-keyed in browser storage; no API or migration; exact-main-SHA CI passes | Implemented as browser-local functionality. Browser accessibility certification and an external tracker row remain pending. |
+| Code Typing | Distinct language-specific transcription practice with its own scoring and history contract | Route `/practice/code-typing`; Python, SQL, JavaScript; local history; no code execution/API; exact-main-SHA CI passes | Implemented as bounded guest practice. First-party snippets have no donor source/assets. Public content redistribution license policy and tracker allocation remain unresolved. |
+| Typing Arcade / Falling Words | Distinct deterministic game and keyboard practice, not the Sky Reach/Gravitype capability | Route `/practice/typing-arcade`; local device history/settings; no API; exact-main-SHA CI passes | Implemented. Real-browser, keyboard/mobile, accessibility certification and tracker allocation remain outstanding. |
 
 ## Consolidated capabilities that do not need separate product rows
 
