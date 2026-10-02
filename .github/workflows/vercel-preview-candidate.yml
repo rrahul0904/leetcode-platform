@@ -62,7 +62,7 @@ jobs:
             --header @- \
             "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env?teamId=$VERCEL_ORG_ID" \
             <<<"Authorization: Bearer $VERCEL_TOKEN")"
-          python -c 'import json,sys; items=json.load(sys.stdin).get("envs", []); names=sorted({item.get("key", "") for item in items if "preview" in (item.get("target") or []) and item.get("key")}); print("### Existing Vercel Preview environment variable names"); print("\n".join(f"- `{name}`" for name in names) if names else "No Preview variables are configured.")' <<<"$env_json" >> "$GITHUB_STEP_SUMMARY"
+          python -c 'import json,sys; items=json.load(sys.stdin).get("envs", []); names=sorted({item.get("key", "") for item in items if "preview" in (item.get("target") or []) and item.get("key")}); print("### Existing Vercel Preview environment variable names"); print("\n".join("- " + name for name in names) if names else "No Preview variables are configured.")' <<<"$env_json" >> "$GITHUB_STEP_SUMMARY"
 
           deployments_json="$(curl --fail --silent --show-error \
             --header @- \
@@ -72,9 +72,11 @@ jobs:
           if [ -n "$existing_deployment" ]; then
             existing_url="$(python -c 'import json,sys; print(json.load(sys.stdin)["url"])' <<<"$existing_deployment")"
             existing_id="$(python -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"$existing_deployment")"
-            echo "preview_url=https://$existing_url" >> "$GITHUB_OUTPUT"
-            echo "deployment_id=$existing_id" >> "$GITHUB_OUTPUT"
-            echo "existing=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "preview_url=https://$existing_url"
+              echo "deployment_id=$existing_id"
+              echo "existing=true"
+            } >> "$GITHUB_OUTPUT"
           else
             echo "existing=false" >> "$GITHUB_OUTPUT"
           fi

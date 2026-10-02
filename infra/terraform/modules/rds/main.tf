@@ -77,10 +77,17 @@ resource "aws_rds_cluster" "this" {
   db_subnet_group_name          = aws_db_subnet_group.this.name
   vpc_security_group_ids        = [aws_security_group.this.id]
   storage_encrypted             = true
+  kms_key_id                    = aws_kms_key.database.arn
   master_user_secret_kms_key_id = aws_kms_key.database.arn
   backup_retention_period       = 14
   deletion_protection           = var.deletion_protection
   copy_tags_to_snapshot         = true
+
+  lifecycle {
+    # RDS cannot rekey existing cluster storage or its managed password secret.
+    # Preserve existing keys; new clusters use the customer-managed keys above.
+    ignore_changes = [kms_key_id, master_user_secret_kms_key_id]
+  }
 
   serverlessv2_scaling_configuration {
     min_capacity = var.min_capacity
