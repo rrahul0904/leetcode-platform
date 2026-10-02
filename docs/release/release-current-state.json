@@ -1,6 +1,6 @@
 {
-  "snapshot_at_utc": "2026-10-02T13:22:56Z",
-  "snapshot_sha": "28dbe3090688770a46288daf45aa36dcd7a83a8e",
+  "snapshot_at_utc": "2026-10-02T13:54:33Z",
+  "snapshot_sha": "f3f21dcddf8e4c81de1d8d16e5d9704fa0a5c476",
   "repository": "rrahul0904/leetcode-platform",
   "pr": {
     "number": 46,
@@ -8,7 +8,7 @@
     "branch": "codex/release-integration",
     "base_branch": "main",
     "base_sha": "403b28afe7498e273c5183adbea8da274af72017",
-    "head_sha": "28dbe3090688770a46288daf45aa36dcd7a83a8e",
+    "head_sha": "f3f21dcddf8e4c81de1d8d16e5d9704fa0a5c476",
     "state": "OPEN",
     "draft": true,
     "mergeable": true,
@@ -17,7 +17,7 @@
   "reviews": {
     "github_review_decision": null,
     "submitted_github_reviews": 0,
-    "independent_read_only_code_reviews": "completed; no remaining concrete code blocker reported on 28dbe30"
+    "independent_read_only_code_reviews": "completed; no remaining concrete code or evidence-integrity blocker reported on f3f21dc"
   },
   "main_branch_rules": {
     "branch_protection": false,
@@ -25,43 +25,43 @@
   },
   "checks": {
     "ci": {
-      "run_id": 37012124987,
+      "run_id": 37012880022,
       "conclusion": "success",
-      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37012124987"
+      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37012880022"
     },
     "browser_navigation_uat": {
-      "run_id": 37012125022,
+      "run_id": 37012879645,
       "conclusion": "success",
-      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37012125022"
+      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37012879645"
     },
     "security_assurance": {
-      "run_id": 37012125120,
+      "run_id": 37012879296,
       "conclusion": "success",
-      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37012125120"
+      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37012879296"
     },
     "pytest_evidence": {
-      "run_id": 37012125024,
+      "run_id": 37012879650,
       "conclusion": "success",
-      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37012125024"
+      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37012879650"
     },
     "terraform_saas": {
-      "run_id": 37012125061,
+      "run_id": 37012879788,
       "conclusion": "success",
-      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37012125061"
+      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37012879788"
     },
     "migration_preflight": {
-      "run_id": 37012125023,
+      "run_id": 37012879309,
       "conclusion": "success",
-      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37012125023"
+      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37012879309"
     },
     "vercel_preview": {
-      "run_id": 37012125365,
+      "run_id": 37012871613,
       "conclusion": "failure",
-      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37012125365",
+      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37012871613",
       "reason": "The Actions runner received an empty VERCEL_TOKEN and stopped before calling the Vercel API."
     },
     "local_docker_release": {
-      "run_id": 37012125028,
+      "run_id": 37012879530,
       "conclusion": "skipped",
       "required_for_release": false
     }
