@@ -1,6 +1,6 @@
 # Current capability and evidence matrix
 
-Audited against repository `main` at `403b28afe7498e273c5183adbea8da274af72017` and open PR #46 at snapshot `f3f21dcddf8e4c81de1d8d16e5d9704fa0a5c476`. Hosted CI, Preview deployment, merge, production deployment, and live certification are separate evidence states; see `EVIDENCE_LEDGER.md`.
+Audited against repository `main` at `403b28afe7498e273c5183adbea8da274af72017` and open PR #46 at snapshot `c44e3315af9c6336ca07bd11ed858fa535d7da57`. Hosted CI, Preview deployment, merge, production deployment, and live certification are separate evidence states; see `EVIDENCE_LEDGER.md`.
 
 | Capability | Repository implementation evidence | Identity, persistence and tests | Gap or release boundary |
 | --- | --- | --- | --- |
