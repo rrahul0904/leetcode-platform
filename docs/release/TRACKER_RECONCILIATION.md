@@ -38,6 +38,6 @@ Explicitly excluded work remains excluded: ApplyAI/CareerOS, StorySprout/Sproutl
 
 - Read the canonical tracker and confirm all existing IDs before allocating new ones.
 - Allocate unique IDs to Study Workspace, Code Typing, and Typing Arcade if the tracker accepts these as rows.
-- Preserve the legacy RE-292 → Codestroke and RE-326 → Gravitype repository aliases as provenance, without changing DustByte or Sky Reach.
+- Preserve the repository's historical Codestroke-inspired label for Code Typing and Gravitype-inspired label for Typing Arcade only as provenance. RE-292 belongs to DustByte and RE-326 belongs to Sky Reach; neither ID maps to these new capabilities.
 - Update the open PR/issue labels and links after the external row mappings are confirmed.
 - Do not mark tracker rows complete until the release SHA and tests are recorded in the tracker.

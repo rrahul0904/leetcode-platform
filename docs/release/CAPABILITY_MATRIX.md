@@ -1,6 +1,6 @@
 # Current capability and evidence matrix
 
-Audited against repository `main` at `403b28afe7498e273c5183adbea8da274af72017`; the open PR slices listed below are included in the local integration branch. `CI` and live-release state are recorded separately in `EVIDENCE_LEDGER.md`.
+Audited against repository `main` at `403b28afe7498e273c5183adbea8da274af72017` and open PR #46 at code snapshot `28dbe3090688770a46288daf45aa36dcd7a83a8e`. Hosted CI, Preview deployment, merge, production deployment, and live certification are separate evidence states; see `EVIDENCE_LEDGER.md`.
 
 | Capability | Repository implementation evidence | Identity, persistence and tests | Gap or release boundary |
 | --- | --- | --- | --- |
@@ -15,13 +15,13 @@ Audited against repository `main` at `403b28afe7498e273c5183adbea8da274af72017`;
 | Mock Interviews | `/mock-interviews`, API domains | Migration-backed sessions, messages and reports; RLS and UI/API tests | Production auth and persistence require exact-SHA live checks. |
 | System / Architecture Design | `/design-lab`, `/system-design-library`, catalog/design APIs | Shared candidate evidence and knowledge-bank tables; UI/content tests | Production checks and source currency not verified live. |
 | Learning Paths | `/learning-paths` | Candidate routes and UI/contract tests; uses governed catalog and progress | Exact deployed behavior and route browser certification outstanding. |
-| Attempts | `/attempts` and `apps/web/app/attempts/page.tsx` | Shared authenticated attempt history API; route/auth tests | A stale permanent redirect to `/progress` in launch assurance was removed in this integration; real-browser route check remains pending. |
+| Attempts | `/attempts` and `apps/web/app/attempts/page.tsx` | Shared authenticated attempt history API; route/auth tests; hosted candidate-navigation smoke passed on the recorded snapshot SHA | The integration removes a stale permanent redirect. Full Preview interaction certification remains blocked until a Preview is available. |
 | Progress | `/progress` and evidence APIs | Candidate-scoped progress/mastery state and tests | No live profile/session verification in this run. |
 | Notes and Bookmarks | Question detail actions and candidate APIs | `candidate_question_notes` and `candidate_question_bookmarks`, forced RLS; API/ownership tests | Cross-user live verification requires two production accounts and deployed runtime. |
 | Admin/content governance | `/admin/questions`, sources, import, review and catalog-status routes | API permission checks and admin/reviewer role navigation/tests | Production role/IDOR verification still needed. |
-| Mookti Study Workspace | `/study-workspace`, `apps/web/components/study-workspace.tsx`, `apps/web/lib/study-workspace.ts` | Account-keyed browser storage; project/task/note/card/focus state; deterministic planner and spaced review tests; no server/API or migration | Remains a browser-local feature boundary. No cloud sync, RAG, PDF annotation, calendar sync, handwriting, or billing. |
-| Code Typing | `/practice/code-typing`, `apps/web/lib/code-typing/*` | Public guest route; six first-party examples in three languages; versioned local-only history; engine, UI and auth-gate tests; no code execution/API | Public rights remain limited by absent repository content license; no account-backed history or production browser certification. |
-| Typing Arcade / Falling Words | `/practice/typing-arcade`, `apps/web/lib/falling-words/*` | Public guest route; first-party word set, injected deterministic engine, validated local settings/history; engine/component/auth-gate tests; no API | Real-browser/mobile/accessibility and production certification pending. No TUI/terminal claim. |
+| Mookti Study Workspace | `/study-workspace`, `apps/web/components/study-workspace.tsx`, `apps/web/lib/study-workspace.ts` | Account-keyed browser storage; project/task/note/card/focus state; deterministic planner and spaced review tests; workspace-wide duplicate task IDs are discarded; task durations are bounded; no server/API or migration | Remains a browser-local feature boundary. No cloud sync, RAG, PDF annotation, calendar sync, handwriting, or billing. |
+| Code Typing | `/practice/code-typing`, `apps/web/lib/code-typing/*` | Public guest route; six first-party examples in three languages; versioned local-only history; engine, UI and auth-gate tests; no code execution/API; included in passing hosted web checks on the recorded snapshot SHA | Public rights remain limited by absent repository content license; no account-backed history or Preview/production browser certification. |
+| Typing Arcade / Falling Words | `/practice/typing-arcade`, `apps/web/lib/falling-words/*` | Public guest route; first-party word set, injected deterministic engine, validated local settings/history; engine/component/auth-gate tests; no API; included in passing hosted web checks on the recorded snapshot SHA | Full responsive, keyboard, accessibility and production certification pending. No TUI/terminal claim. |
 
 ## DataForge coverage audit
 
