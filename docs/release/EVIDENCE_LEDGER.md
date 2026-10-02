@@ -1,0 +1,30 @@
+# Release evidence ledger
+
+Last updated: 2026-10-02. This record separates implementation, local tests, hosted checks, Preview deployment, merge, production deployment, and live certification. The checked PR head is `c44e3315af9c6336ca07bd11ed858fa535d7da57`; the JSON snapshot records its exact status.
+
+| Workstream | Implementation and evidence | Hosted evidence on snapshot SHA | Current status / next action |
+| --- | --- | --- | --- |
+| Launch assurance and auth/RBAC | Integrated candidate routes, OIDC restrictions, API boundaries, execution controller, default-deny network policy, and security regressions. The staging deploy script now requires the namespace with the managed network boundary. | Browser navigation smoke, auth/isolation regressions, CodeQL, and repository Trivy security checks pass. | Implemented and tested. Full Preview browser/accessibility/security certification remains blocked by Preview access. |
+| Study Workspace | Account-keyed browser storage for projects, tasks, planner, focus evidence, notes, and flashcards. Parser now deduplicates task IDs across projects; task duration input and handler stay within the parser's 5–1440 minute range. | Full web suite passes locally (113 tests); hosted web lint/typecheck/tests/build pass. | Implemented as browser-local state. No server sync or production persistence claim. |
+| Code Typing | Guest practice for Python, SQL, and JavaScript; first-party snippets, local history, no code execution. | Included in passing local and hosted web test/build suites. | Implemented. Public redistribution rights remain bounded by the repository's license policy; no production browser certification. |
+| Typing Arcade | Original deterministic Falling Words game, pause/resume/restart, local device settings/history, focus-loss pause. | Included in passing local and hosted web test/build suites. | Implemented. Full responsive, keyboard and accessibility Preview certification remains outstanding. |
+| Infrastructure and data safety | Kubernetes boundary is namespace-scoped; deploy script rejects alternate namespaces. RDS CMK is configured for newly created clusters, while Terraform ignores key changes on existing clusters to avoid an in-place rekey of protected storage or managed password secrets. | Hosted Terraform format/validate and Trivy security scan pass on the snapshot. No state-backed production plan was run. | Repository checks pass. Review a state-backed plan and define any desired existing-key migration separately before production apply. |
+| Tracker reconciliation | `docs/release/TRACKER_RECONCILIATION.md` records canonical ID collisions without changing DustByte or Sky Reach. | Repository audit only. | `CONFIG_REQUIRED`: canonical tracker access is unavailable; a tracker owner must confirm/allocate IDs. |
+| Candidate PR | PR #46, branch `codex/release-integration`, base `main` at `403b28afe7498e273c5183adbea8da274af72017`. Snapshot head is listed above. PR is open and draft; there are no submitted GitHub reviews or main branch rules. | CI, browser navigation UAT, auth/isolation, security, Pytest evidence, Terraform SaaS validation, and migration preflight pass on the checked head. Two independent read-only diff reviews report no remaining code blocker. Local Docker release is skipped and remains optional. | Code is not merged. Review the current PR state and merge the tested code without bypassing configured policy. |
+| Vercel Preview | Workflow checks project/repository identity, reports Preview variable names only, uses Vercel's Preview deployment build, avoids token command arguments, and verifies READY state, project, target, and commit metadata. | Preview run `37016207839` fails at its first step because the runner receives an empty `VERCEL_TOKEN`. | `CONFIG_REQUIRED: VERCEL_TOKEN`. Repository Actions owner must save a valid non-empty token authorized for the expected Vercel team/project, then rerun Preview on the latest head. No Preview deployment or certification is claimed. |
+| Production deployment and live certification | Separate Vercel and ECS release workflows exist; production migration head is `20260918_0021`. | No production dispatch, production deployment, authenticated live browser/API run, two-account isolation run, rollback exercise, or production DAST has occurred. | `CONFIG_REQUIRED`: production hostname, Clerk live keys, backend/database settings, AWS/ECS variables and OIDC role, plus tracker access are not confirmed. Do not report production certification. |
+
+## Exact-SHA hosted checks
+
+The `c44e3315af9c6336ca07bd11ed858fa535d7da57` snapshot has these completed successful checks: CI web lint/typecheck/tests/build, workflow lint, Python lint/types/tests/image/supply-chain/database integration, Terraform format/validate, migration cycle, and AMI source (`37016213999`); browser navigation UAT (`37016214126`); authentication/isolation regressions, CodeQL, and repository Trivy security scan (`37016214395`); Python test evidence (`37016214267`); Terraform SaaS dev/prod validation (`37016214166`); and production migration preflight (`37016214637`). The Preview failure is a credential-availability gate, not evidence of a completed build or deployment. Docker run `37016214125` was skipped.
+
+## Release boundaries
+
+- `locally implemented`: code exists in the repository.
+- `locally tested`: named local tests/build passed.
+- `remote CI tested`: hosted checks passed on the exact SHA stated above.
+- `Preview deployed`: requires a Vercel deployment ID, URL, READY state, and matching commit metadata; none is recorded.
+- `merged`: requires the final PR merge commit and resulting `main` SHA; not yet recorded.
+- `production deployed` and `live certified`: require deployment and runtime evidence; neither is claimed.
+
+The feature routes and browser-local histories are not evidence of hosted Preview certification, merged release, server persistence, or production behavior. See [the deployment checklist](DEPLOYMENT_CHECKLIST.md), [capability matrix](CAPABILITY_MATRIX.md), and [tracker reconciliation](TRACKER_RECONCILIATION.md).

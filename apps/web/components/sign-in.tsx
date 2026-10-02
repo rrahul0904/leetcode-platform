@@ -53,7 +53,7 @@ export function SignIn() {
   const { signIn } = useAuth();
   const searchParams = useSearchParams();
   const [pending, setPending] = useState<string | null>(null);
-  const returnTo = searchParams.get("returnTo") ?? "/";
+  const returnTo = searchParams.get("returnTo") ?? "/workspace";
 
   async function begin(identity: string) {
     setPending(identity);

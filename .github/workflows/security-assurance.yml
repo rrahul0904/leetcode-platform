@@ -1,0 +1,127 @@
+name: Launch security assurance
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "agent/launch-assurance-*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: launch-security-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  repository-scan:
+    name: Repository vulnerability, secret, and IaC scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan repository
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+
+  codeql:
+    name: CodeQL Python and JavaScript/TypeScript
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: python,javascript-typescript
+          build-mode: none
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:python-and-javascript-typescript
+
+  adversarial-regressions:
+    name: Auth, isolation, sandbox, and abuse regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install locked workspace
+        run: uv sync --frozen --all-packages
+
+      - name: Start PostgreSQL integration fixture
+        run: docker compose up -d --wait postgres
+
+      - name: Migrate and seed integration database
+        env:
+          RIGOR_DATABASE_URL: postgresql+psycopg://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
+          RIGOR_SEED_DATABASE_URL: postgresql://rigor_migrator:rigor_migrator_local_only@localhost:5434/rigor
+          PGOPTIONS: -c rigor.maintenance_bypass=on
+        run: |
+          uv run alembic upgrade head
+          uv run python scripts/seed_database.py
+
+      - name: Run security regression suite
+        run: |
+          uv run pytest -q \
+            --junitxml=security-regressions.xml \
+            apps/api/tests/test_auth.py \
+            apps/api/tests/test_principal_auth.py \
+            apps/api/tests/test_session_token_auth.py \
+            apps/api/tests/test_candidate_submission_isolation_http.py \
+            apps/api/tests/test_execution_isolation_http.py \
+            apps/api/tests/test_practice_isolation.py \
+            apps/api/tests/test_private_file_isolation.py \
+            apps/api/tests/test_profile_isolation.py \
+            apps/api/tests/test_readiness_isolation.py \
+            apps/api/tests/test_sandbox_jobs.py \
+            apps/api/tests/test_execution_network_policy_source.py \
+            apps/api/tests/test_execution_contract_regressions.py
+
+      - name: Retain security regression evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: launch-security-regressions
+          path: security-regressions.xml
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Show PostgreSQL logs on failure
+        if: failure()
+        run: docker compose logs postgres
+
+      - name: Stop services
+        if: always()
+        run: docker compose down -v

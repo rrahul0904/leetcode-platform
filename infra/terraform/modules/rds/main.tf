@@ -50,12 +50,17 @@ resource "aws_security_group" "this" {
     security_groups = var.allowed_security_group_ids
   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+}
+
+resource "aws_kms_key" "database" {
+  description             = "Customer-managed encryption key for the SkillForge database"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+}
+
+resource "aws_kms_alias" "database" {
+  name          = "alias/skillforge-database"
+  target_key_id = aws_kms_key.database.key_id
 }
 
 resource "aws_db_subnet_group" "this" {
@@ -64,17 +69,25 @@ resource "aws_db_subnet_group" "this" {
 }
 
 resource "aws_rds_cluster" "this" {
-  cluster_identifier          = var.name
-  engine                      = "aurora-postgresql"
-  database_name               = var.database_name
-  master_username             = var.master_username
-  manage_master_user_password = true
-  db_subnet_group_name        = aws_db_subnet_group.this.name
-  vpc_security_group_ids      = [aws_security_group.this.id]
-  storage_encrypted           = true
-  backup_retention_period     = 14
-  deletion_protection         = var.deletion_protection
-  copy_tags_to_snapshot       = true
+  cluster_identifier            = var.name
+  engine                        = "aurora-postgresql"
+  database_name                 = var.database_name
+  master_username               = var.master_username
+  manage_master_user_password   = true
+  db_subnet_group_name          = aws_db_subnet_group.this.name
+  vpc_security_group_ids        = [aws_security_group.this.id]
+  storage_encrypted             = true
+  kms_key_id                    = aws_kms_key.database.arn
+  master_user_secret_kms_key_id = aws_kms_key.database.arn
+  backup_retention_period       = 14
+  deletion_protection           = var.deletion_protection
+  copy_tags_to_snapshot         = true
+
+  lifecycle {
+    # RDS cannot rekey existing cluster storage or its managed password secret.
+    # Preserve existing keys; new clusters use the customer-managed keys above.
+    ignore_changes = [kms_key_id, master_user_secret_kms_key_id]
+  }
 
   serverlessv2_scaling_configuration {
     min_capacity = var.min_capacity

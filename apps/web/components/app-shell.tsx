@@ -6,6 +6,7 @@ import {
   FileCheck2,
   FileUp,
   History,
+  Keyboard,
   LayoutDashboard,
   Link2,
   Menu,
@@ -14,6 +15,7 @@ import {
   Route,
   Search,
   Trophy,
+  Timer,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -23,7 +25,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 
 const candidateNav = [
-  ["Overview", "/", LayoutDashboard],
+  ["Overview", "/workspace", LayoutDashboard],
   ["Question Bank", "/question-bank", BookOpen],
   ["Companies", "/companies", Radar],
   ["Design Lab", "/design-lab", LayoutDashboard],
@@ -31,12 +33,15 @@ const candidateNav = [
   ["AI Arena", "/ai-arena", Trophy],
   ["Mock Interviews", "/mock-interviews", MessageSquareText],
   ["Learning Paths", "/learning-paths", Route],
+  ["Study Workspace", "/study-workspace", BookOpen],
+  ["Code Typing", "/practice/code-typing", Keyboard],
+  ["Typing Arcade", "/practice/typing-arcade", Timer],
   ["Attempts", "/attempts", History],
   ["Progress", "/progress", CircleGauge],
 ] as const;
 
 const administratorNav = [
-  ["Overview", "/", LayoutDashboard],
+  ["Overview", "/workspace", LayoutDashboard],
   ["Content", "/admin/questions", BookOpen],
   ["Review queue", "/content-review", FileCheck2],
   ["Sources", "/admin/sources", Radar],
@@ -44,13 +49,13 @@ const administratorNav = [
 ] as const;
 
 const authorNav = [
-  ["Overview", "/", LayoutDashboard],
+  ["Overview", "/workspace", LayoutDashboard],
   ["Content", "/admin/questions", BookOpen],
   ["Generate content", "/admin/questions/new", FileUp],
 ] as const;
 
 const reviewerNav = [
-  ["Overview", "/", LayoutDashboard],
+  ["Overview", "/workspace", LayoutDashboard],
   ["Review queue", "/content-review", FileCheck2],
   ["Question bank", "/question-bank", BookOpen],
 ] as const;

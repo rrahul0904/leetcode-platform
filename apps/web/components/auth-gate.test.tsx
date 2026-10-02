@@ -66,12 +66,12 @@ describe("AuthGate", () => {
   it("returns a candidate with a stale admin destination to candidate home", async () => {
     pathname = "/admin/questions";
     renderGate("Admin content");
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/workspace"));
     expect(screen.queryByText("Admin content")).not.toBeInTheDocument();
   });
 
   it("forces a new candidate through onboarding", async () => {
-    pathname = "/";
+    pathname = "/workspace";
     getProfileMock.mockRejectedValueOnce(
       new ApiError(404, "Candidate profile not found"),
     );
@@ -93,7 +93,7 @@ describe("AuthGate", () => {
   });
 
   it("opens the app for a candidate with a persisted profile", async () => {
-    pathname = "/";
+    pathname = "/workspace";
     renderGate("Candidate home");
     expect(await screen.findByText("Candidate home")).toBeInTheDocument();
     expect(router.replace).not.toHaveBeenCalledWith("/onboarding");
@@ -103,6 +103,36 @@ describe("AuthGate", () => {
     pathname = "/practice/py-0001-bounded-cache";
     renderGate("Practice workspace");
     expect(await screen.findByText("Practice workspace")).toBeInTheDocument();
+    expect(router.replace).not.toHaveBeenCalledWith("/");
+  });
+
+  it("keeps a candidate on the Study Workspace", async () => {
+    pathname = "/study-workspace";
+    renderGate("Study Workspace page content");
+    expect(await screen.findByText("Study Workspace page content")).toBeInTheDocument();
+    expect(router.replace).not.toHaveBeenCalledWith("/");
+  });
+
+  it.each([
+    ["/practice/code-typing", "Code Typing"],
+    ["/practice/typing-arcade", "Typing Arcade"],
+  ])("shows candidate navigation around guest-capable practice at %s", async (route, label) => {
+    pathname = route;
+    renderGate(`Practice page ${label}`);
+    expect(await screen.findByText(`Practice page ${label}`)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: label })).toHaveAttribute("href", route);
+  });
+
+  it.each([
+    "/pr-review",
+    "/ai-arena",
+    "/attempts",
+    "/design-lab",
+  ])("keeps a candidate on launch navigation route %s", async (route) => {
+    pathname = route;
+    const marker = `Launch content for ${route}`;
+    renderGate(marker);
+    expect(await screen.findByText(marker)).toBeInTheDocument();
     expect(router.replace).not.toHaveBeenCalledWith("/");
   });
 });

@@ -12,7 +12,6 @@ from urllib import error, parse, request
 from uuid import UUID
 
 from .sandbox_jobs import (
-    build_network_policy,
     build_python_job,
     build_sql_job,
     sandbox_job_name,
@@ -31,7 +30,6 @@ class SandboxHandle:
     namespace: str
     job_name: str
     input_secret_name: str
-    network_policy_name: str
 
 
 @dataclass(frozen=True)
@@ -251,19 +249,14 @@ class KubernetesSandboxExecutor:
             raise KubernetesExecutionError("Kubernetes API returned malformed JSON.") from exc
         return _object_dict(decoded, label="Kubernetes API response")
 
-    def _execution_handle(self, execution_id: UUID, policy: Mapping[str, object]) -> SandboxHandle:
+    def _execution_handle(self, execution_id: UUID) -> SandboxHandle:
         namespace = self.config.namespace
         job_name = sandbox_job_name(execution_id)
-        policy_meta = _object_dict(policy.get("metadata"), label="NetworkPolicy metadata")
-        policy_name_value = policy_meta.get("name")
-        if not isinstance(policy_name_value, str) or not policy_name_value:
-            raise KubernetesExecutionError("Execution NetworkPolicy name is invalid.")
         return SandboxHandle(
             execution_id=execution_id,
             namespace=namespace,
             job_name=job_name,
             input_secret_name=f"input-{job_name}",
-            network_policy_name=policy_name_value,
         )
 
     def _create_resources(
@@ -271,7 +264,6 @@ class KubernetesSandboxExecutor:
         *,
         handle: SandboxHandle,
         secret: Mapping[str, object],
-        policy: Mapping[str, object],
         job: Mapping[str, object],
     ) -> SandboxHandle:
         try:
@@ -279,12 +271,6 @@ class KubernetesSandboxExecutor:
                 "POST",
                 f"/api/v1/namespaces/{handle.namespace}/secrets",
                 payload=secret,
-                expected={201, 409},
-            )
-            self._request(
-                "POST",
-                f"/apis/networking.k8s.io/v1/namespaces/{handle.namespace}/networkpolicies",
-                payload=policy,
                 expected={201, 409},
             )
             self._request(
@@ -306,11 +292,7 @@ class KubernetesSandboxExecutor:
         profile_name: str,
     ) -> SandboxHandle:
         namespace = self.config.namespace
-        policy = cast(
-            dict[str, object],
-            build_network_policy(execution_id=execution_id, namespace=namespace),
-        )
-        handle = self._execution_handle(execution_id, policy)
+        handle = self._execution_handle(execution_id)
         secret: dict[str, object] = {
             "apiVersion": "v1",
             "kind": "Secret",
@@ -338,7 +320,7 @@ class KubernetesSandboxExecutor:
                 profile_name=profile_name,
             ),
         )
-        return self._create_resources(handle=handle, secret=secret, policy=policy, job=job)
+        return self._create_resources(handle=handle, secret=secret, job=job)
 
     def create_sql_execution(
         self,
@@ -348,11 +330,7 @@ class KubernetesSandboxExecutor:
         profile_name: str,
     ) -> SandboxHandle:
         namespace = self.config.namespace
-        policy = cast(
-            dict[str, object],
-            build_network_policy(execution_id=execution_id, namespace=namespace),
-        )
-        handle = self._execution_handle(execution_id, policy)
+        handle = self._execution_handle(execution_id)
         secret: dict[str, object] = {
             "apiVersion": "v1",
             "kind": "Secret",
@@ -383,7 +361,7 @@ class KubernetesSandboxExecutor:
                 profile_name=profile_name,
             ),
         )
-        return self._create_resources(handle=handle, secret=secret, policy=policy, job=job)
+        return self._create_resources(handle=handle, secret=secret, job=job)
 
     def observe(self, handle: SandboxHandle) -> SandboxObservation:
         response = self._request(
@@ -450,11 +428,6 @@ class KubernetesSandboxExecutor:
                     "kind": "DeleteOptions",
                     "propagationPolicy": "Background",
                 },
-            ),
-            (
-                f"/apis/networking.k8s.io/v1/namespaces/{handle.namespace}/networkpolicies/"
-                f"{handle.network_policy_name}",
-                None,
             ),
             (
                 f"/api/v1/namespaces/{handle.namespace}/secrets/{handle.input_secret_name}",

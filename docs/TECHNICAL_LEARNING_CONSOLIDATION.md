@@ -21,6 +21,9 @@ onto one lineage instead of creating more standalone products:
   with deterministic rubric evidence feeding competency mastery.
 - Learning paths: candidate-facing role paths that organize canonical SkillForge
   tracks and link directly into governed practice, mock interviews, and readiness.
+- Mookti learning-OS donor: a general Study Workspace for projects, deadlines,
+  daily plans, focus evidence, learning notes, and spaced review that reuses the
+  existing tutor, learning paths, evidence model, and release lineage.
 
 The branch intentionally does **not** absorb unrelated or explicitly excluded learning
 products. In particular, the Kinduru-inspired guided-flow branch is not merged into

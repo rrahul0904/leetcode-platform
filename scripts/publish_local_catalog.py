@@ -25,10 +25,26 @@ from rigor_api.schemas import (
 )
 from sqlalchemy import text
 
-PYTHON_RELEASE_IDS = tuple(f"PY-{index:04d}" for index in range(1, 16))
-SQL_RELEASE_IDS = tuple(f"SQL-{index:04d}" for index in range(1, 9))
-SYSTEM_DESIGN_RELEASE_IDS = ("SD-0001", "SD-0002", "SD-0004")
-OTHER_ARCHITECTURE_RELEASE_IDS = ("DS-0003", "DM-0003", "DA-0001", "ML-0004")
+PYTHON_RELEASE_IDS = tuple(f"PY-{index:04d}" for index in range(1, 21))
+SQL_RELEASE_IDS = tuple(f"SQL-{index:04d}" for index in range(1, 11))
+SYSTEM_DESIGN_RELEASE_IDS = ("SD-0001", "SD-0002", "SD-0004", "SD-0007", "SD-0010")
+OTHER_ARCHITECTURE_RELEASE_IDS = (
+    "DS-0003",
+    "DS-0004",
+    "DS-0005",
+    "DS-0009",
+    "DM-0003",
+    "DM-0005",
+    "DM-0008",
+    "DA-0001",
+    "DA-0002",
+    "DA-0003",
+    "ML-0004",
+    "ML-0007",
+    "GA-0004",
+    "GA-0005",
+    "INF-0007",
+)
 TARGET_QUESTION_IDS = (
     *PYTHON_RELEASE_IDS,
     *SQL_RELEASE_IDS,
@@ -45,7 +61,7 @@ def principal(subject: str, name: str, role: Role) -> AuthenticatedPrincipal:
         display_name=name,
         roles=[role],
         permissions=[],
-        authentication_provider="local-catalog-bootstrap",
+        authentication_provider="local-oidc",
         token_issued_at=now,
         correlation_id=f"local-catalog-bootstrap-{now:%Y%m%dT%H%M%SZ}",
     )

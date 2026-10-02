@@ -113,7 +113,7 @@ function LocalOidcAuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("rigor:unauthorized", invalidate);
   }, []);
 
-  const signIn = useCallback(async (identity?: string, returnTo = "/") => {
+  const signIn = useCallback(async (identity?: string, returnTo = "/workspace") => {
     const verifier = randomValue(48);
     const challengeBytes = new Uint8Array(
       await window.crypto.subtle.digest(
@@ -227,7 +227,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
     };
   }, [clerk.isLoaded, clerk.isSignedIn, clerk.sessionId]);
 
-  const signIn = useCallback(async (_identity?: string, returnTo = "/") => {
+  const signIn = useCallback(async (_identity?: string, returnTo = "/workspace") => {
     const safeReturnTo =
       returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/";
     window.location.assign(`/sign-in?returnTo=${encodeURIComponent(safeReturnTo)}`);
@@ -267,7 +267,7 @@ export function useAuth() {
 }
 
 export function authReturnPath() {
-  const value = window.sessionStorage.getItem(returnToKey) ?? "/";
+  const value = window.sessionStorage.getItem(returnToKey) ?? "/workspace";
   window.sessionStorage.removeItem(returnToKey);
   return value.startsWith("/") && !value.startsWith("//") ? value : "/";
 }

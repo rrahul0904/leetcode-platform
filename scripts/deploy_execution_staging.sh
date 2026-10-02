@@ -34,6 +34,10 @@ done
 
 context="${RIGOR_STAGING_KUBE_CONTEXT:-rigor-staging-execution}"
 namespace="${RIGOR_EXECUTION_NAMESPACE:-rigor-execution}"
+if [[ "${namespace}" != "rigor-execution" ]]; then
+  echo "RIGOR_EXECUTION_NAMESPACE must be rigor-execution because the execution boundary policy is namespace-scoped" >&2
+  exit 2
+fi
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 controller_source="${repo_root}/infra/kubernetes/execution-controller.yaml"
 boundary_source="${repo_root}/infra/kubernetes/execution-boundary.yaml"

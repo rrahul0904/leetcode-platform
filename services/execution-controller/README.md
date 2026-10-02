@@ -14,14 +14,14 @@ The current branch now provides reusable controller primitives in `apps/api/src/
 - canonical execution transition validation;
 - server-controlled sandbox profiles;
 - hardened gVisor Job construction;
-- default-deny per-execution network policy construction;
+- namespace-wide infrastructure-managed default-deny network policy;
 - a bounded versioned Python runner image.
 
 ## Still required before this service is production-capable
 
 - dedicated trusted worker database role/policies;
 - concrete SQS publisher/consumer adapter;
-- Kubernetes client adapter that creates input Secret, NetworkPolicy, Job and cleanup resources idempotently;
+- Kubernetes client adapter that creates input Secret and Job and cleans up execution resources idempotently. The controller cannot mutate NetworkPolicies; infrastructure applies the namespace-wide deny-all policy to every execution pod.
 - result-log collection and trusted correctness comparison;
 - terminal-state persistence and usage event emission;
 - cancellation handling;

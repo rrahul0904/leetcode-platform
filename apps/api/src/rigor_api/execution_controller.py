@@ -544,7 +544,6 @@ class ExecutionController:
                 namespace=namespace,
                 job_name=job_name,
                 input_secret_name=f"input-{job_name}",
-                network_policy_name=f"deny-{job_name}",
             )
         )
         with self.engine.begin() as connection:
@@ -628,7 +627,6 @@ class ExecutionController:
             namespace=namespace,
             job_name=job_name,
             input_secret_name=f"input-{job_name}",
-            network_policy_name=f"deny-{job_name}",
         )
         observation = self.sandbox.observe(handle)
 
@@ -764,7 +762,6 @@ class ExecutionController:
                     namespace=namespace,
                     job_name=job_name,
                     input_secret_name=f"input-{job_name}",
-                    network_policy_name=f"deny-{job_name}",
                 )
             )
             with self.engine.begin() as connection:

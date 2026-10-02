@@ -10,18 +10,31 @@ import { useAuth } from "@/lib/auth";
 
 import { AppShell } from "./app-shell";
 
-const publicRoutes = ["/sign-in", "/sign-up", "/auth/callback"];
+// Public routes contain only marketing or self-contained guest practice surfaces.
+const publicRoutes = [
+  "/",
+  "/sign-in",
+  "/sign-up",
+  "/auth/callback",
+  "/practice/code-typing",
+  "/practice/typing-arcade",
+];
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { principal, status } = useAuth();
   const isPublic = publicRoutes.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`),
+    (route) =>
+      route === "/"
+        ? pathname === "/"
+        : pathname === route || pathname.startsWith(`${route}/`),
   );
   const isCandidate = principal?.roles.includes("candidate") ?? false;
+  const isStandalonePractice = ["/practice/code-typing", "/practice/typing-arcade"].some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
   const candidateRoute = [
-    "/",
     "/problems",
     "/questions",
     "/companies",
@@ -31,7 +44,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
     "/workspace",
     "/learning-paths",
     "/mock-interviews",
+    "/pr-review",
+    "/ai-arena",
+    "/attempts",
+    "/design-lab",
     "/progress",
+    "/study-workspace",
     "/onboarding",
     "/profile",
     "/settings",
@@ -66,17 +84,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
       (pathname === "/sign-in" || pathname === "/sign-up") &&
       status === "authenticated"
     ) {
-      router.replace("/");
+      router.replace("/workspace");
       return;
     }
     if (wrongWorkspace) {
-      router.replace("/");
+      router.replace("/workspace");
       return;
     }
     if (onboardingRequired) router.replace("/onboarding");
   }, [isPublic, onboardingRequired, pathname, router, status, wrongWorkspace]);
 
-  if (isPublic) return children;
+  if (isPublic && !(isStandalonePractice && status === "authenticated")) return children;
   if (
     status !== "authenticated" ||
     wrongWorkspace ||

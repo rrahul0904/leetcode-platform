@@ -24,6 +24,23 @@ def test_local_execution_is_rejected_for_deployable_environments(
 
 
 def test_isolated_execution_configuration_is_accepted_for_production() -> None:
-    settings = Settings(environment="production", execution_adapter="KUBERNETES_JOB")
+    settings = Settings(
+        environment="production",
+        execution_adapter="KUBERNETES_JOB",
+        local_oidc_enabled=False,
+        oidc_issuer="https://identity.example.com",
+        oidc_jwks_url="https://identity.example.com/.well-known/jwks.json",
+    )
 
     assert settings.execution_adapter == "KUBERNETES_JOB"
+
+
+@pytest.mark.parametrize("environment", ["staging", "production"])
+def test_local_oidc_is_rejected_for_deployable_environments(environment: str) -> None:
+    with pytest.raises(ValidationError, match="Local OIDC authentication is forbidden"):
+        Settings(
+            environment=environment,
+            execution_adapter="KUBERNETES_JOB",
+            oidc_issuer="https://identity.example.com",
+            oidc_jwks_url="https://identity.example.com/.well-known/jwks.json",
+        )

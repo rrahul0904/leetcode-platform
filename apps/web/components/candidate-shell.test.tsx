@@ -36,10 +36,10 @@ describe("candidate AppShell", () => {
     const navigation = screen.getByRole("navigation", {
       name: "Primary navigation",
     });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(10);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(13);
     expect(
       within(navigation).getByRole("link", { name: "Overview" }),
-    ).toHaveAttribute("href", "/");
+    ).toHaveAttribute("href", "/workspace");
     expect(
       within(navigation).getByRole("link", { name: "Question Bank" }),
     ).toHaveAttribute("href", "/question-bank");
@@ -70,6 +70,9 @@ describe("candidate AppShell", () => {
     expect(
       within(navigation).getByRole("link", { name: "Progress" }),
     ).toHaveAttribute("href", "/progress");
+    expect(within(navigation).getByRole("link", { name: "Study Workspace" })).toHaveAttribute("href", "/study-workspace");
+    expect(within(navigation).getByRole("link", { name: "Code Typing" })).toHaveAttribute("href", "/practice/code-typing");
+    expect(within(navigation).getByRole("link", { name: "Typing Arcade" })).toHaveAttribute("href", "/practice/typing-arcade");
     expect(
       screen.getByRole("link", { name: "Search question bank" }),
     ).toHaveAttribute("href", "/question-bank");

@@ -290,7 +290,6 @@ class LocalHttpSandboxExecutor:
             namespace=self.config.namespace,
             job_name=job_name,
             input_secret_name=f"input-{job_name}",
-            network_policy_name=f"deny-{job_name}",
         )
 
     def create_python_execution(
