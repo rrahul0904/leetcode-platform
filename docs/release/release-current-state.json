@@ -1,81 +1,114 @@
 {
-  "snapshot_at_utc": "2026-10-02T13:58:27Z",
-  "snapshot_sha": "c44e3315af9c6336ca07bd11ed858fa535d7da57",
+  "snapshot_at_utc": "2026-10-02T14:55:06Z",
+  "snapshot_sha": "8009deec1fa24ced1cb6a00a92e884af24e1ea39",
   "repository": "rrahul0904/leetcode-platform",
+  "release": {
+    "state": "CONFIG_REQUIRED",
+    "main_sha": "8009deec1fa24ced1cb6a00a92e884af24e1ea39",
+    "main_ref_verified": true,
+    "merge_method": "merge commit",
+    "merged_at": "2026-10-02T14:03:15Z",
+    "base_sha": "403b28afe7498e273c5183adbea8da274af72017"
+  },
   "pr": {
     "number": 46,
     "url": "https://github.com/rrahul0904/leetcode-platform/pull/46",
     "branch": "codex/release-integration",
     "base_branch": "main",
     "base_sha": "403b28afe7498e273c5183adbea8da274af72017",
-    "head_sha": "c44e3315af9c6336ca07bd11ed858fa535d7da57",
-    "state": "OPEN",
-    "draft": true,
-    "mergeable": true,
-    "merge_state": "UNSTABLE"
+    "candidate_sha": "9fd7d7e370afd48a9c90e73c133458c7b97a5741",
+    "merge_sha": "8009deec1fa24ced1cb6a00a92e884af24e1ea39",
+    "state": "MERGED",
+    "draft": false,
+    "mergeable_before_merge": true
   },
   "reviews": {
-    "github_review_decision": null,
     "submitted_github_reviews": 0,
-    "independent_read_only_code_reviews": "completed; no remaining concrete code or evidence-integrity blocker reported on c44e331"
-  },
-  "main_branch_rules": {
-    "branch_protection": false,
-    "rulesets": []
+    "independent_read_only_code_reviews": "completed on the code snapshot; no remaining concrete code blocker reported",
+    "main_branch_protection": false,
+    "main_rulesets": []
   },
   "checks": {
+    "release_sha": "8009deec1fa24ced1cb6a00a92e884af24e1ea39",
     "ci": {
-      "run_id": 37016213999,
+      "run_id": 37017187681,
       "conclusion": "success",
-      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37016213999"
+      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37017187681"
     },
     "browser_navigation_uat": {
-      "run_id": 37016214126,
+      "run_id": 37017187775,
       "conclusion": "success",
-      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37016214126"
+      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37017187775"
     },
     "security_assurance": {
-      "run_id": 37016214395,
+      "run_id": 37017187535,
       "conclusion": "success",
-      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37016214395"
+      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37017187535"
     },
-    "pytest_evidence": {
-      "run_id": 37016214267,
+    "python_test_evidence": {
+      "run_id": 37017187492,
       "conclusion": "success",
-      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37016214267"
+      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37017187492"
     },
     "terraform_saas": {
-      "run_id": 37016214166,
+      "run_id": 37017187590,
       "conclusion": "success",
-      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37016214166"
+      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37017187590"
     },
-    "migration_preflight": {
-      "run_id": 37016214637,
+    "production_migration_preflight": {
+      "run_id": 37016744858,
+      "tested_sha": "9fd7d7e370afd48a9c90e73c133458c7b97a5741",
       "conclusion": "success",
-      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37016214637"
+      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37016744858",
+      "note": "Pull-request head; merge commit has the same source tree. This workflow does not run on main pushes."
     },
     "vercel_preview": {
-      "run_id": 37016207839,
+      "run_id": 37016737222,
+      "tested_sha": "9fd7d7e370afd48a9c90e73c133458c7b97a5741",
       "conclusion": "failure",
-      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37016207839",
+      "url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/37016737222",
       "reason": "The Actions runner received an empty VERCEL_TOKEN and stopped before calling the Vercel API."
     },
     "local_docker_release": {
-      "run_id": 37016214125,
+      "run_id": 37016744989,
       "conclusion": "skipped",
       "required_for_release": false
     }
+  },
+  "security": {
+    "assurance_run_id": 37017187535,
+    "assurance_sha": "8009deec1fa24ced1cb6a00a92e884af24e1ea39",
+    "auth_isolation_regressions": "success",
+    "codeql_python_and_javascript_typescript": "success",
+    "repository_vulnerability_secret_and_iac_scan": "success",
+    "execution_image_scans_and_sbom": "success",
+    "pyjwt_version": "2.14.0"
   },
   "deployment": {
     "preview": "CONFIG_REQUIRED: VERCEL_TOKEN",
     "preview_deployment_id": null,
     "preview_url": null,
     "production_deployed": false,
-    "production_certified": false
+    "production_deployment_id": null,
+    "production_certified": false,
+    "github_deployment_record_for_main_sha": false
+  },
+  "database": {
+    "repository_migration_target": "20260918_0021",
+    "production_observed_migration_head": null,
+    "production_database_inspected": false
+  },
+  "configuration_audit": {
+    "repository_secret_names": ["VERCEL_TOKEN"],
+    "production_environment_secret_names": [],
+    "production_environment_variable_names": [],
+    "secret_values_read": false,
+    "production_vercel_environment_inspected": false
   },
   "blockers": [
-    "CONFIG_REQUIRED: VERCEL_TOKEN for the branch-scoped Preview workflow; a repository Actions owner must save a non-empty token authorized for the expected Vercel team and project.",
-    "Production deployment configuration is unverified: customer hostname, live Clerk keys, backend/database settings, AWS/ECS variables, and GitHub OIDC role are not confirmed.",
-    "Canonical tracker access is unavailable for collision-free ID allocation and external tracker reconciliation."
+    "CONFIG_REQUIRED: VERCEL_TOKEN must be saved as a non-empty repository Actions secret authorized for the expected Vercel team/project; the latest Preview run failed before any Vercel API call.",
+    "CONFIG_REQUIRED: production Vercel hostname, live Clerk keys, backend origin, and database URL; the production GitHub environment currently has no configured secret or variable names, and Vercel project settings could not be inspected.",
+    "CONFIG_REQUIRED: AWS_REGION, AWS_DEPLOY_ROLE_ARN, ECS_CLUSTER, ECS_API_SERVICE, ECS_WORKER_SERVICE, ECR_API_REPOSITORY, and ECR_WORKER_REPOSITORY, with correct GitHub OIDC trust and least-privilege access.",
+    "CONFIG_REQUIRED: canonical tracker access to reconcile capability IDs without changing RE-292 (DustByte) or RE-326 (Sky Reach)."
   ]
 }
