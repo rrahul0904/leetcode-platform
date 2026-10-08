@@ -32,6 +32,21 @@ def test_hosted_configuration_accepts_remote_durable_services() -> None:
     assert settings.execution_adapter == "KUBERNETES_JOB"
 
 
+def test_hosted_configuration_accepts_vercel_sandbox_without_sqs() -> None:
+    settings = hosted_settings(
+        execution_adapter="VERCEL_SANDBOX",
+        sqs_execution_queue_url=None,
+    )
+
+    assert settings.execution_adapter == "VERCEL_SANDBOX"
+    assert settings.sqs_execution_queue_url is None
+
+
+def test_hosted_configuration_rejects_unknown_execution_adapter() -> None:
+    with pytest.raises(ValidationError, match="not an approved hosted adapter"):
+        hosted_settings(execution_adapter="TYPO_SANDBOX")
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
