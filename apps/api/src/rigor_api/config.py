@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 from typing import Self
+from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -17,6 +18,18 @@ def default_content_root() -> Path:
         if candidate.exists():
             return candidate
     return Path.cwd() / "content"
+
+
+def _is_loopback_service_url(value: str) -> bool:
+    """Return True when a service URL resolves to a loopback-only host.
+
+    Hosted Rigor environments must never silently fall back to the local
+    development PostgreSQL/Valkey defaults when a secret or environment
+    variable is missing.
+    """
+
+    host = urlsplit(value).hostname
+    return host is None or host.lower() in {"localhost", "127.0.0.1", "::1"}
 
 
 class Settings(BaseSettings):
@@ -103,23 +116,47 @@ class Settings(BaseSettings):
     def production_execution_must_fail_closed(self) -> Self:
         environment = self.environment.strip().lower()
         adapter = self.execution_adapter.strip().upper()
+        hosted_environment = environment in {"production", "staging"}
         local_only_adapters = {"LOCAL_FUNCTIONAL", "LOCAL_DOCKER"}
-        if environment in {"production", "staging"} and adapter in local_only_adapters:
+
+        if hosted_environment and adapter in local_only_adapters:
             raise ValueError(
                 f"{adapter} candidate execution is forbidden in staging and production. "
                 "Configure an approved isolated production execution adapter instead."
             )
-        if environment in {"production", "staging"} and self.local_oidc_enabled:
+        if hosted_environment and self.local_oidc_enabled:
             raise ValueError(
                 "Local OIDC authentication is forbidden in staging and production. "
                 "Configure the production identity provider instead."
             )
         if (
-            environment in {"production", "staging"}
+            hosted_environment
             and not self.local_oidc_enabled
             and (not self.oidc_jwks_url or not self.oidc_issuer)
         ):
             raise ValueError("A production OIDC issuer and JWKS URL are required.")
+
+        if hosted_environment and _is_loopback_service_url(self.database_url):
+            raise ValueError(
+                "Hosted environments require a non-loopback PostgreSQL database URL. "
+                "The local development database must never be used as hosted state."
+            )
+        if (
+            hosted_environment
+            and self.operational_database_url is not None
+            and _is_loopback_service_url(self.operational_database_url)
+        ):
+            raise ValueError(
+                "Hosted environments require a non-loopback operational database URL."
+            )
+        if hosted_environment and _is_loopback_service_url(self.valkey_url):
+            raise ValueError(
+                "Hosted environments require a non-loopback Valkey/Redis URL."
+            )
+        if hosted_environment and adapter == "KUBERNETES_JOB" and not self.sqs_execution_queue_url:
+            raise ValueError(
+                "KUBERNETES_JOB execution requires an SQS execution queue in hosted environments."
+            )
         return self
 
 
