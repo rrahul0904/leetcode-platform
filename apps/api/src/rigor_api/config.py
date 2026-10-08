@@ -123,7 +123,12 @@ class Settings(BaseSettings):
         adapter = self.execution_adapter.strip().upper()
         hosted_environment = environment in {"production", "staging"}
         hosted_adapters = {"KUBERNETES_JOB", "VERCEL_SANDBOX"}
+        local_adapters = {"LOCAL_FUNCTIONAL", "LOCAL_DOCKER"}
 
+        if hosted_environment and adapter in local_adapters:
+            raise ValueError(
+                f"{adapter} candidate execution is forbidden in staging and production."
+            )
         if hosted_environment and adapter not in hosted_adapters:
             raise ValueError(
                 f"{adapter or 'EMPTY'} candidate execution is not an approved hosted adapter. "
