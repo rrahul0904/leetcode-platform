@@ -33,7 +33,12 @@ def _is_loopback_service_url(value: str) -> bool:
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="RIGOR_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="RIGOR_",
+        env_file=".env",
+        extra="ignore",
+        populate_by_name=True,
+    )
 
     environment: str = "development"
     database_url: str = "postgresql+psycopg://rigor:rigor_local_only@localhost:5434/rigor"
