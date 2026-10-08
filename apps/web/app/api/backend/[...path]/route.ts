@@ -1,5 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 
+import { isPublicBackendHealthPath } from "@/lib/backend-health";
 import { resolveBackendOrigin } from "@/lib/backend-origin";
 
 export const dynamic = "force-dynamic";
@@ -21,12 +22,15 @@ function backendOrigin(): string {
   );
 }
 
-function forwardedHeaders(request: Request, token: string) {
+function forwardedHeaders(request: Request, token?: string) {
   const headers = new Headers(request.headers);
   headers.delete("cookie");
   headers.delete("host");
   headers.delete("content-length");
-  headers.set("authorization", `Bearer ${token}`);
+  headers.delete("authorization");
+  if (token) {
+    headers.set("authorization", `Bearer ${token}`);
+  }
   headers.set("x-skillforge-client", "vercel-bff");
   return headers;
 }
@@ -34,7 +38,7 @@ function forwardedHeaders(request: Request, token: string) {
 async function fetchUpstream(
   target: URL,
   request: Request,
-  token: string,
+  token?: string,
   body?: ArrayBuffer,
 ) {
   return fetch(target, {
@@ -114,12 +118,14 @@ async function proxyRequest(
   request: Request,
   context: RouteContext,
 ): Promise<Response> {
-  const token = await sessionToken();
-  if (!token) {
+  const { path } = await context.params;
+  const publicHealthProbe =
+    request.method === "GET" && isPublicBackendHealthPath(path);
+  const token = publicHealthProbe ? null : await sessionToken();
+  if (!publicHealthProbe && !token) {
     return Response.json({ detail: "Authentication required" }, { status: 401 });
   }
 
-  const { path } = await context.params;
   const target = new URL(
     `${backendOrigin()}/${path.map((segment) => encodeURIComponent(segment)).join("/")}`,
   );
@@ -128,9 +134,9 @@ async function proxyRequest(
   const body = ["GET", "HEAD"].includes(request.method)
     ? undefined
     : await request.arrayBuffer();
-  let upstream = await fetchUpstream(target, request, token, body);
+  let upstream = await fetchUpstream(target, request, token ?? undefined, body);
 
-  if (upstream.status === 401 && isIdentityBootstrapPath(path)) {
+  if (token && upstream.status === 401 && isIdentityBootstrapPath(path)) {
     const reconciled = await reconcileCandidate(token);
     if (reconciled) {
       upstream = await fetchUpstream(target, request, token, body);
