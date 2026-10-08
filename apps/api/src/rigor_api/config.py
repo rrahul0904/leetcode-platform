@@ -122,12 +122,12 @@ class Settings(BaseSettings):
         environment = self.environment.strip().lower()
         adapter = self.execution_adapter.strip().upper()
         hosted_environment = environment in {"production", "staging"}
-        local_only_adapters = {"LOCAL_FUNCTIONAL", "LOCAL_DOCKER"}
+        hosted_adapters = {"KUBERNETES_JOB", "VERCEL_SANDBOX"}
 
-        if hosted_environment and adapter in local_only_adapters:
+        if hosted_environment and adapter not in hosted_adapters:
             raise ValueError(
-                f"{adapter} candidate execution is forbidden in staging and production. "
-                "Configure an approved isolated production execution adapter instead."
+                f"{adapter or 'EMPTY'} candidate execution is not an approved hosted adapter. "
+                "Configure KUBERNETES_JOB or VERCEL_SANDBOX explicitly."
             )
         if hosted_environment and self.local_oidc_enabled:
             raise ValueError(
