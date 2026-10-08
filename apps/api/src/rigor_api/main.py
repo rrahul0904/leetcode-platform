@@ -65,6 +65,7 @@ from .principal_auth import database_authoritative_principal
 from .question_engagement import router as question_engagement_router
 from .saas_routes import router as saas_router
 from .session_token_auth import session_token_validator
+from .think_aloud_routes import router as think_aloud_router
 from .tutor_chat_routes import router as tutor_chat_router
 from .tutor_routes import router as tutor_router
 
@@ -232,4 +233,5 @@ app.add_api_route(
     methods=["POST"],
     response_model=MockInterviewSessionView,
 )
+app.include_router(think_aloud_router)
 app.include_router(pr_review_router)
