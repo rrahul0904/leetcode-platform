@@ -26,7 +26,13 @@ def test_local_execution_is_rejected_for_deployable_environments(
 def test_isolated_execution_configuration_is_accepted_for_production() -> None:
     settings = Settings(
         environment="production",
+        database_url="postgresql+psycopg://rigor:secret@db.internal:5432/rigor",
+        operational_database_url="postgresql+psycopg://rigor:secret@db.internal:5432/rigor",
+        valkey_url="rediss://cache.internal:6379/0",
         execution_adapter="KUBERNETES_JOB",
+        sqs_execution_queue_url=(
+            "https://sqs.us-east-1.amazonaws.com/123456789012/rigor-execution"
+        ),
         local_oidc_enabled=False,
         oidc_issuer="https://identity.example.com",
         oidc_jwks_url="https://identity.example.com/.well-known/jwks.json",
