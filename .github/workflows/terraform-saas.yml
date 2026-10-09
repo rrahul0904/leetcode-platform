@@ -3,20 +3,7 @@ name: SkillForge Terraform SaaS
 on:
   pull_request:
     paths:
-      - "infra/terraform/modules/vpc/**"
-      - "infra/terraform/modules/ecs/**"
-      - "infra/terraform/modules/rds/**"
-      - "infra/terraform/modules/redis/**"
-      - "infra/terraform/modules/sqs/**"
-      - "infra/terraform/modules/s3/**"
-      - "infra/terraform/modules/secrets/**"
-      - "infra/terraform/modules/cloudfront/**"
-      - "infra/terraform/modules/waf/**"
-      - "infra/terraform/modules/acm/**"
-      - "infra/terraform/modules/route53/**"
-      - "infra/terraform/modules/ecr/**"
-      - "infra/terraform/environments/dev/**"
-      - "infra/terraform/environments/prod/**"
+      - "infra/terraform/**"
       - ".github/workflows/terraform-saas.yml"
   push:
     branches:
@@ -35,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        environment: [dev, prod]
+        environment: [dev, staging, prod]
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3

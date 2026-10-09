@@ -22,6 +22,11 @@ from .execution_api import (
     queue_run,
     queue_submit,
 )
+from .execution_plane import (
+    VERCEL_SANDBOX,
+    record_execution_adapter,
+    require_candidate_execution_plane,
+)
 from .schemas import AuthenticatedPrincipal, PracticeRunRequest, PracticeSubmitRequest
 from .vercel_sandbox_runtime import dispatch_vercel_execution
 
@@ -182,9 +187,13 @@ def queue_run_for_question(
     engine: DatabaseEngine,
     idempotency_key: IdempotencyHeader,
 ) -> CanonicalExecutionAccepted:
-    """Create a durable RUN and execute it outside FastAPI in Vercel Sandbox."""
+    """Create a durable RUN and hand it to the configured isolated execution plane."""
+    adapter = require_candidate_execution_plane()
     accepted = queue_run(request, principal, engine, idempotency_key, slug)
-    dispatch_vercel_execution(engine, accepted.execution_id)
+    if not accepted.duplicate:
+        record_execution_adapter(engine, principal, accepted.execution_id, adapter)
+    if adapter == VERCEL_SANDBOX:
+        dispatch_vercel_execution(engine, accepted.execution_id)
     return _accepted_contract(accepted, engine=engine, principal=principal)
 
 
@@ -195,9 +204,13 @@ def queue_submit_for_question(
     engine: DatabaseEngine,
     idempotency_key: IdempotencyHeader,
 ) -> CanonicalExecutionAccepted:
-    """Create a durable SUBMIT and execute it outside FastAPI in Vercel Sandbox."""
+    """Create a durable SUBMIT and hand it to the configured isolated execution plane."""
+    adapter = require_candidate_execution_plane()
     accepted = queue_submit(request, principal, engine, idempotency_key, slug)
-    dispatch_vercel_execution(engine, accepted.execution_id)
+    if not accepted.duplicate:
+        record_execution_adapter(engine, principal, accepted.execution_id, adapter)
+    if adapter == VERCEL_SANDBOX:
+        dispatch_vercel_execution(engine, accepted.execution_id)
     return _accepted_contract(accepted, engine=engine, principal=principal)
 
 
