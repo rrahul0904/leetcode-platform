@@ -18,6 +18,8 @@ class _JwksClient:
 def _settings(*, audience: str | None = None) -> Settings:
     settings = Settings(
         environment="production",
+        database_url="postgresql+psycopg://rigor:secret@db.internal:5432/rigor",
+        valkey_url="rediss://cache.internal:6379/0",
         local_oidc_enabled=False,
         execution_adapter="VERCEL_SANDBOX",
         oidc_issuer="https://skillforge.clerk.accounts.dev",

@@ -12,9 +12,18 @@ module "registry" {
 }
 
 module "execution_queue" {
-  source = "../../modules/sqs"
+  source = "../../modules/execution_queue"
 
-  name = "${var.name}-execution"
+  name_prefix                = var.name
+  visibility_timeout_seconds = 120
+  message_retention_seconds  = 345600
+  dlq_retention_seconds      = 1209600
+  max_receive_count          = 5
+
+  tags = merge(var.tags, {
+    Plane       = "execution"
+    Environment = "production"
+  })
 }
 
 module "background_queue" {
