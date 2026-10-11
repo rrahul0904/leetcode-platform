@@ -32,14 +32,16 @@ def test_hosted_configuration_accepts_remote_durable_services() -> None:
     assert settings.execution_adapter == "KUBERNETES_JOB"
 
 
-def test_hosted_configuration_accepts_vercel_sandbox_without_sqs() -> None:
+def test_hosted_configuration_accepts_vercel_sandbox_without_sqs_or_valkey() -> None:
     settings = hosted_settings(
         execution_adapter="VERCEL_SANDBOX",
         sqs_execution_queue_url=None,
+        valkey_url="redis://localhost:6381/0",
     )
 
     assert settings.execution_adapter == "VERCEL_SANDBOX"
     assert settings.sqs_execution_queue_url is None
+    assert settings.valkey_url == "redis://localhost:6381/0"
 
 
 def test_hosted_configuration_rejects_unknown_execution_adapter() -> None:
