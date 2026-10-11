@@ -159,9 +159,14 @@ class Settings(BaseSettings):
             raise ValueError(
                 "Hosted environments require a non-loopback operational database URL."
             )
-        if hosted_environment and _is_loopback_service_url(self.valkey_url):
+        if (
+            hosted_environment
+            and adapter != "VERCEL_SANDBOX"
+            and _is_loopback_service_url(self.valkey_url)
+        ):
             raise ValueError(
-                "Hosted environments require a non-loopback Valkey/Redis URL."
+                "Hosted environments require a non-loopback Valkey/Redis URL unless "
+                "VERCEL_SANDBOX is the execution adapter."
             )
         if hosted_environment and adapter == "KUBERNETES_JOB" and not self.sqs_execution_queue_url:
             raise ValueError(
