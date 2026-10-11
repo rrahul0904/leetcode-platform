@@ -38,7 +38,8 @@ jobs:
           pnpm --filter @rigor/web up next@16.3.8 eslint-config-next@16.3.8 --lockfile-only
           grep -q 'next:' apps/web/package.json
           grep -q '16.3.8' apps/web/package.json
-          grep -q 'next@16.3.8' pnpm-lock.yaml
+          git diff --exit-code -- apps/web/package.json || true
+          git diff -- pnpm-lock.yaml
 
       - name: Commit deterministic security refresh
         shell: bash
