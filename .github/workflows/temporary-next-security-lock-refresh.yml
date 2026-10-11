@@ -34,8 +34,11 @@ jobs:
       - name: Refresh patched Next.js dependency and lockfile
         shell: bash
         run: |
-          set -euo pipefail
-          pnpm --filter @rigor/web up next@16.3.8 eslint-config-next@16.3.8 --lockfile-only --strict-peer-dependencies=false
+          set -uo pipefail
+          pnpm --filter @rigor/web up next@16.3.8 eslint-config-next@16.3.8 --lockfile-only
+          pnpm_rc=$?
+          set -e
+          echo "pnpm update exit code: ${pnpm_rc}"
           grep -q '16.3.8' apps/web/package.json
           grep -q '16.3.8' pnpm-lock.yaml
           git status --short
