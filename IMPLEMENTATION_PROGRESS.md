@@ -1,7 +1,7 @@
 # Implementation Progress
 
 Baseline ledger verified: 2026-07-21  
-Hosted reconstruction update: 2026-10-07 (America/New_York)
+Hosted reconstruction update: 2026-10-13 (America/New_York)
 
 This ledger reports executable behavior and evidence, not planned scope. The historical 1,350-item manifest remains a launch-foundation benchmark; the platform has no final question-count ceiling.
 
@@ -14,14 +14,14 @@ The current reconstruction is explicitly targeting a hosted product. Browser sto
 | Web application | Implemented and CI-verified | Next.js lint, typecheck, tests, and production build pass on the reconstruction branch |
 | API and schemas | Implemented; reconstruction checks active | FastAPI serving composition, durable execution routes, SaaS/tutor/mock-interview/AI-arena/knowledge surfaces, strict Pyright, PostgreSQL integration |
 | Database migrations | Implemented and CI-verified | PostgreSQL 18 + pgvector migration cycle upgrades from empty state and verifies execution, knowledge, SaaS, tutor, mock-interview, PR-review, and AI-arena schemas |
-| Hosted configuration boundary | Implemented | Staging/production fail closed on local execution adapters, local OIDC, loopback PostgreSQL/operational PostgreSQL/Valkey, missing hosted identity configuration, and missing durable execution queue for Kubernetes execution |
-| Candidate execution control plane | Implemented in source; certification incomplete | Durable SQS/DLQ/KMS queue, trusted controller identity, immutable execution-image path and async execution contracts exist |
-| Candidate hostile-code plane | Implemented in Terraform source; not yet provisioned/certified | Guarded production EKS execution VPC, hardened custom AMI requirement, private control endpoint by default, isolated execution database, gVisor/Packer source validation |
+| Hosted configuration boundary | Implemented; hosted Kubernetes disabled | Staging/production fail closed on local execution adapters, local OIDC, loopback state services, missing hosted identity, and Kubernetes execution requests; Kubernetes readiness is `not_ready` |
+| Candidate execution control plane | Source exists; V1 uses Vercel Sandbox; certification incomplete | Durable execution state and Vercel Sandbox dispatch exist; EKS/SQS controller topology is deferred because its separate database/VPC is not authoritative for API requests |
+| Candidate hostile-code plane | EKS Terraform source retained but opt-in rejected | It is not a certified production plane; Terraform validation now rejects enabling it until controller and API share authoritative execution state and verified network access |
 | AWS application/data plane | Implemented in Terraform source; not yet provisioned | Production VPC, ECS, managed PostgreSQL, Valkey, object storage, queues, secrets, WAF, DNS and CDN composition validates in CI |
 | Environment topology | Reconciled | `dev`, `staging`, and `prod` are canonical; obsolete empty `development` and `production` placeholders were removed |
 | Live production deployment | **Not yet evidenced** | No claim of an AWS apply, cloud resource inventory, production DNS cutover, production secrets, hosted smoke test, backup/restore drill, or hostile-runner adversarial certification is made here |
 
-Terraform source validation is not deployment evidence. Production readiness advances only after reviewed plans, a real apply, immutable image/AMI receipts, hosted smoke/recovery tests, and security certification.
+Terraform source validation is not deployment evidence. Vercel deployment success is also not application health. Production readiness advances only after exact-artifact hosted probes, authenticated journeys, sandbox receipts, recovery tests, and security certification.
 
 ## Historical July baseline
 

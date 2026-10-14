@@ -62,7 +62,7 @@ def test_vercel_execution_plane_accepts_project_scoped_credentials(
     assert execution_plane.require_candidate_execution_plane() == execution_plane.VERCEL_SANDBOX
 
 
-def test_kubernetes_execution_plane_does_not_require_vercel_credentials(
+def test_hosted_kubernetes_execution_plane_fails_closed_before_enqueue(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -73,4 +73,8 @@ def test_kubernetes_execution_plane_does_not_require_vercel_credentials(
     monkeypatch.delenv("VERCEL_OIDC_TOKEN", raising=False)
     monkeypatch.delenv("VERCEL_PROJECT_ID", raising=False)
 
-    assert execution_plane.require_candidate_execution_plane() == execution_plane.KUBERNETES_JOB
+    with pytest.raises(HTTPException) as captured:
+        execution_plane.require_candidate_execution_plane()
+
+    assert captured.value.status_code == 503
+    assert captured.value.detail == "Candidate execution is temporarily unavailable."

@@ -27,6 +27,17 @@ def require_candidate_execution_plane() -> str:
     adapter = settings.execution_adapter.strip().upper()
     hosted = settings.environment.strip().lower() in {"production", "staging"}
 
+    # Kubernetes is retained as a future adapter, but its controller currently
+    # reads a separate execution database from the one used by the API. Accepting
+    # work would therefore create durable requests that no trusted worker can
+    # claim. Keep this path closed until the authoritative state/network topology
+    # is certified.
+    if hosted and adapter == KUBERNETES_JOB:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Candidate execution is temporarily unavailable.",
+        )
+
     if hosted and adapter == VERCEL_SANDBOX:
         try:
             VercelSandboxClient.discover()

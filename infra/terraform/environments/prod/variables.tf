@@ -47,9 +47,14 @@ variable "jwt_audience" {
 }
 
 variable "enable_execution_production_infrastructure" {
-  description = "Explicit opt-in for the cost-bearing isolated EKS execution plane. Production deployment must enable this before candidate execution is exposed."
+  description = "Reserved for a future certified EKS execution plane. Must remain false while its controller database and network path are separate from authoritative API execution state."
   type        = bool
   default     = false
+
+  validation {
+    condition     = !var.enable_execution_production_infrastructure
+    error_message = "The EKS execution plane is not certified: its controller database and VPC are disconnected from authoritative API execution state. Keep this false until ADR-002 is revised and the shared data path is verified."
+  }
 }
 
 variable "execution_node_ami_id" {

@@ -132,7 +132,8 @@ class Settings(BaseSettings):
         if hosted_environment and adapter not in hosted_adapters:
             raise ValueError(
                 f"{adapter or 'EMPTY'} candidate execution is not an approved hosted adapter. "
-                "Configure KUBERNETES_JOB or VERCEL_SANDBOX explicitly."
+                "Configure VERCEL_SANDBOX; KUBERNETES_JOB remains unavailable until its "
+                "authoritative state path is certified."
             )
         if hosted_environment and self.local_oidc_enabled:
             raise ValueError(
