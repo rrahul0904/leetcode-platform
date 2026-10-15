@@ -132,9 +132,11 @@ def test_release_workflow_requires_customer_owned_production_domain() -> None:
     assert "SKILLFORGE_PRODUCTION_HOSTNAME GitHub Actions production variable" in workflow
     assert "Clerk production requires a customer-owned domain" in workflow
     assert 'host.endswith(".vercel.app")' in workflow
-    assert "vercel deploy --prebuilt --prod" in workflow
-    assert "Verify production domain points to the new deployment" in workflow
-    assert "No manual alias reassignment will be attempted" in workflow
+    assert "vercel deploy --prebuilt --prod --skip-domain" in workflow
+    assert "Record staged deployment without promotion" in workflow
+    assert 'result: "production-staged-not-certified"' in workflow
+    assert "PRODUCTION_BACKUP_EVIDENCE_URL" in workflow
+    assert "Verify production domain points to the new deployment" not in workflow
 
 
 def test_release_workflow_requires_controlled_production_boundary() -> None:
@@ -145,9 +147,11 @@ def test_release_workflow_requires_controlled_production_boundary() -> None:
 
     assert "workflow_dispatch:" in trigger
     assert "pull_request:" not in trigger
-    assert "      - main" in trigger
-    assert "      - agent/" not in trigger
-    assert "environment: production" in workflow
+    assert "push:" not in trigger
+    assert "environment: Production – skillforge-platform" in workflow
+    assert "secrets.VERCEL_PRODUCTION_TOKEN" in workflow
+    assert 'if [ "$GITHUB_REF" != "refs/heads/main" ]; then' in workflow
+    assert 'if [ "$checked_out_sha" != "$RELEASE_SHA" ]; then' in workflow
 
 
 def test_release_workflow_retains_exact_sha_certification_evidence() -> None:
@@ -159,35 +163,19 @@ def test_release_workflow_retains_exact_sha_certification_evidence() -> None:
     assert '--meta githubCommitSha="$RELEASE_SHA"' in workflow
     assert 'if [ "$deployment_sha" != "$RELEASE_SHA" ]; then' in workflow
     assert "production-release-evidence.json" in workflow
-    assert "skillforge-production-certification-${{ env.RELEASE_SHA }}" in workflow
+    assert "skillforge-production-staged-${{ env.RELEASE_SHA }}" in workflow
+    assert 'promoted: false' in workflow
     assert "retention-days: 90" in workflow
 
 
-def test_release_workflow_dispatches_ecs_with_immutable_sha_and_unique_correlation() -> None:
+def test_v1_release_workflow_does_not_dispatch_deferred_ecs_plane() -> None:
     release_workflow = (
         ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml"
     ).read_text(encoding="utf-8")
-    ecs_workflow = (ROOT / ".github" / "workflows" / "deploy-ecs.yml").read_text(
-        encoding="utf-8"
-    )
 
-    assert '-f release_sha="$RELEASE_SHA"' in release_workflow
-    assert '-f correlation_id="$ecs_correlation_id"' in release_workflow
-    assert "displayTitle == env.ECS_RUN_NAME" in release_workflow
-    assert ".headSha == env.RELEASE_SHA" not in release_workflow
-    assert "release_sha:" in ecs_workflow
-    assert "correlation_id:" in ecs_workflow
-    assert "ref: ${{ env.RELEASE_SHA }}" in ecs_workflow
-    assert '[[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]' in ecs_workflow
-    assert 'actual_sha="$(git rev-parse HEAD)"' in ecs_workflow
-    assert 'if [ "$actual_sha" != "$RELEASE_SHA" ]; then' in ecs_workflow
-    assert ecs_workflow.count("IMAGE_TAG: ${{ env.RELEASE_SHA }}") == 2
-
-    validate_input = ecs_workflow.index("Validate immutable release SHA input")
-    checkout = ecs_workflow.index("- uses: actions/checkout")
-    verify_checkout = ecs_workflow.index("Verify exact checked-out release commit")
-    aws_credentials = ecs_workflow.index("Configure AWS credentials using GitHub OIDC")
-    assert validate_input < checkout < verify_checkout < aws_credentials
+    assert "deploy-ecs.yml" not in release_workflow
+    assert "Deploy current API and worker to ECS" not in release_workflow
+    assert "KUBERNETES_JOB" not in release_workflow
 
 
 def test_ci_concurrency_separates_push_and_pull_request_runs() -> None:
@@ -206,8 +194,8 @@ def test_release_workflow_targets_existing_project_and_never_skillsforge_ai() ->
         encoding="utf-8"
     )
 
-    assert "VERCEL_PROJECT_ID: prj_fnbuYcKQeKrEq5Sax2uWdTg2SHqT" in workflow
-    assert "VERCEL_PROJECT_NAME: skillforge-interactive-demo" in workflow
+    assert "VERCEL_PROJECT_ID: prj_cKifcPIyHvvuL6EZAgvUC8mpbQEq" in workflow
+    assert "VERCEL_PROJECT_NAME: skillforge-platform" in workflow
     assert "skillsforge-ai" not in workflow
 
 
