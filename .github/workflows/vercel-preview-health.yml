@@ -57,7 +57,7 @@ jobs:
           host = (parsed.hostname or "").lower()
           if parsed.scheme != "https" or not host.startswith("skillforge-platform-"):
               raise SystemExit("Refusing to probe a URL outside the skillforge-platform project.")
-          if not host.endswith(".rrahul0904-5013s-projects.vercel.app"):
+          if not host.endswith("-rrahul0904-5013s-projects.vercel.app"):
               raise SystemExit("Refusing to probe a deployment outside the configured Vercel team.")
           if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
               raise SystemExit("Provide a deployment origin without a path, query, or fragment.")
