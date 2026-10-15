@@ -148,7 +148,7 @@ def test_release_workflow_requires_controlled_production_boundary() -> None:
     assert "workflow_dispatch:" in trigger
     assert "pull_request:" not in trigger
     assert "push:" not in trigger
-    assert "environment: Production – skillforge-platform" in workflow
+    assert "environment: Production \N{EN DASH} skillforge-platform" in workflow
     assert "secrets.VERCEL_PRODUCTION_TOKEN" in workflow
     assert 'if [ "$GITHUB_REF" != "refs/heads/main" ]; then' in workflow
     assert 'if [ "$checked_out_sha" != "$RELEASE_SHA" ]; then' in workflow
