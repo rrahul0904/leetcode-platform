@@ -1,13 +1,13 @@
 # Phase 0: Current Truth
 
-Snapshot: 2026-10-13 America/New_York. Repository `rrahul0904/leetcode-platform`; reconstruction branch `codex/skillforge-production-reconstruction-v2`; pre-change HEAD `797e4a742dfe6b2b051c43e0838e9cf9159c09d4`; observed `origin/main` `2e785369d97c387932931e1954b1b715183b5784`. Evidence IDs are in [REA_EVIDENCE_LEDGER.md](REA_EVIDENCE_LEDGER.md).
+Snapshot update: 2026-10-14 America/New_York. Repository `rrahul0904/leetcode-platform`; PR #51 branch `codex/skillforge-production-reconstruction-v2`; observed PR HEAD `79d330af225e3f8df99023545916c95fe28de1f8`; observed `main` `2e785369d97c387932931e1954b1b715183b5784`. Evidence IDs are in [REA_EVIDENCE_LEDGER.md](REA_EVIDENCE_LEDGER.md).
 
 ## Architecture map
 
 | Plane | Current source | Authority / status |
 |---|---|---|
-| Experience | `apps/web` Next.js App Router; `vercel.json` defines web service and same-origin `/api/backend` routes. | Vercel is canonical V1 target; protected Preview runtime is not yet HTTP-verified. |
-| API | `apps/api/src/rigor_api`, FastAPI modular monolith; `apps/api/vercel_main.py` is Vercel entrypoint. | Server-side auth/authorization and application workflows; runtime imports must be tested on deployed artifact. |
+| Experience | `apps/web` Next.js App Router; `vercel.json` defines web service and same-origin `/api/backend` routes. | Canonical V1 project observed as `skillforge-platform`; authenticated Preview landing and sign-in routes returned HTTP 200 on exact SHA `79d330a`. |
+| API | `apps/api/src/rigor_api`, FastAPI modular monolith; `apps/api/vercel_main.py` is Vercel entrypoint. | Exact Preview API probes returned HTTP 500; runtime logs show `ModuleNotFoundError: fastapi`. Service-specific dependency installation is being made explicit and awaits a fresh hosted deployment. |
 | Identity | Clerk values mapped into OIDC settings in `apps/api/src/rigor_api/config.py`; Next middleware in `apps/web/proxy.ts`. | Internal user/candidate row is durable identity; live auth path UNKNOWN. |
 | Data | SQLAlchemy models and Alembic migrations in API; PostgreSQL RLS and runtime role migrations. | Application PostgreSQL/Neon is authoritative; production DB identity/version and live RLS evidence unavailable. |
 | Execution | Durable requests/outbox/results; Vercel Sandbox adapter; separate SQS/EKS controller stack remains in Terraform. | Vercel Sandbox is V1 choice. Kubernetes has separate state/network and is now fail-closed in code. |
@@ -34,6 +34,6 @@ Implemented source surfaces include question/content governance; Python and SQL 
 
 ## Deployment topology and blockers
 
-GitHub CI/security/migration/browser-navigation/Terraform checks passed on the observed PR SHA, and the `skillforge-platform` Vercel deployment reported success. Application health probes reached Vercel SSO and were redirected; this is a protection boundary, not an application result. A separate reconstruction deployment was canceled. Two P1 review findings concerned accepting Kubernetes requests without healthy workers and the disconnected controller database/VPC. Exact deployment and check evidence: REA-002 through REA-007.
+`skillforge-platform` is the canonical Preview project; `skillforge-reconstruction` is a separate reconstruction deployment and is not the release target. Vercel protection remains enabled. An authorized project-scoped Preview automation bypass is stored only in GitHub environment `Preview – skillforge-platform`; Production has no bypass secret. The exact-SHA deployment `GJaYTDQSnn5eCxiNhVEJiqumW5gH` returned HTTP 200 for `/` and `/sign-in`, and HTTP 500 for `/api/backend/livez` and `/api/backend/readyz`. Runtime logs identify missing FastAPI in the API service. A service-specific `requirements.txt` install command and protected Preview probe workflow are being added; neither has hosted verification yet. The latest observed Production deployment remains on older SHA `7deda4195838941d7c14ecf7b1e09b58062c9cee`. Two P1 review findings concern Kubernetes requests without healthy workers and the disconnected controller database/VPC. Exact deployment and check evidence: REA-002 through REA-007 and the 2026-10-14 updates below.
 
-Open blockers: authorized protected-Preview probe path; live Clerk journey; live Neon/RLS/migration evidence; Vercel Sandbox execution certification; current reviewed content inventory; completed security/accessibility/load/recovery checks; production smoke and exact-SHA receipt. Project status: **NOT YET CERTIFIED**.
+Open blockers: hosted API import/readiness; live Clerk journey; live Neon/RLS/migration evidence; Vercel Sandbox Python/SQL execution and adversarial certification; current reviewed content inventory; completed security/accessibility/load/recovery checks; P1 review closure with exact-head evidence; production staging, smoke and exact-SHA receipt. Project status: **NOT YET CERTIFIED**.
