@@ -21,7 +21,8 @@
       "installCommand": "if [ -f apps/api/requirements.txt ]; then cd apps/api; fi && python -m pip install -r requirements.txt",
       "functions": {
         "vercel_main.py": {
-          "maxDuration": 300
+          "maxDuration": 300,
+          "includeFiles": "../../content/question-bank-manifest.json"
         }
       }
     }
