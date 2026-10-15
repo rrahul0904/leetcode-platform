@@ -2,7 +2,7 @@
 
 **Status: NOT YET CERTIFIED**
 
-Snapshot: 2026-10-14 America/New_York (latest provider checks: 2026-10-15 02:04 UTC). Repository `rrahul0904/leetcode-platform`; branch `codex/skillforge-production-reconstruction-v2`; tested source SHA `ba6fa97e00e24135145e5e248b8db64e01cd7d89`; observed `main` SHA `2e785369d97c387932931e1954b1b715183b5784`.
+Snapshot: 2026-10-14 America/New_York (provider checks through 2026-10-15 02:17 UTC). Repository `rrahul0904/leetcode-platform`; branch `codex/skillforge-production-reconstruction-v2`; latest pushed SHA `1fa32567e0955f31b58d8e5a9012d492bbc560c4`; last fully green exact-head source SHA `ba6fa97e00e24135145e5e248b8db64e01cd7d89`; observed `main` SHA `2e785369d97c387932931e1954b1b715183b5784`.
 
 ## Source and repository gates
 
@@ -16,7 +16,7 @@ The canonical Vercel project is `skillforge-platform` (`prj_cKifcPIyHvvuL6EZAgvU
 
 Vercel deployment `GJaYTDQSnn5eCxiNhVEJiqumW5gH` for SHA `79d330af225e3f8df99023545916c95fe28de1f8` returned HTTP 200 for `/` and `/sign-in`, but HTTP 500 for `/api/backend/livez` and `/api/backend/readyz` because FastAPI was absent. The service-specific install added on `b1e31a1` made FastAPI available; runtime logs then showed startup failing because `content/question-bank-manifest.json` was missing from the function bundle. SHA `ba6fa97` adds that file to the function bundle and tests the configuration, but a fresh deployment could not be built.
 
-Both Vercel projects report `Deployment rate limited — retry in 24 hours`; the last status was recorded at `2026-10-15T02:02:44Z`. Therefore the API packaging change has no hosted verification yet. Do not treat the failed rate-limit check as a runtime health result.
+Both Vercel projects report `Deployment rate limited — retry in 24 hours`; the latest status was recorded at `2026-10-15T02:17:09Z`. Therefore the API packaging change has no hosted verification yet. Do not treat the failed rate-limit check as a runtime health result. PR checks for `1fa3256` were pending at this snapshot apart from the rate-limited Vercel contexts.
 
 ## Authentication, data, and execution
 
@@ -32,7 +32,7 @@ Both Vercel projects report `Deployment rate limited — retry in 24 hours`; the
 
 ## Production and operations
 
-The latest observed Production deployment is `6992167120` on older SHA `7deda4195838941d7c14ecf7b1e09b58062c9cee`. Production was not changed. GitHub environment `Production – skillforge-platform` has no environment secrets or variables. A repository-level `VERCEL_TOKEN` exists. The local release workflow correction targets the canonical project and stages with `--skip-domain`; it requires `VERCEL_PRODUCTION_TOKEN` and HTTPS backup evidence, and its receipt says staged rather than certified. This correction has not yet been pushed or tested.
+The latest observed Production deployment is `6992167120` on older SHA `7deda4195838941d7c14ecf7b1e09b58062c9cee`. Production was not changed. GitHub environment `Production – skillforge-platform` has no environment secrets or variables. A repository-level `VERCEL_TOKEN` exists. Commit `1fa3256` corrects the release workflow to target the canonical project and stage with `--skip-domain`; it requires `VERCEL_PRODUCTION_TOKEN` and HTTPS backup evidence, and its receipt says staged rather than certified. Its 16 release-contract tests and workflow YAML parse passed locally; hosted checks were still pending at snapshot.
 
 Production database branch, backup/restore proof, observability traffic, rollback drill, public-domain checks, and staged same-build promotion remain unverified. No Production certification is asserted.
 
@@ -40,7 +40,7 @@ Production database branch, backup/restore proof, observability traffic, rollbac
 
 - Wait for Vercel’s retry window (or have the account owner arrange an allowed build window), deploy exact PR source, and verify all Preview health routes and logs.
 - Complete Clerk auth, live database/RLS, persistence, Python, SQL, and hosted adversarial execution journeys.
-- Commit and validate the corrected staging workflow, configure project-scoped release inputs and backup evidence, and verify Production protection settings. Same-build promotion remains a separate gated action after full acceptance.
+- Complete exact-head checks for `1fa3256`, configure project-scoped release inputs and backup evidence, and verify Production protection settings. Same-build promotion remains a separate gated action after full acceptance.
 - Complete Production staging, database safety, acceptance, observability, rollback proof, and post-promotion checks against the exact merged SHA.
 
 **Final status: NOT YET CERTIFIED**
