@@ -13,12 +13,16 @@ import {
 } from "lucide-react";
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
+import { ExecutionTracePanel } from "@/components/execution-trace-panel";
+import type { ExecutionTrace } from "@/lib/execution-trace";
+
 export type CodingLanguage = "python" | "sql";
 export type CodingPadResult = {
   status: "idle" | "queued" | "running" | "passed" | "failed";
   message: string;
   runtimeMs?: number;
   rows?: Array<Record<string, unknown>>;
+  trace?: ExecutionTrace;
 };
 
 type InteractiveCodingPadProps = {
@@ -30,6 +34,8 @@ type InteractiveCodingPadProps = {
   onRun?: (source: string, customInput: string) => Promise<CodingPadResult>;
   onSubmit?: (source: string) => Promise<CodingPadResult>;
 };
+
+type CodingPadPanel = "tests" | "output" | "schema" | "trace";
 
 const languageLabel: Record<CodingLanguage, string> = {
   python: "PYTHON 3.13",
@@ -63,9 +69,7 @@ export function InteractiveCodingPad({
     status: "idle",
     message: "Run your code to see results.",
   });
-  const [activePanel, setActivePanel] = useState<"tests" | "output" | "schema">(
-    "tests",
-  );
+  const [activePanel, setActivePanel] = useState<CodingPadPanel>("tests");
   const [fullscreen, setFullscreen] = useState(false);
   const [saved, setSaved] = useState(true);
   const numbers = useMemo(() => lineNumbers(source), [source]);
@@ -130,7 +134,9 @@ export function InteractiveCodingPad({
     setResult({ status: "queued", message: "Execution queued…" });
     try {
       setResult({ status: "running", message: "Running in the isolated judge…" });
-      setResult(await onRun(source, customInput));
+      const nextResult = await onRun(source, customInput);
+      setResult(nextResult);
+      if (nextResult.trace) setActivePanel("trace");
     } catch {
       setResult({
         status: "failed",
@@ -155,7 +161,9 @@ export function InteractiveCodingPad({
         status: "running",
         message: "Evaluating public and hidden tests…",
       });
-      setResult(await onSubmit(source));
+      const nextResult = await onSubmit(source);
+      setResult(nextResult);
+      if (nextResult.trace) setActivePanel("trace");
     } catch {
       setResult({
         status: "failed",
@@ -168,6 +176,7 @@ export function InteractiveCodingPad({
     setSource(initialSource);
     setCustomInput("");
     setResult({ status: "idle", message: "Draft reset to the starter source." });
+    setActivePanel("tests");
     setSaved(true);
     window.localStorage.removeItem(storageKey);
   }
@@ -226,6 +235,15 @@ export function InteractiveCodingPad({
         >
           Output
         </button>
+        {result.trace && (
+          <button
+            className={activePanel === "trace" ? "is-active" : ""}
+            onClick={() => setActivePanel("trace")}
+            type="button"
+          >
+            Trace
+          </button>
+        )}
         {language === "sql" && (
           <button
             className={activePanel === "schema" ? "is-active" : ""}
@@ -253,6 +271,7 @@ export function InteractiveCodingPad({
         {activePanel === "schema" && (
           <pre>{schema || "No schema is available for this question."}</pre>
         )}
+        {activePanel === "trace" && result.trace && <ExecutionTracePanel trace={result.trace} />}
         {activePanel === "output" && (
           <div className={`coding-pad__result coding-pad__result--${result.status}`}>
             {result.status === "passed" ? (
