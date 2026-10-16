@@ -85,12 +85,12 @@ function clampText(value: string, maxLength: number) {
   return value.length <= maxLength ? value : value.slice(0, maxLength);
 }
 
-function clampBindings(bindings: TraceBinding[] | undefined, maxBindings: number) {
-  return (bindings ?? []).slice(0, maxBindings);
+function clampBindings(bindings: TraceBinding[], maxBindings: number) {
+  return bindings.slice(0, maxBindings);
 }
 
-function clampStack(stack: TraceFrame[] | undefined, maxFrames: number) {
-  return (stack ?? []).slice(-maxFrames);
+function clampStack(stack: TraceFrame[], maxFrames: number) {
+  return stack.slice(-maxFrames);
 }
 
 /**
@@ -109,19 +109,34 @@ export function normalizeExecutionTrace(trace: ExecutionTrace): ExecutionTrace {
 
   const sourceEvents = trace.events.slice(0, limits.maxEvents);
   let previousSeq = -1;
-  const events = sourceEvents.map((event) => {
+  const events: ExecutionTraceEvent[] = sourceEvents.map((event) => {
     if (!Number.isSafeInteger(event.seq) || event.seq <= previousSeq) {
       throw new Error("Execution trace sequence numbers must be strictly increasing");
     }
     previousSeq = event.seq;
-    return {
-      ...event,
-      bindings: clampBindings(event.bindings, limits.maxBindingsPerEvent),
-      stack: clampStack(event.stack, limits.maxFrames),
-      stdout: event.stdout ? clampText(event.stdout, limits.maxTextLength) : event.stdout,
-      stderr: event.stderr ? clampText(event.stderr, limits.maxTextLength) : event.stderr,
-      summary: event.summary ? clampText(event.summary, limits.maxTextLength) : event.summary,
+
+    const normalizedEvent: ExecutionTraceEvent = {
+      seq: event.seq,
+      kind: event.kind,
     };
+    if (event.location !== undefined) normalizedEvent.location = event.location;
+    if (event.frameId !== undefined) normalizedEvent.frameId = event.frameId;
+    if (event.bindings !== undefined) {
+      normalizedEvent.bindings = clampBindings(event.bindings, limits.maxBindingsPerEvent);
+    }
+    if (event.stack !== undefined) {
+      normalizedEvent.stack = clampStack(event.stack, limits.maxFrames);
+    }
+    if (event.stdout !== undefined) {
+      normalizedEvent.stdout = clampText(event.stdout, limits.maxTextLength);
+    }
+    if (event.stderr !== undefined) {
+      normalizedEvent.stderr = clampText(event.stderr, limits.maxTextLength);
+    }
+    if (event.summary !== undefined) {
+      normalizedEvent.summary = clampText(event.summary, limits.maxTextLength);
+    }
+    return normalizedEvent;
   });
 
   return {
@@ -143,17 +158,22 @@ export function replayExecutionTrace(trace: ExecutionTrace, index: number): Exec
 
   for (let cursor = 0; cursor <= clampedIndex; cursor += 1) {
     const event = normalized.events[cursor];
+    if (!event) break;
     for (const binding of event.bindings ?? []) {
       bindings[binding.name] = binding.value;
     }
-    if (event.stack) stack = event.stack;
-    if (event.stdout) stdout = clampText(`${stdout}${event.stdout}`, normalized.limits.maxTextLength);
-    if (event.stderr) stderr = clampText(`${stderr}${event.stderr}`, normalized.limits.maxTextLength);
+    if (event.stack !== undefined) stack = event.stack;
+    if (event.stdout !== undefined) {
+      stdout = clampText(`${stdout}${event.stdout}`, normalized.limits.maxTextLength);
+    }
+    if (event.stderr !== undefined) {
+      stderr = clampText(`${stderr}${event.stderr}`, normalized.limits.maxTextLength);
+    }
   }
 
   return {
     index: clampedIndex,
-    event: clampedIndex >= 0 ? normalized.events[clampedIndex] : null,
+    event: clampedIndex >= 0 ? (normalized.events[clampedIndex] ?? null) : null,
     bindings,
     stack,
     stdout,
