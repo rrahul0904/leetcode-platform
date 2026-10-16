@@ -1,0 +1,160 @@
+.panel {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 1px solid var(--border, #d9d9d9);
+  border-radius: 0.9rem;
+  background: var(--surface, #ffffff);
+}
+
+.header,
+.controls,
+.header > div,
+.summary,
+.summary > div,
+.inspectors,
+.stack li,
+.failure {
+  display: flex;
+  align-items: center;
+}
+
+.header {
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.header > div,
+.failure {
+  gap: 0.45rem;
+}
+
+.header span,
+.summary span,
+.stack span,
+.empty {
+  color: var(--muted-foreground, #666666);
+  font-size: 0.82rem;
+}
+
+.warning {
+  font-weight: 650;
+}
+
+.controls {
+  gap: 0.7rem;
+}
+
+.controls input {
+  flex: 1;
+}
+
+.controls button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.summary > div {
+  align-items: flex-start;
+  flex-direction: column;
+  padding: 0.7rem;
+  border: 1px solid var(--border, #e4e4e4);
+  border-radius: 0.7rem;
+}
+
+.eventSummary,
+.output pre {
+  margin: 0;
+}
+
+.inspectors {
+  align-items: stretch;
+  gap: 0.8rem;
+}
+
+.inspectors > section {
+  flex: 1;
+  min-width: 0;
+  padding: 0.8rem;
+  border: 1px solid var(--border, #e4e4e4);
+  border-radius: 0.7rem;
+}
+
+.inspectors h4,
+.output h4 {
+  margin: 0 0 0.6rem;
+}
+
+.inspectors dl,
+.stack {
+  margin: 0;
+  padding: 0;
+}
+
+.inspectors dl > div,
+.stack li {
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border, #eeeeee);
+}
+
+.inspectors dl > div:last-child,
+.stack li:last-child {
+  border-bottom: 0;
+}
+
+.inspectors dt,
+.stack strong {
+  font-weight: 650;
+}
+
+.inspectors dd {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.stack {
+  list-style: none;
+}
+
+.output {
+  padding: 0.8rem;
+  border: 1px solid var(--border, #e4e4e4);
+  border-radius: 0.7rem;
+}
+
+.output pre {
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.stderr,
+.failure {
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .summary {
+    grid-template-columns: 1fr;
+  }
+
+  .inspectors {
+    flex-direction: column;
+  }
+
+  .controls button {
+    font-size: 0;
+  }
+}
