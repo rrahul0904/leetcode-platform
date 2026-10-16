@@ -73,7 +73,7 @@ describe("execution trace replay", () => {
     const trace = fixture();
     trace.limits.maxEvents = 2;
     trace.limits.maxBindingsPerEvent = 1;
-    trace.events[0].bindings = [
+    trace.events[0]!.bindings = [
       { name: "a", value: { kind: "primitive", value: 1 } },
       { name: "b", value: { kind: "primitive", value: 2 } },
     ];
@@ -81,13 +81,13 @@ describe("execution trace replay", () => {
     const normalized = normalizeExecutionTrace(trace);
 
     expect(normalized.events).toHaveLength(2);
-    expect(normalized.events[0].bindings).toHaveLength(1);
+    expect(normalized.events[0]!.bindings).toHaveLength(1);
     expect(normalized.truncated).toBe(true);
   });
 
   it("rejects non-monotonic sequence numbers instead of replaying misleading state", () => {
     const trace = fixture();
-    trace.events[1].seq = 1;
+    trace.events[1]!.seq = 1;
 
     expect(() => normalizeExecutionTrace(trace)).toThrow(
       "Execution trace sequence numbers must be strictly increasing",
