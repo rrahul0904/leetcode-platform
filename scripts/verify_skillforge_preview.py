@@ -55,20 +55,31 @@ def verify_deployment_metadata(origin: str, sha: str, payload: dict) -> dict:
         raise PreviewVerificationError("Production cannot substitute for Preview evidence")
     if (payload.get("readyState") or payload.get("state")) != "READY":
         raise PreviewVerificationError("Deployment is not READY")
-    if meta.get("githubOrg") != "rrahul0904" or meta.get("githubRepo") != "leetcode-platform":
+    if (
+        meta.get("githubOrg") != "rrahul0904"
+        or meta.get("githubRepo") != "leetcode-platform"
+    ):
         raise PreviewVerificationError("Deployment is not sourced from the canonical repository")
     if deployed_sha != sha:
         raise PreviewVerificationError("Deployment Git commit differs from claimed SHA")
     if not isinstance(payload.get("id"), str) or not payload["id"].startswith("dpl_"):
         raise PreviewVerificationError("Vercel deployment ID is missing")
 
-    return {"deployment_id": payload["id"], "project_id": project_id,
-            "deployment_sha": deployed_sha, "url": f"https://{host}", "status": "READY"}
+    return {
+        "deployment_id": payload["id"],
+        "project_id": project_id,
+        "deployment_sha": deployed_sha,
+        "url": f"https://{host}",
+        "status": "READY",
+    }
 
 
 def fetch_metadata(host: str, token: str) -> dict:
     endpoint = f"https://api.vercel.com/v13/deployments/{quote(host, safe='')}?teamId={TEAM_ID}"
-    request = Request(endpoint, headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
+    request = Request(
+        endpoint,
+        headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+    )
     with urlopen(request, timeout=25) as response:
         payload = json.load(response)
     if not isinstance(payload, dict):
@@ -78,14 +89,19 @@ def fetch_metadata(host: str, token: str) -> dict:
 
 def main() -> int:
     if len(sys.argv) != 3:
-        print("Usage: verify_skillforge_preview.py <deployment-origin> <full-git-sha>", file=sys.stderr)
+        print(
+            "Usage: verify_skillforge_preview.py <deployment-origin> <full-git-sha>",
+            file=sys.stderr,
+        )
         return 2
     origin, sha = sys.argv[1:]
     try:
         host = parse_claimed_identity(origin, sha)
         token = os.environ.get("VERCEL_READ_TOKEN", "")
         if not token:
-            raise PreviewVerificationError("Vercel read token unavailable; exact-SHA probe is blocked")
+            raise PreviewVerificationError(
+                "Vercel read token unavailable; exact-SHA probe is blocked"
+            )
         proof = verify_deployment_metadata(origin, sha, fetch_metadata(host, token))
     except (PreviewVerificationError, HTTPError, URLError, TimeoutError, ValueError) as exc:
         print(f"Preview identity gate failed: {type(exc).__name__}: {exc}", file=sys.stderr)
