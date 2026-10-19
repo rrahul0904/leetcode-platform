@@ -50,7 +50,7 @@ def verify_deployment_metadata(origin: str, sha: str, payload: dict[str, Any]) -
     meta = payload.get("meta") or {}
     deployed_sha = meta.get("githubCommitSha")
 
-    if project_id != PROJECT_ID or payload.get("url") != host:
+    if not isinstance(project_id, str) or project_id != PROJECT_ID or payload.get("url") != host:
         raise PreviewVerificationError("Deployment belongs to a different project or URL")
     if payload.get("target") not in (None, "preview"):
         raise PreviewVerificationError("Production cannot substitute for Preview evidence")
@@ -61,13 +61,14 @@ def verify_deployment_metadata(origin: str, sha: str, payload: dict[str, Any]) -
         or meta.get("githubRepo") != "leetcode-platform"
     ):
         raise PreviewVerificationError("Deployment is not sourced from the canonical repository")
-    if deployed_sha != sha:
+    if not isinstance(deployed_sha, str) or deployed_sha != sha:
         raise PreviewVerificationError("Deployment Git commit differs from claimed SHA")
-    if not isinstance(payload.get("id"), str) or not payload["id"].startswith("dpl_"):
+    deployment_id = payload.get("id")
+    if not isinstance(deployment_id, str) or not deployment_id.startswith("dpl_"):
         raise PreviewVerificationError("Vercel deployment ID is missing")
 
     return {
-        "deployment_id": payload["id"],
+        "deployment_id": deployment_id,
         "project_id": project_id,
         "deployment_sha": deployed_sha,
         "url": f"https://{host}",
