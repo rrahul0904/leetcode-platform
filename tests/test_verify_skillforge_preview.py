@@ -85,7 +85,9 @@ def test_preview_workflow_verifies_vercel_metadata_before_smoke() -> None:
         / "workflows"
         / "vercel-preview-health.yml"
     ).read_text(encoding="utf-8")
-    verifier_call = 'python scripts/verify_skillforge_preview.py "$DEPLOYMENT_URL" "$DEPLOYMENT_SHA"'
+    verifier_call = (
+        'python scripts/verify_skillforge_preview.py "$DEPLOYMENT_URL" "$DEPLOYMENT_SHA"'
+    )
     assert "ref: main" in workflow
     assert "persist-credentials: false" in workflow
     assert "VERCEL_READ_TOKEN:" in workflow
