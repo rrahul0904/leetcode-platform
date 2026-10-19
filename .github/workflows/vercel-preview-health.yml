@@ -37,7 +37,14 @@ jobs:
       DEPLOYMENT_URL: ${{ inputs.deployment_url || github.event.deployment_status.environment_url }}
       DEPLOYMENT_SHA: ${{ inputs.deployment_sha || github.event.deployment.sha }}
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      VERCEL_READ_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
+      - name: Checkout trusted verifier from main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
       - name: Validate deployment identity and probe health
         shell: bash
         run: |
@@ -47,25 +54,11 @@ jobs:
             exit 1
           fi
 
-          python - "$DEPLOYMENT_URL" "$DEPLOYMENT_SHA" <<'PY'
-          import re
-          import sys
-          from urllib.parse import urlparse
-
-          url, sha = sys.argv[1:]
-          parsed = urlparse(url)
-          host = (parsed.hostname or "").lower()
-          if parsed.scheme != "https" or not host.startswith("skillforge-platform-"):
-              raise SystemExit("Refusing to probe a URL outside the skillforge-platform project.")
-          if not host.endswith("-rrahul0904-5013s-projects.vercel.app"):
-              raise SystemExit("Refusing to probe a deployment outside the configured Vercel team.")
-          if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
-              raise SystemExit("Provide a deployment origin without a path, query, or fragment.")
-          if not re.fullmatch(r"[0-9a-f]{40}", sha):
-              raise SystemExit("Deployment SHA must be a full lowercase Git commit SHA.")
-          print(f"Deployment: {host}")
-          print(f"Git SHA: {sha}")
-          PY
+          if [ -z "${VERCEL_READ_TOKEN:-}" ]; then
+            echo "Vercel read token is unavailable; cannot prove deployment commit."
+            exit 1
+          fi
+          python scripts/verify_skillforge_preview.py "$DEPLOYMENT_URL" "$DEPLOYMENT_SHA"
 
           base="${DEPLOYMENT_URL%/}"
           failures=0
