@@ -10,6 +10,7 @@ import json
 import os
 import re
 import sys
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit
 from urllib.request import Request, urlopen
@@ -42,7 +43,7 @@ def parse_claimed_identity(origin: str, sha: str) -> str:
     return host
 
 
-def verify_deployment_metadata(origin: str, sha: str, payload: dict) -> dict:
+def verify_deployment_metadata(origin: str, sha: str, payload: dict[str, Any]) -> dict[str, str]:
     host = parse_claimed_identity(origin, sha)
     project = payload.get("project") or {}
     project_id = payload.get("projectId") or project.get("id")
@@ -74,7 +75,7 @@ def verify_deployment_metadata(origin: str, sha: str, payload: dict) -> dict:
     }
 
 
-def fetch_metadata(host: str, token: str) -> dict:
+def fetch_metadata(host: str, token: str) -> dict[str, Any]:
     endpoint = f"https://api.vercel.com/v13/deployments/{quote(host, safe='')}?teamId={TEAM_ID}"
     request = Request(
         endpoint,
