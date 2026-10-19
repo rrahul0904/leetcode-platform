@@ -10,7 +10,7 @@ import json
 import os
 import re
 import sys
-from typing import Any
+from typing import Any, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit
 from urllib.request import Request, urlopen
@@ -82,10 +82,10 @@ def fetch_metadata(host: str, token: str) -> dict[str, Any]:
         headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
     )
     with urlopen(request, timeout=25) as response:
-        payload = json.load(response)
+        payload: object = json.load(response)
     if not isinstance(payload, dict):
         raise PreviewVerificationError("Invalid Vercel deployment metadata")
-    return payload
+    return cast(dict[str, Any], payload)
 
 
 def main() -> int:
