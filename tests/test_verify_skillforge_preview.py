@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from verify_skillforge_preview import (  # noqa: E402
+from verify_skillforge_preview import (
     PreviewVerificationError,
     parse_claimed_identity,
     verify_deployment_metadata,
