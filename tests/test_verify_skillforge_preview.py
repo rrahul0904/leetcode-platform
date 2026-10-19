@@ -76,3 +76,18 @@ def test_accepts_project_nested_id() -> None:
     del payload["projectId"]
     payload["project"] = {"id": "prj_cKifcPIyHvvuL6EZAgvUC8mpbQEq"}
     assert verify_deployment_metadata(ORIGIN, SHA, payload)["status"] == "READY"
+
+
+def test_preview_workflow_verifies_vercel_metadata_before_smoke() -> None:
+    workflow = (
+        Path(__file__).resolve().parents[1]
+        / ".github"
+        / "workflows"
+        / "vercel-preview-health.yml"
+    ).read_text(encoding="utf-8")
+    verifier_call = 'python scripts/verify_skillforge_preview.py "$DEPLOYMENT_URL" "$DEPLOYMENT_SHA"'
+    assert "ref: main" in workflow
+    assert "persist-credentials: false" in workflow
+    assert "VERCEL_READ_TOKEN:" in workflow
+    assert verifier_call in workflow
+    assert workflow.index(verifier_call) < workflow.index("for path in / /sign-in")
