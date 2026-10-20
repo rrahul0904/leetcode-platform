@@ -1,0 +1,30 @@
+{
+  "id": "rea-paper-to-code-attention-001",
+  "source_origin": "independently_authored_clean_room",
+  "status": "research_pilot_unpublished",
+  "paper_reference": {
+    "title": "Attention Is All You Need",
+    "arxiv": "1706.03762",
+    "year": 2017,
+    "selected_mechanism": "numerically stable masked row-wise attention weights",
+    "copyright_note": "Bibliographic reference only; paper PDF and figures are not bundled"
+  },
+  "implementation_language": "python3_standard_library",
+  "resources": {
+    "gpu_required": false,
+    "network_required": false
+  },
+  "reference_validation": {
+    "command": "python3 -m unittest discover -s tests -v",
+    "local_tests_passed": 7,
+    "run_date": "2026-10-20",
+    "candidate_execution_approved": false
+  },
+  "review": {
+    "technical": "pending",
+    "editorial": "pending",
+    "rights": "pending",
+    "sandbox": "pending"
+  },
+  "publication_authorized": false
+}
