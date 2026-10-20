@@ -80,6 +80,12 @@ export function LearningPaths() {
                   <MessageSquareText size={15} />
                   Run a mock interview
                 </Link>
+                {path.id === "data-engineering-interviews" && (
+                  <Link href="/data-engineering-lab">
+                    <BookOpen size={15} />
+                    Explore medallion lab
+                  </Link>
+                )}
               </div>
             </article>
           );
