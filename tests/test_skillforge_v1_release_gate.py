@@ -10,7 +10,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 release_gate = SimpleNamespace(
-    **run_path(str(ROOT / "scripts" / "skillforge_v1_release_gate.py"), run_name="release_gate_test")
+    **run_path(
+        str(ROOT / "scripts" / "skillforge_v1_release_gate.py"),
+        run_name="release_gate_test",
+    )
 )
 BASELINE = ROOT / "docs/release/skillforge_v1_gate_status.json"
 SHA = "a" * 40
