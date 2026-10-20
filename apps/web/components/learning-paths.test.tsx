@@ -16,5 +16,7 @@ describe("LearningPaths", () => {
     expect(
       screen.getAllByRole("link", { name: /run a mock interview/i })[0],
     ).toHaveAttribute("href", "/mock-interviews");
+    expect(screen.getByRole("link", { name: /explore medallion lab/i }))
+      .toHaveAttribute("href", "/data-engineering-lab");
   });
 });
