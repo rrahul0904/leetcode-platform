@@ -33,6 +33,22 @@ jobs:
       - name: Validate GitHub Actions workflows
         run: actionlint -color
 
+  release-evidence:
+    name: SkillForge V1 evidence-contract validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Validate required release gates and evidence structure
+        run: python scripts/skillforge_v1_release_gate.py --validate
+      - name: Report release status without inventing certification
+        run: python scripts/skillforge_v1_release_gate.py --report
+
   python:
     name: Python lint, types, tests, images, supply chain, and database integration
     runs-on: ubuntu-latest
