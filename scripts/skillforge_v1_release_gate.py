@@ -10,7 +10,7 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 from urllib.parse import urlsplit
@@ -97,7 +97,7 @@ def require_utc(value: object, location: str) -> None:
         parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
     except ValueError as exc:
         raise ContractError(f"{location} must be an ISO-8601 timestamp") from exc
-    if not raw.endswith("Z") or parsed.tzinfo != timezone.utc:
+    if not raw.endswith("Z") or parsed.tzinfo != UTC:
         raise ContractError(f"{location} must be explicit UTC (Z)")
 
 
