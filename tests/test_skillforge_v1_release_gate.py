@@ -6,15 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.skillforge_v1_release_gate import (
-    ContractError,
-    GATES,
-    VERCEL_PROJECT_ID,
-    main,
-    release_progress,
-    validate_document,
-)
-
+from scripts import skillforge_v1_release_gate as release_gate
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "docs/release/skillforge_v1_gate_status.json"
 SHA = "a" * 40
@@ -38,32 +30,32 @@ def verified(sha: str = SHA, *, deployment: bool = False) -> dict:
 
 
 def test_baseline_valid_and_truthfully_blocked() -> None:
-    doc = validate_document(baseline())
-    approved, blocked = release_progress(doc)
+    doc = release_gate.validate_document(baseline())
+    approved, blocked = release_gate.release_progress(doc)
     assert approved == []
-    assert blocked == [name for name, _ in GATES]
+    assert blocked == [name for name, _ in release_gate.GATES]
     assert doc["release_sha"] is None
 
 
 def test_all_gates_can_be_documented_at_one_sha() -> None:
     doc = baseline()
     doc["release_sha"] = SHA
-    for name, _ in GATES:
+    for name, _ in release_gate.GATES:
         doc["gates"][name] = verified(
             deployment=name in {
                 "preview_identity", "preview_http", "staged_production",
                 "production_postpromotion",
             }
         )
-    result = validate_document(doc)
-    assert release_progress(result)[1] == []
+    result = release_gate.validate_document(doc)
+    assert release_gate.release_progress(result)[1] == []
 
 
 def test_first_gate_may_be_verified_while_rest_remains_blocked() -> None:
     doc = baseline()
     doc["release_sha"] = SHA
     doc["gates"]["source_ci"] = verified()
-    assert release_progress(validate_document(doc))[0] == ["source_ci"]
+    assert release_gate.release_progress(release_gate.validate_document(doc))[0] == ["source_ci"]
 
 
 @pytest.mark.parametrize("mutator", [
@@ -79,31 +71,31 @@ def test_first_gate_may_be_verified_while_rest_remains_blocked() -> None:
 def test_rejects_invalid_contract(mutator) -> None:
     doc = baseline()
     mutator(doc)
-    with pytest.raises(ContractError):
-        validate_document(doc)
+    with pytest.raises(release_gate.ContractError):
+        release_gate.validate_document(doc)
 
 
 def test_cannot_skip_blocked_dependency() -> None:
     doc = baseline()
     doc["release_sha"] = SHA
     doc["gates"]["preview_identity"] = verified(deployment=True)
-    with pytest.raises(ContractError, match="earlier dependency"):
-        validate_document(doc)
+    with pytest.raises(release_gate.ContractError, match="earlier dependency"):
+        release_gate.validate_document(doc)
 
 
 def test_verified_gate_must_have_release_sha() -> None:
     doc = baseline()
     doc["gates"]["source_ci"] = verified()
-    with pytest.raises(ContractError, match="requires release_sha"):
-        validate_document(doc)
+    with pytest.raises(release_gate.ContractError, match="requires release_sha"):
+        release_gate.validate_document(doc)
 
 
 def test_rejects_wrong_evidence_commit() -> None:
     doc = baseline()
     doc["release_sha"] = SHA
     doc["gates"]["source_ci"] = verified("b" * 40)
-    with pytest.raises(ContractError, match="does not match"):
-        validate_document(doc)
+    with pytest.raises(release_gate.ContractError, match="does not match"):
+        release_gate.validate_document(doc)
 
 
 @pytest.mark.parametrize("bad_url", [
@@ -118,8 +110,8 @@ def test_rejects_untrusted_or_non_run_evidence(bad_url: str) -> None:
     doc["release_sha"] = SHA
     doc["gates"]["source_ci"] = verified()
     doc["gates"]["source_ci"]["evidence"]["run_url"] = bad_url
-    with pytest.raises(ContractError, match="GitHub Actions"):
-        validate_document(doc)
+    with pytest.raises(release_gate.ContractError, match="GitHub Actions"):
+        release_gate.validate_document(doc)
 
 
 def test_deployment_gates_require_exact_deployment_identifier() -> None:
@@ -127,8 +119,8 @@ def test_deployment_gates_require_exact_deployment_identifier() -> None:
     doc["release_sha"] = SHA
     doc["gates"]["source_ci"] = verified()
     doc["gates"]["preview_identity"] = verified()
-    with pytest.raises(ContractError, match="evidence keys"):
-        validate_document(doc)
+    with pytest.raises(release_gate.ContractError, match="evidence keys"):
+        release_gate.validate_document(doc)
 
 
 def test_utc_receipt_is_required() -> None:
@@ -136,15 +128,15 @@ def test_utc_receipt_is_required() -> None:
     doc["release_sha"] = SHA
     doc["gates"]["source_ci"] = verified()
     doc["gates"]["source_ci"]["evidence"]["observed_at_utc"] = "2026-10-19"
-    with pytest.raises(ContractError, match="UTC"):
-        validate_document(doc)
+    with pytest.raises(release_gate.ContractError, match="UTC"):
+        release_gate.validate_document(doc)
 
 
 def test_baseline_cannot_be_claimed_release_ready(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["--file", str(BASELINE), "--validate"]) == 0
-    assert main(["--file", str(BASELINE), "--report"]) == 0
-    assert main(["--file", str(BASELINE), "--assert-pre-release"]) == 1
-    assert main(["--file", str(BASELINE), "--assert-complete"]) == 1
+    assert release_gate.main(["--file", str(BASELINE), "--validate"]) == 0
+    assert release_gate.main(["--file", str(BASELINE), "--report"]) == 0
+    assert release_gate.main(["--file", str(BASELINE), "--assert-pre-release"]) == 1
+    assert release_gate.main(["--file", str(BASELINE), "--assert-complete"]) == 1
     captured = capsys.readouterr()
     assert "RELEASE_BLOCKED" in captured.err
     assert '"state": "BLOCKED"' in captured.out
@@ -152,8 +144,8 @@ def test_baseline_cannot_be_claimed_release_ready(capsys: pytest.CaptureFixture[
 
 def test_wrong_canonical_project_will_never_pass() -> None:
     doc = baseline()
-    assert doc["vercel_project_id"] == VERCEL_PROJECT_ID
+    assert doc["vercel_project_id"] == release_gate.VERCEL_PROJECT_ID
     other = copy.deepcopy(doc)
     other["vercel_project_id"] = "prj_duplicate"
-    with pytest.raises(ContractError):
-        validate_document(other)
+    with pytest.raises(release_gate.ContractError):
+        release_gate.validate_document(other)
