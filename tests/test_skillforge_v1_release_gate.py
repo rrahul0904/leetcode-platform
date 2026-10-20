@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from scripts import skillforge_v1_release_gate as release_gate
 
 
