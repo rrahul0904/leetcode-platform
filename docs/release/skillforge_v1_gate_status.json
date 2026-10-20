@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "repository": "rrahul0904/leetcode-platform",
+  "vercel_project_id": "prj_cKifcPIyHvvuL6EZAgvUC8mpbQEq",
+  "release_sha": null,
+  "gates": {
+    "source_ci": {
+      "status": "blocked",
+      "reason": "PR #51 reconstruction has not merged into an exact production candidate; repository gates alone are not a release certificate."
+    },
+    "preview_identity": {
+      "status": "blocked",
+      "reason": "Build canonical skillforge-platform Preview from exact #51 source after Vercel account build-rate limit; #54 identity guard is CI-green, not merged."
+    },
+    "preview_http": {
+      "status": "blocked",
+      "reason": "Prove live /, /sign-in, /api/backend/livez and /api/backend/readyz HTTP 200 on the same Vercel deployment and inspect runtime logs."
+    },
+    "hosted_clerk_journey": {
+      "status": "blocked",
+      "reason": "Create and test two real Preview user sessions; verify sign-up, login, logout, re-login and identity reconciliation."
+    },
+    "two_account_rls": {
+      "status": "blocked",
+      "reason": "Prove deployed PostgreSQL identity, Alembic head and forced RLS cross-account denials without exposing personal data."
+    },
+    "reviewed_content_catalog": {
+      "status": "blocked",
+      "reason": "Check/publish approved first-party launch packages and verify candidate catalog excludes unpublished/unauthorized content."
+    },
+    "python_run_submit": {
+      "status": "blocked",
+      "reason": "Execute and submit a real published Python question in hosted Vercel Sandbox, server-score and persist the attempt."
+    },
+    "sql_run_submit": {
+      "status": "blocked",
+      "reason": "Execute and submit real SQL in isolated ephemeral database and verify persistent, authoritative results."
+    },
+    "adversarial_execution": {
+      "status": "blocked",
+      "reason": "Run hosted timeout, memory, filesystem, network, cancellation, replay and cross-tenant isolation cases."
+    },
+    "candidate_browser_uat": {
+      "status": "blocked",
+      "reason": "Complete full account-to-progress desktop/browser flow with persistent evidence and zero blocking console failures."
+    },
+    "admin_browser_uat": {
+      "status": "blocked",
+      "reason": "Review, publish and unpublish content as admin; verify candidate role restrictions and no hidden solution leakage."
+    },
+    "mobile_accessibility": {
+      "status": "blocked",
+      "reason": "Verify mobile viewport, keyboard operation, accessibility, empty/error/retry experiences on deployed SHA."
+    },
+    "backup_restore": {
+      "status": "blocked",
+      "reason": "Collect current database snapshot identification and complete recoverable backup/restore exercise with reviewer."
+    },
+    "staged_production": {
+      "status": "blocked",
+      "reason": "Configure customer-owned hostname/live Clerk/prod DB/observability; stage exact merge SHA without assigning domain and certify staged build."
+    },
+    "production_postpromotion": {
+      "status": "blocked",
+      "reason": "Obtain explicit promotion approval, promote tested build, verify customer domain, workflows, errors and rollback proof."
+    }
+  }
+}
