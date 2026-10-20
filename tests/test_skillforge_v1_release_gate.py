@@ -3,12 +3,15 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
+from runpy import run_path
+from types import SimpleNamespace
 
 import pytest
-from scripts import skillforge_v1_release_gate as release_gate
-
 
 ROOT = Path(__file__).resolve().parents[1]
+release_gate = SimpleNamespace(
+    **run_path(str(ROOT / "scripts" / "skillforge_v1_release_gate.py"), run_name="release_gate_test")
+)
 BASELINE = ROOT / "docs/release/skillforge_v1_gate_status.json"
 SHA = "a" * 40
 RUN = "https://github.com/rrahul0904/leetcode-platform/actions/runs/39309131977"
