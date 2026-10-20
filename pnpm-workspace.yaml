@@ -9,6 +9,10 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - '@tanstack/query-core@5.101.3'
   - '@tanstack/react-query@5.101.3'
+  - 'compression@1.8.2'
+  - 'sharp@0.35.5'
+  - 'shell-quote@1.11.0'
+  - 'source-map-js@1.2.2'
 
 onlyBuiltDependencies:
   - "sharp"

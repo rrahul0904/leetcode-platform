@@ -151,6 +151,7 @@ def dependency_check(name: str, url: str) -> ReadinessCheck:
 def readiness_report(engine: Engine, settings: Settings) -> ReadinessResponse:
     checks, published_content_count = database_checks(engine)
     execution_adapter = settings.execution_adapter.upper()
+    hosted = settings.environment.strip().lower() in {"staging", "production"}
     if execution_adapter != "VERCEL_SANDBOX":
         checks.append(dependency_check("valkey", settings.valkey_url))
     checks.append(
@@ -163,8 +164,17 @@ def readiness_report(engine: Engine, settings: Settings) -> ReadinessResponse:
     checks.append(
         ReadinessCheck(
             name="execution_adapter",
-            status="ready" if execution_adapter in EXECUTION_ADAPTERS else "not_ready",
-            detail=execution_adapter,
+            status=(
+                "ready"
+                if execution_adapter in EXECUTION_ADAPTERS
+                and not (hosted and execution_adapter == "KUBERNETES_JOB")
+                else "not_ready"
+            ),
+            detail=(
+                "KUBERNETES_JOB is disabled until its authoritative state path is certified"
+                if hosted and execution_adapter == "KUBERNETES_JOB"
+                else execution_adapter
+            ),
         )
     )
     ai_adapter = settings.ai_adapter.upper()

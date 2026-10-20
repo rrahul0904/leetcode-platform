@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from typing import cast
 from uuid import uuid4
 
 import pytest
@@ -12,10 +13,41 @@ from rigor_api.schemas import (
     ExecutionState,
     MockInterviewState,
     PracticeSessionState,
+    ReadinessCheck,
     SimulationState,
 )
-from sqlalchemy import create_engine, text
+from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.engine import make_url
+
+
+def test_hosted_kubernetes_adapter_is_not_ready_until_state_path_is_certified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from rigor_api import database_health
+
+    def fake_database_checks(_engine: Engine) -> tuple[list[ReadinessCheck], int]:
+        return [], 1
+
+    monkeypatch.setattr(database_health, "database_checks", fake_database_checks)
+    settings = Settings(
+        environment="production",
+        execution_adapter="KUBERNETES_JOB",
+        database_url="postgresql+psycopg://rigor:secret@db.internal:5432/rigor",
+        operational_database_url="postgresql+psycopg://rigor:secret@db.internal:5432/rigor",
+        valkey_url="rediss://cache.internal:6379/0",
+        local_oidc_enabled=False,
+        oidc_issuer="https://identity.example.com",
+        oidc_jwks_url="https://identity.example.com/.well-known/jwks.json",
+        s3_upload_bucket="rigor-private",
+        sqs_execution_queue_url="https://sqs.us-east-1.amazonaws.com/123456789012/rigor-execution",
+    )
+
+    report = readiness_report(engine=cast(Engine, object()), settings=settings)
+    checks = {check.name: check for check in report.checks}
+
+    assert report.status == "not_ready"
+    assert checks["execution_adapter"].status == "not_ready"
+    assert "authoritative state path is certified" in checks["execution_adapter"].detail
 
 
 def test_shared_lifecycle_values_are_stable() -> None:

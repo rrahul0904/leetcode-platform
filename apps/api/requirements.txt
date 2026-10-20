@@ -1,0 +1,17 @@
+# Vercel Python runtime dependencies.
+# Keep these aligned with apps/api/pyproject.toml; the local schema package is
+# installed from the monorepo checkout because it is a uv workspace dependency.
+../../packages/question-schema
+alembic==1.18.5
+cryptography==50.0.1
+fastapi==0.139.2
+opentelemetry-sdk==1.44.0
+pgvector==0.5.0
+psycopg[binary]==3.3.4
+pyjwt[crypto]==2.14.0
+pydantic-settings==2.14.2
+sqlalchemy==2.0.51
+structlog==26.1.0
+temporalio==1.30.0
+uvicorn==0.51.0
+python-multipart==0.0.30
