@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 
 from scripts import skillforge_v1_release_gate as release_gate
+
+
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "docs/release/skillforge_v1_gate_status.json"
 SHA = "a" * 40
