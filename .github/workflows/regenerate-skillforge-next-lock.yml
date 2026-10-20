@@ -1,0 +1,58 @@
+name: Temporary SkillForge Next.js lock regeneration
+
+on:
+  push:
+    branches:
+      - fix/skillforge-nextjs-cve-20261019
+    paths:
+      - apps/web/package.json
+      - .github/workflows/regenerate-skillforge-next-lock.yml
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    if: github.repository == 'rrahul0904/leetcode-platform' && github.ref == 'refs/heads/fix/skillforge-nextjs-cve-20261019'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout isolated security branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: fix/skillforge-nextjs-cve-20261019
+      - name: Use pinned Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.18.0'
+      - name: Use pinned pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '11.10.0'
+          run_install: false
+      - name: Resolve registry metadata without lifecycle scripts
+        run: pnpm install --lockfile-only --ignore-scripts --no-frozen-lockfile
+      - name: Validate resulting lockfile version contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e 'const p=require("./apps/web/package.json");if(p.dependencies.next!=="16.3.8"||p.devDependencies["eslint-config-next"]!=="16.3.8") process.exit(1)'
+          grep -q "next@16.3.8" pnpm-lock.yaml
+          grep -q "eslint-config-next@16.3.8" pnpm-lock.yaml
+          if grep -q "next@16.3.6" pnpm-lock.yaml; then
+            echo "Vulnerable Next.js peer snapshots still exist."
+            exit 1
+          fi
+      - name: Commit generated lockfile to security branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -- pnpm-lock.yaml
+          if git diff --cached --quiet; then
+            echo "No lockfile changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(security): regenerate pnpm lock for patched Next.js"
+          git push origin HEAD:refs/heads/fix/skillforge-nextjs-cve-20261019
