@@ -1,0 +1,80 @@
+name: Vercel Preview health
+
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      deployment_url:
+        description: Exact skillforge-platform Preview deployment URL
+        required: true
+        type: string
+      deployment_sha:
+        description: Full Git commit SHA deployed at that URL
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vercel-preview-health-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Probe exact protected Preview
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Preview – skillforge-platform' &&
+       github.event.deployment.creator.login != 'github-actions[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: Preview – skillforge-platform
+      url: ${{ inputs.deployment_url || github.event.deployment_status.environment_url }}
+    env:
+      DEPLOYMENT_URL: ${{ inputs.deployment_url || github.event.deployment_status.environment_url }}
+      DEPLOYMENT_SHA: ${{ inputs.deployment_sha || github.event.deployment.sha }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      VERCEL_READ_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Checkout trusted verifier from main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Validate deployment identity and probe health
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$VERCEL_AUTOMATION_BYPASS_SECRET" ]; then
+            echo "The Preview environment bypass secret is unavailable."
+            exit 1
+          fi
+
+          if [ -z "${VERCEL_READ_TOKEN:-}" ]; then
+            echo "Vercel read token is unavailable; cannot prove deployment commit."
+            exit 1
+          fi
+          python scripts/verify_skillforge_preview.py "$DEPLOYMENT_URL" "$DEPLOYMENT_SHA"
+
+          base="${DEPLOYMENT_URL%/}"
+          failures=0
+          for path in / /sign-in /api/backend/livez /api/backend/readyz; do
+            code="$(curl --silent --show-error --max-time 30 --output /dev/null \
+              --write-out '%{http_code}' \
+              --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+              "$base$path")" || code=000
+            echo "$path -> HTTP $code"
+            if [ "$code" != "200" ]; then
+              failures=1
+            fi
+          done
+
+          if [ "$failures" -ne 0 ]; then
+            echo "At least one Preview UI or backend health probe failed."
+            exit 1
+          fi
+          echo "All exact-deployment Preview UI and backend health probes passed."
