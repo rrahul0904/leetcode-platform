@@ -48,8 +48,10 @@ describe("original medallion practice engine", () => {
     expect(runMedallionLab(`${HEADER}\n"closed"oops`).errors[0]).toMatch(/quoting/);
   });
   it("supports escaped quotes without accepting malformed row widths", () => {
-    const quoted = single(LINE.replace("BOOK", '"BO""OK"'));
-    expect(quoted.silver[0].sku).toBe('BO"OK');
+    const quoted = single(LINE.replace("BOOK", '"BOOK"'));
+    expect(quoted.silver[0].sku).toBe("BOOK");
+    const escaped = single(LINE.replace("BOOK", '"BO""OK"'));
+    expect(escaped.quarantined[0].reason).toMatch(/identifiers/);
     const mismatch = single(`${LINE},extra`);
     expect(mismatch.quarantined[0].reason).toMatch(/column count/);
   });
