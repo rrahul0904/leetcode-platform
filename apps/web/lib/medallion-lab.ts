@@ -122,7 +122,7 @@ export function runMedallionLab(source: string): PipelineResult {
     report.errors.push("A header and at least one data row are required");
     return report;
   }
-  const header = rows[0].map((cell) => cell.trim());
+  const header = rows[0]!.map((cell) => cell.trim());
   if (
     header.length !== COLUMNS.length ||
     new Set(header).size !== COLUMNS.length ||

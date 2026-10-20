@@ -32,13 +32,13 @@ describe("original medallion practice engine", () => {
     const mismatch = runMedallionLab(`${HEADER}\n${LINE}\n${LINE.replace(",2,", ",3,")}`);
     expect(mismatch.duplicates).toBe(0);
     expect(mismatch.silver).toHaveLength(1);
-    expect(mismatch.quarantined[0].reason).toMatch(/Conflicting/);
+    expect(mismatch.quarantined[0]?.reason).toMatch(/Conflicting/);
   });
   it("rejects invalid timestamps, quantities, prices and IDs", () => {
-    expect(single(LINE.replace("2026-10-01", "2026-02-30")).quarantined[0].reason).toMatch(/timestamp/);
-    expect(single(LINE.replace(",2,12", ",0,12")).quarantined[0].reason).toMatch(/Quantity/);
-    expect(single(LINE.replace("12.50", "12.999")).quarantined[0].reason).toMatch(/Unit price/);
-    expect(single(LINE.replace("a1,", "bad id,")).quarantined[0].reason).toMatch(/identifiers/);
+    expect(single(LINE.replace("2026-10-01", "2026-02-30")).quarantined[0]?.reason).toMatch(/timestamp/);
+    expect(single(LINE.replace(",2,12", ",0,12")).quarantined[0]?.reason).toMatch(/Quantity/);
+    expect(single(LINE.replace("12.50", "12.999")).quarantined[0]?.reason).toMatch(/Unit price/);
+    expect(single(LINE.replace("a1,", "bad id,")).quarantined[0]?.reason).toMatch(/identifiers/);
   });
   it("rejects structurally invalid CSV, empty inputs, and unsupported headers", () => {
     expect(runMedallionLab("").errors[0]).toMatch(/header/);
@@ -49,11 +49,11 @@ describe("original medallion practice engine", () => {
   });
   it("supports escaped quotes without accepting malformed row widths", () => {
     const quoted = single(LINE.replace("BOOK", '"BOOK"'));
-    expect(quoted.silver[0].sku).toBe("BOOK");
+    expect(quoted.silver[0]?.sku).toBe("BOOK");
     const escaped = single(LINE.replace("BOOK", '"BO""OK"'));
-    expect(escaped.quarantined[0].reason).toMatch(/identifiers/);
+    expect(escaped.quarantined[0]?.reason).toMatch(/identifiers/);
     const mismatch = single(`${LINE},extra`);
-    expect(mismatch.quarantined[0].reason).toMatch(/column count/);
+    expect(mismatch.quarantined[0]?.reason).toMatch(/column count/);
   });
   it("applies bounded resource limits", () => {
     expect(runMedallionLab("x".repeat(100_001)).errors[0]).toMatch(/bytes/);
