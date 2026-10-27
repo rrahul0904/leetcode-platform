@@ -31,6 +31,28 @@ jobs:
             --build-arg NEXT_PUBLIC_RIGOR_API_URL=/api/backend \
             -f infra/docker/web.Dockerfile -t skillforge-selfhosted-web:verify .
 
+      - name: Boot nonroot production runtime and verify public routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach --rm --name skillforge-web-smoke \
+            --publish 127.0.0.1:3001:3001 \
+            --env RIGOR_BACKEND_ORIGIN=https://api.example.invalid \
+            skillforge-selfhosted-web:verify
+          trap 'docker logs skillforge-web-smoke || true; docker rm --force skillforge-web-smoke || true' EXIT
+          ready=0
+          for iteration in $(seq 1 45); do
+            if curl --fail --silent --show-error --max-time 3 \
+              http://127.0.0.1:3001/ >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1
+          curl --fail --silent --show-error --max-time 10 \
+            http://127.0.0.1:3001/sign-in >/dev/null
+
       - name: Scan immutable image for HIGH and CRITICAL findings
         uses: aquasecurity/trivy-action@v0.36.0
         with:
