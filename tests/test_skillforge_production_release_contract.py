@@ -181,32 +181,33 @@ def test_ci_concurrency_separates_push_and_pull_request_runs() -> None:
 
 
 def test_release_workflow_targets_existing_project_and_never_skillsforge_ai() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
+    web = (ROOT / ".github/workflows/deploy-ecs-web.yml").read_text(encoding="utf-8")
+    legacy = (ROOT / ".github/workflows/deploy-vercel-skillforge.yml").read_text(
         encoding="utf-8"
     )
-
-    assert "VERCEL_PROJECT_ID: prj_fnbuYcKQeKrEq5Sax2uWdTg2SHqT" in workflow
-    assert "VERCEL_PROJECT_NAME: skillforge-interactive-demo" in workflow
-    assert "skillsforge-ai" not in workflow
+    assert "ECS_WEB_SERVICE" in web
+    assert "ECS_CLUSTER" in web
+    assert "ECR_WEB_REPOSITORY" in web
+    assert "skillforge-ecs-web-" in web
+    assert "VERCEL_TOKEN" not in web
+    assert "VERCEL_PROJECT_ID" not in web
+    assert "vercel deploy" not in legacy
 
 
 def test_documented_production_migration_head_matches_release_contract() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
+    runtime = (ROOT / "apps/api/src/rigor_api/database_health.py").read_text(
         encoding="utf-8"
     )
-    production_stack = (ROOT / "docs" / "SKILLFORGE_PRODUCTION_STACK.md").read_text(
-        encoding="utf-8"
-    )
-    aws_deployment = (ROOT / "docs" / "skillforge-aws-deployment.md").read_text(
-        encoding="utf-8"
-    )
-
-    expected_head = "20260918_0021"
-    assert f"EXPECTED_ALEMBIC_HEAD: {expected_head}" in workflow
-    assert expected_head in production_stack
-    assert expected_head in aws_deployment
-    assert "20260826_0017" not in production_stack
-    assert "20260826_0017" not in aws_deployment
+    ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    preflight = (
+        ROOT / ".github/workflows/skillforge-production-migration-preflight.yml"
+    ).read_text(encoding="utf-8")
+    head = "20261027_0024"
+    assert f'EXPECTED_MIGRATION_VERSION = "{head}"' in runtime
+    assert head in ci
+    assert head in preflight
+    assert "employer_ai_interview_sessions" in preflight
+    assert "employer_ai_interview_messages" in preflight
 
 
 def test_production_web_defaults_never_point_to_loopback() -> None:
@@ -232,36 +233,32 @@ def test_launch_week_control_record_keeps_external_release_gates_visible() -> No
 
 
 def test_production_release_rejects_test_mode_identity_and_loopback_database() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
-        encoding="utf-8"
-    )
-
-    assert 'pk_live_*)' in workflow
-    assert 'sk_live_*)' in workflow
-    assert "Production requires a Clerk live publishable key" in workflow
-    assert "Production requires a Clerk live secret key" in workflow
-    assert "Refusing production release with localhost/loopback database" in workflow
-    assert 'prefix="pk_live_"' in workflow
+    web = (ROOT / ".github/workflows/deploy-ecs-web.yml").read_text(encoding="utf-8")
+    runtime = (ROOT / "apps/api/src/rigor_api/config.py").read_text(encoding="utf-8")
+    assert "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" in web
+    assert "--build-arg NEXT_PUBLIC_RIGOR_AUTH_MODE=clerk" in web
+    assert "pk_live_" in web
+    assert "RIGOR_BACKEND_ORIGIN" in web
+    assert "production" in runtime
+    assert "Local OIDC authentication is forbidden in staging and production" in runtime
+    assert "A production OIDC issuer and JWKS URL are required." in runtime
 
 
 def test_production_csp_uses_verified_clerk_issuer() -> None:
-    next_config = (ROOT / "apps" / "web" / "next.config.ts").read_text(
-        encoding="utf-8"
-    )
-    release_workflow = (
-        ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml"
-    ).read_text(encoding="utf-8")
-
-    assert "RIGOR_CLERK_ISSUER" in next_config
-    assert "const clerkOrigin = clerkFrontendOrigin(configuredClerkIssuer)" in next_config
-    assert "${clerkOrigin}" in next_config
-    assert 'set_env RIGOR_CLERK_ISSUER "$clerk_issuer"' in release_workflow
+    config = (ROOT / "apps/web/next.config.ts").read_text(encoding="utf-8")
+    web = (ROOT / ".github/workflows/deploy-ecs-web.yml").read_text(encoding="utf-8")
+    assert "RIGOR_CLERK_ISSUER" in config
+    assert "const clerkOrigin = clerkFrontendOrigin(configuredClerkIssuer)" in config
+    assert "clerkOrigin" in config
+    assert "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" in web
+    assert "WEB_PROBE_URL" in web
 
 
 def test_production_cors_allows_only_customer_owned_browser_origin() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
-        encoding="utf-8"
-    )
+    web = (ROOT / ".github/workflows/deploy-ecs-web.yml").read_text(encoding="utf-8")
+    runtime = (ROOT / "apps/api/src/rigor_api/config.py").read_text(encoding="utf-8")
+    assert "RIGOR_ALLOWED_ORIGINS" in web
+    assert "customer-owned external web hostname" in web
+    assert '[[ "$WEB_PROBE_URL" == https://* ]]' in web
+    assert "allowed_origins:" in runtime
 
-    assert "TRANSITIONAL_PROJECT_URL" not in workflow
-    assert 'set_env RIGOR_ALLOWED_ORIGINS "[\\\"$REQUESTED_CANONICAL_URL\\\"]"' in workflow
