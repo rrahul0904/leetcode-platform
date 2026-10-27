@@ -106,7 +106,18 @@ function isIdentityBootstrapPath(path: string[]) {
   return path.join("/") === "api/v1/auth/me";
 }
 
-async function sessionToken() {
+async function sessionToken(request: Request) {
+  // Local-only development authentication does not use Clerk middleware.
+  // Production ALWAYS authenticates with Clerk, including if misconfigured
+  // NEXT_PUBLIC_RIGOR_AUTH_MODE=local, and never trusts a raw bearer header.
+  if (
+    process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE === "local" &&
+    process.env.NODE_ENV !== "production"
+  ) {
+    const header = request.headers.get("authorization") ?? "";
+    const match = /^Bearer\s+([^\s]+)$/i.exec(header);
+    return match?.[1] ?? null;
+  }
   const { isAuthenticated, getToken } = await auth();
   if (!isAuthenticated) return null;
 
@@ -121,7 +132,7 @@ async function proxyRequest(
   const { path } = await context.params;
   const publicHealthProbe =
     request.method === "GET" && isPublicBackendHealthPath(path);
-  const token = publicHealthProbe ? null : await sessionToken();
+  const token = publicHealthProbe ? null : await sessionToken(request);
   if (!publicHealthProbe && !token) {
     return Response.json({ detail: "Authentication required" }, { status: 401 });
   }
@@ -136,7 +147,10 @@ async function proxyRequest(
     : await request.arrayBuffer();
   let upstream = await fetchUpstream(target, request, token ?? undefined, body);
 
-  if (token && upstream.status === 401 && isIdentityBootstrapPath(path)) {
+  if (
+    process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE !== "local" &&
+    token && upstream.status === 401 && isIdentityBootstrapPath(path)
+  ) {
     const reconciled = await reconcileCandidate(token);
     if (reconciled) {
       upstream = await fetchUpstream(target, request, token, body);
