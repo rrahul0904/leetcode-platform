@@ -6,12 +6,14 @@ import {
   getEmployerAttempt,
   listEmployerAssessments,
   listEmployerAttempts,
+  provisionalMCQScore,
   submitEmployerHumanReview,
   type EmployerAssessment,
   type EmployerAttemptDetail,
   type EmployerAttemptSummary,
   type HumanQuestionScore,
   type SubmittedHumanReview,
+  type ProvisionalMCQScore,
 } from "@/lib/employer-assessment-api";
 
 export default function EmployerReviewWorkspace() {
@@ -22,6 +24,7 @@ export default function EmployerReviewWorkspace() {
   const [scores, setScores] = useState<Record<number, HumanQuestionScore>>({});
   const [overallNotes, setOverallNotes] = useState("");
   const [result, setResult] = useState<SubmittedHumanReview | null>(null);
+  const [provisional, setProvisional] = useState<ProvisionalMCQScore | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -42,6 +45,7 @@ export default function EmployerReviewWorkspace() {
     setDetail(null);
     setScores({});
     setResult(null);
+    setProvisional(null);
     if (!id) {
       setAttempts([]);
       return;
@@ -61,6 +65,7 @@ export default function EmployerReviewWorkspace() {
     setBusy(true);
     setError("");
     setResult(null);
+    setProvisional(null);
     try {
       const response = await getEmployerAttempt(id);
       setDetail(response);
@@ -73,6 +78,16 @@ export default function EmployerReviewWorkspace() {
         },
       ])));
       setOverallNotes("");
+      if (response.attempt.status === "submitted") {
+        try {
+          const scored = await provisionalMCQScore(response.attempt.id);
+          setProvisional(scored);
+        } catch {
+          // Rubric keys may not exist on legacy written-only assessments.
+          // Human review stays available and does not infer an automatic score.
+          setProvisional(null);
+        }
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to load evidence.");
     } finally {
@@ -192,6 +207,19 @@ export default function EmployerReviewWorkspace() {
               Source version SHA-256: {detail.content_sha256}
             </p>
           </div>
+          {provisional && (
+            <div className="space-y-2 rounded-xl border p-5">
+              <h3 className="font-semibold">Objective questions — provisional evidence</h3>
+              <p className="text-lg font-mono">
+                {provisional.mcq_awarded_marks} / {provisional.mcq_maximum_marks} MCQ marks
+              </p>
+              <p className="text-sm opacity-70">
+                {provisional.human_review_pending_marks} marks still require human evaluation.
+                This receipt is version-bound and does not determine hiring.
+                Human reviewers must score every question independently below.
+              </p>
+            </div>
+          )}
           {detail.questions.map((question) => {
             const score = scores[question.number];
             const answer = detail.answers.find(
