@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker run --detach --rm --name skillforge-web-smoke \
+          docker run --detach --rm --read-only --name skillforge-web-smoke \
             --publish 127.0.0.1:3001:3001 \
             --env RIGOR_BACKEND_ORIGIN=https://api.example.invalid \
             --env NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k \
