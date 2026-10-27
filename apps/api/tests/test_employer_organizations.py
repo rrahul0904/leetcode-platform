@@ -7,8 +7,8 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from rigor_api.auth import LOCAL_IDENTITIES, LocalIdentity, LocalOIDCProvider
-from rigor_api.schemas import Role
 from rigor_api.main import app
+from rigor_api.schemas import Role
 from sqlalchemy import Engine, text
 
 
@@ -75,8 +75,8 @@ def test_self_service_employer_onboarding_and_member_authorization(monkeypatch) 
                 text(
                     "SELECT id::text FROM users "
                     "WHERE identity_subject=:subject"
-                )
-                , {"subject": "local-" + reviewer_key}
+                ),
+                {"subject": "local-" + reviewer_key},
             ).scalar_one()
 
         member_added = client.post(
