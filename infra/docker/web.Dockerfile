@@ -2,6 +2,8 @@
 
 ARG NODE_IMAGE=node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d
 
+ARG RUNTIME_IMAGE=gcr.io/distroless/nodejs24-debian13:nonroot@sha256:fbbdda866ea71aef98c4abece17e3d61fbf820cc2ef3961522caa2478716171a
+
 FROM ${NODE_IMAGE} AS builder
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
@@ -26,7 +28,6 @@ ENV NEXT_PUBLIC_RIGOR_AUTH_MODE=${NEXT_PUBLIC_RIGOR_AUTH_MODE} \
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
 RUN pnpm --filter @rigor/web build
 
-ARG RUNTIME_IMAGE=gcr.io/distroless/nodejs24-debian13:nonroot@sha256:fbbdda866ea71aef98c4abece17e3d61fbf820cc2ef3961522caa2478716171a
 FROM ${RUNTIME_IMAGE} AS runtime
 LABEL org.opencontainers.image.title="Rigor Web" \
       org.opencontainers.image.description="Rigor Next.js web application" \
