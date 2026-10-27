@@ -322,3 +322,53 @@ export function revokeAssessmentInvitation(invitationId: string) {
     "POST",
   );
 }
+
+
+export type EmployerAIInterviewTurn = {
+  sequence_number: number;
+  role: "candidate" | "interviewer";
+  content: string;
+  request_id: string;
+  created_at: string;
+};
+
+export type EmployerAIInterview = {
+  id: string;
+  attempt_id: string;
+  status: "active" | "withdrawn" | "completed";
+  consent_version: string;
+  consent_at: string;
+  turn_count: number;
+  provider_configured: boolean;
+  messages: EmployerAIInterviewTurn[];
+};
+
+export function consentToEmployerAIInterview(attemptId: string) {
+  return request<EmployerAIInterview>(
+    "/api/v1/assessment-attempts/" + encodeURIComponent(attemptId) + "/ai-interview/consent",
+    "POST",
+    { agree_to_ai_processing: true },
+  );
+}
+
+export function getEmployerAIInterview(attemptId: string) {
+  return request<EmployerAIInterview>(
+    "/api/v1/assessment-attempts/" + encodeURIComponent(attemptId) + "/ai-interview",
+  );
+}
+
+export function sendEmployerAIInterviewMessage(
+  attemptId: string, message: string, requestId: string,
+) {
+  return request<EmployerAIInterview>(
+    "/api/v1/assessment-attempts/" + encodeURIComponent(attemptId) + "/ai-interview/messages",
+    "POST", { message, request_id: requestId },
+  );
+}
+
+export function withdrawEmployerAIInterview(attemptId: string) {
+  return request<EmployerAIInterview>(
+    "/api/v1/assessment-attempts/" + encodeURIComponent(attemptId) + "/ai-interview/withdraw",
+    "POST",
+  );
+}
