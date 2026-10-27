@@ -48,6 +48,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     "/ai-arena",
     "/attempts",
     "/assessments",
+    "/employer",
     "/design-lab",
     "/progress",
     "/study-workspace",
@@ -62,11 +63,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
     !isPublic && status === "authenticated" && isCandidate && !candidateRoute;
   const isEmployerAssessment =
     pathname === "/assessments" || pathname.startsWith("/assessments/");
+  const isEmployerWorkflow =
+    pathname === "/employer" || pathname.startsWith("/employer/");
   // An employer screening invitation must not require the candidate to
   // contribute their unrelated private learner-onboarding profile.
   const shouldCheckCandidateProfile =
     !isPublic && status === "authenticated" && isCandidate
-    && !wrongWorkspace && !isEmployerAssessment;
+    && !wrongWorkspace && !isEmployerAssessment && !isEmployerWorkflow;
   const candidateProfile = useQuery({
     queryKey: ["candidate-profile", "auth-gate"],
     queryFn: ({ signal }) => getProfile(signal),
