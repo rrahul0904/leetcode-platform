@@ -245,6 +245,9 @@ def upgrade() -> None:
             "status IN ('draft','submitted','adjudicated')",
             name="ck_assessment_review_status",
         ),
+        sa.UniqueConstraint(
+            "attempt_id", "reviewer_id", name="uq_employer_attempt_per_reviewer",
+        ),
         sa.ForeignKeyConstraint(
             ["attempt_id", "organization_id", "candidate_id"],
             [
