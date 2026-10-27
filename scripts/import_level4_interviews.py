@@ -14,6 +14,7 @@ import json
 import re
 import zipfile
 from pathlib import Path
+from typing import Any
 from xml.etree import ElementTree as ET
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
@@ -49,9 +50,9 @@ def _read_docx(path: Path) -> tuple[list[str], list[list[list[str]]]]:
     return paragraphs, tables
 
 
-def _candidate_questions(paragraphs: list[str], set_number: int) -> list[dict]:
-    questions: list[dict] = []
-    current: dict | None = None
+def _candidate_questions(paragraphs: list[str], set_number: int) -> list[dict[str, Any]]:
+    questions: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
     section = ""
     for paragraph in paragraphs:
         section_match = re.match(r"SECTION ([A-D])\s*-", paragraph, re.I)
@@ -62,7 +63,12 @@ def _candidate_questions(paragraphs: list[str], set_number: int) -> list[dict]:
         written = re.match(r"Question ([1-6])\s*-\s*(.+?)\s*\[", paragraph)
         mcq = re.match(r"(1[0-6]|[7-9])\.\s+(.+)", paragraph)
         if written or mcq:
-            number = int(written.group(1) if written else mcq.group(1))
+            if written is not None:
+                number, prompt = int(written.group(1)), written.group(2)
+            elif mcq is not None:
+                number, prompt = int(mcq.group(1)), mcq.group(2)
+            else:
+                raise AssertionError("Unreachable: question matched neither format")
             expected = (
                 "python" if number <= 2 else
                 "sql" if number <= 5 else
@@ -77,7 +83,7 @@ def _candidate_questions(paragraphs: list[str], set_number: int) -> list[dict]:
                 "type": "multiple_choice" if number >= 7 else "written",
                 "marks": MARKS[number],
                 "recommended_minutes": TIME[number],
-                "prompt": written.group(2).strip() if written else mcq.group(2).strip(),
+                "prompt": prompt.strip(),
                 "details": [],
                 "options": [],
             }
@@ -116,14 +122,14 @@ def _guide_answers(tables: list[list[list[str]]], set_number: int) -> dict[str, 
     return answers
 
 
-def ingest(input_dir: Path, output_dir: Path) -> dict:
+def ingest(input_dir: Path, output_dir: Path) -> dict[str, Any]:
     candidate_dir = output_dir / "candidate_review_only"
     private_dir = output_dir / "private_interviewer_only"
     if candidate_dir.resolve() == private_dir.resolve():
         raise ValueError("Candidate and interviewer output must remain separate")
     candidate_dir.mkdir(parents=True, exist_ok=True)
     private_dir.mkdir(parents=True, exist_ok=True)
-    catalog: dict = {"schema_version": 1, "publication_state": "review_required", "sets": []}
+    catalog: dict[str, Any] = {"schema_version": 1, "publication_state": "review_required", "sets": []}
     for number in range(3, 10):
         candidate_path = input_dir / CANDIDATE_PATTERN.format(n=number)
         guide_path = input_dir / GUIDE_PATTERN.format(n=number)
