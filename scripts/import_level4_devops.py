@@ -37,13 +37,13 @@ def parse_candidate(paragraphs: list[str], set_number: int) -> list[dict[str, An
     current: dict[str, Any] | None = None
     section = ""
     for paragraph in paragraphs:
-        section_match = re.match(r"SECTION ([A-C])\s*[–-]", paragraph, re.I)
+        section_match = re.match(r"SECTION ([A-C])\s*[\u2013-]", paragraph, re.I)
         if section_match:
             section = SECTIONS[section_match.group(1).upper()]
             current = None
             continue
         written = re.match(
-            r"Question ([1-4])\s*[–-]\s*(.+?)\s*\[(\d+) marks\]", paragraph
+            r"Question ([1-4])\s*[\u2013-]\s*(.+?)\s*\[(\d+) marks\]", paragraph
         )
         mcq = re.fullmatch(r"Question (1[0-4]|[5-9])\s*\[(\d+) marks\]", paragraph)
         if written or mcq:
