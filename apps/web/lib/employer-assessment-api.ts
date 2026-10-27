@@ -298,3 +298,27 @@ export function provisionalMCQScore(attemptId: string) {
 export function listCandidateAssessmentAttempts() {
   return request<AssessmentAttempt[]>("/api/v1/assessment-attempts");
 }
+
+
+export type EmployerInvitationStatus = {
+  id: string;
+  assessment_version_id: string;
+  candidate_id: string;
+  state: "pending" | "accepted" | "revoked" | "expired";
+  expires_at: string;
+  consumed_at: string | null;
+  created_at: string;
+};
+
+export function listAssessmentInvitations(assessmentId: string) {
+  return request<EmployerInvitationStatus[]>(
+    "/api/v1/employer/assessments/" + encodeURIComponent(assessmentId) + "/invitations",
+  );
+}
+
+export function revokeAssessmentInvitation(invitationId: string) {
+  return request<EmployerInvitationStatus>(
+    "/api/v1/employer/invitations/" + encodeURIComponent(invitationId) + "/revoke",
+    "POST",
+  );
+}
