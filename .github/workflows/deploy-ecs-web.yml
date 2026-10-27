@@ -1,0 +1,132 @@
+name: Deploy SkillForge ECS Web
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Protected deployment environment
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+      release_sha:
+        description: Full immutable commit SHA
+        required: true
+        type: string
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: skillforge-ecs-web-${{ inputs.environment }}
+  cancel-in-progress: false
+env:
+  RELEASE_SHA: ${{ inputs.release_sha }}
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+  ECS_WEB_SERVICE: ${{ vars.ECS_WEB_SERVICE }}
+  ECR_WEB_REPOSITORY: ${{ vars.ECR_WEB_REPOSITORY }}
+  AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+  WEB_PROBE_URL: ${{ vars.WEB_PROBE_URL }}
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+jobs:
+  deploy:
+    name: Immutable web build and ECS rollout
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Validate configuration before any AWS mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          for name in AWS_REGION ECS_CLUSTER ECS_WEB_SERVICE ECR_WEB_REPOSITORY AWS_DEPLOY_ROLE_ARN WEB_PROBE_URL NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required deployment variable: $name"
+              exit 1
+            fi
+          done
+          [[ "$WEB_PROBE_URL" == https://* ]] || exit 1
+      - name: Checkout exact release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+      - name: Verify checked-out SHA
+        run: test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+      - name: Configure AWS OIDC credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+      - name: Build immutable web container
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="$REGISTRY/$ECR_WEB_REPOSITORY:$RELEASE_SHA"
+          docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt \
+            --build-arg NEXT_PUBLIC_RIGOR_AUTH_MODE=clerk \
+            --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" \
+            --build-arg NEXT_PUBLIC_RIGOR_API_URL=/api/backend \
+            -t "$image" -f infra/docker/web.Dockerfile .
+          echo "WEB_IMAGE=$image" >> "$GITHUB_ENV"
+      - name: Block vulnerable container images
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.WEB_IMAGE }}
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: false
+      - name: Push verified image
+        run: docker push "$WEB_IMAGE"
+      - name: Snapshot previous task and inspect runtime backend setting
+        shell: bash
+        run: |
+          set -euo pipefail
+          previous="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_WEB_SERVICE" --query 'services[0].taskDefinition' --output text)"
+          test -n "$previous"
+          test "$previous" != "None"
+          echo "$previous" > /tmp/skillforge-previous-web-task.txt
+          aws ecs describe-task-definition --task-definition "$previous" --query taskDefinition > web-task.json
+          jq -e '.containerDefinitions | any(.name=="web")' web-task.json
+          jq -e '.containerDefinitions[] | select(.name=="web") | (.environment // [] | any(.name=="RIGOR_BACKEND_ORIGIN"))' web-task.json
+          jq 'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)' web-task.json > web-task-clean.json
+      - name: Render ECS web task definition
+        id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@138c24f321fdbdf7edee4a685519d253cae2cdea # v1.9.0
+        with:
+          task-definition: web-task-clean.json
+          container-name: web
+          image: ${{ env.WEB_IMAGE }}
+      - name: Deploy and await ECS stability
+        id: deploy-web
+        uses: aws-actions/amazon-ecs-deploy-task-definition@c465972ecbd160473f22e683363b422a5412a3de # v2.6.3
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          service: ${{ env.ECS_WEB_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+      - name: Probe public HTTPS and ECS service count
+        id: smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --show-error --silent --max-time 20 --retry 3 "$WEB_PROBE_URL" > /dev/null
+          curl --fail --show-error --silent --max-time 20 --retry 3 "${WEB_PROBE_URL%/}/sign-in" > /dev/null
+          desired="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_WEB_SERVICE" --query 'services[0].desiredCount' --output text)"
+          running="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_WEB_SERVICE" --query 'services[0].runningCount' --output text)"
+          test "$desired" -gt 0
+          test "$desired" -eq "$running"
+      - name: Roll back web when post-deploy smoke fails
+        if: failure() && steps.deploy-web.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          previous="$(cat /tmp/skillforge-previous-web-task.txt)"
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_WEB_SERVICE" --task-definition "$previous" >/dev/null
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_WEB_SERVICE"
+          echo "Web release rolled back to prior ECS task."
