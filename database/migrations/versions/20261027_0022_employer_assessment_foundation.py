@@ -64,6 +64,17 @@ def tenant_policy(table: str, *, candidate: bool = False, privileged: bool = Fal
 
 
 def upgrade() -> None:
+    # Organization membership status is required by the database-authoritative
+    # OIDC principal and all employer routes. Backfill pre-existing memberships.
+    op.add_column(
+        "organization_memberships",
+        sa.Column("status", sa.String(20), nullable=False, server_default="active"),
+    )
+    op.create_check_constraint(
+        "ck_org_membership_status",
+        "organization_memberships",
+        "status IN ('active','suspended','revoked')",
+    )
     op.create_table(
         "employer_assessment_versions",
         uid(), org(),
@@ -299,3 +310,7 @@ def downgrade() -> None:
         "employer_assessment_versions",
     ):
         op.drop_table(table)
+    op.drop_constraint(
+        "ck_org_membership_status", "organization_memberships", type_="check"
+    )
+    op.drop_column("organization_memberships", "status")
