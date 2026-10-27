@@ -139,9 +139,13 @@ export default function EmployerAssessmentsPage() {
         <section className="space-y-4 rounded-2xl border p-6">
           <h2 className="text-xl font-semibold">Assessment inventory</h2>
           <p className="text-sm opacity-70">
-            Assessment authoring currently supports an initial one-question written draft.
-            Coding execution and multi-question visual authoring require the next release gates.
+            Compose original multi-question assessments using coding prompts, written
+            scenarios and single-answer MCQs. Execution sandboxes and secret test cases
+            are gated until separately verified.
           </p>
+          <a href="/employer/reviews" className="inline-block text-sm underline">
+            Open submitted attempts and human scorecards
+          </a>
           <button
             onClick={() => void refresh()}
             type="button"
