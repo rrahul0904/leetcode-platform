@@ -38,11 +38,11 @@ def questions_fixture():
     for section, numbers in (
         ("A", range(1, 3)), ("B", range(3, 5)), ("C", range(5, 15))
     ):
-        result.append(f"SECTION {section} – test")
+        result.append(f"SECTION {section} \u2013 test")
         for number in numbers:
             if number < 5:
                 result.extend([
-                    f"Question {number} – Code/Scenario [{15} marks]",
+                    f"Question {number} \u2013 Code/Scenario [{15} marks]",
                     "Describe a robust, evidence-backed solution.",
                     "Requirements",
                     "Discuss failures and complexity.",
@@ -58,7 +58,7 @@ def questions_fixture():
 
 
 def guide_fixture():
-    result = ["SECTION C – DEVOPS MCQ ANSWER KEY"]
+    result = ["SECTION C \u2013 DEVOPS MCQ ANSWER KEY"]
     for number in range(5, 15):
         result.extend([
             f"Question {number}",
@@ -95,9 +95,9 @@ class DevOpsImportTests(unittest.TestCase):
 
     def test_invalid_question_set_and_answer_keys_fail_closed(self):
         with self.assertRaises(ValueError):
-            importer.parse_candidate(["SECTION C – DEVOPS MCQ", "Question 5 [4 marks]"], 1)
+            importer.parse_candidate(["SECTION C \u2013 DEVOPS MCQ", "Question 5 [4 marks]"], 1)
         with self.assertRaises(ValueError):
-            importer.parse_interviewer_key(["SECTION C – DEVOPS MCQ ANSWER KEY"], 1)
+            importer.parse_interviewer_key(["SECTION C \u2013 DEVOPS MCQ ANSWER KEY"], 1)
 
     def test_private_output_location_is_required(self):
         with self.assertRaises(ValueError):
