@@ -137,3 +137,64 @@ export function inviteEmployerCandidate(
     { candidate_id: candidateId, expires_in_hours: expiresInHours },
   );
 }
+
+
+export type EmployerAttemptSummary = {
+  id: string;
+  assessment_version_id: string;
+  candidate_id: string;
+  status: string;
+  started_at: string | null;
+  deadline_at: string | null;
+  submitted_at: string | null;
+};
+
+export type EmployerAttemptDetail = {
+  attempt: EmployerAttemptSummary;
+  questions: AssessmentQuestion[];
+  answers: Array<{
+    question_number: number;
+    answer_text: string;
+    updated_at: string;
+  }>;
+  maximum_marks: number;
+  content_sha256: string;
+};
+
+export type HumanQuestionScore = {
+  question_number: number;
+  awarded_marks: number;
+  evidence_note: string;
+};
+
+export type SubmittedHumanReview = {
+  review_id: string;
+  attempt_id: string;
+  reviewer_id: string;
+  status: "submitted";
+  awarded_marks: number;
+  maximum_marks: number;
+  hiring_decision: null;
+};
+
+export function listEmployerAttempts(assessmentId: string) {
+  return request<EmployerAttemptSummary[]>(
+    "/api/v1/employer/assessments/" + encodeURIComponent(assessmentId) + "/attempts",
+  );
+}
+
+export function getEmployerAttempt(attemptId: string) {
+  return request<EmployerAttemptDetail>(
+    "/api/v1/employer/attempts/" + encodeURIComponent(attemptId),
+  );
+}
+
+export function submitEmployerHumanReview(
+  attemptId: string, scores: HumanQuestionScore[], overallNotes: string,
+) {
+  return request<SubmittedHumanReview>(
+    "/api/v1/employer/attempts/" + encodeURIComponent(attemptId) + "/reviews",
+    "POST",
+    { scores, overall_notes: overallNotes },
+  );
+}
