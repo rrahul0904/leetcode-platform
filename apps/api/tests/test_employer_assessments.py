@@ -394,12 +394,35 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
             json={"agree_to_ai_processing": True},
         ).status_code == 409
 
+        transcript_unreleased = client.get(
+            f"/api/v1/employer/attempts/{attempt_id}/ai-interview",
+            headers=reviewer_auth,
+        )
+        assert transcript_unreleased.status_code == 409
+
         submitted = client.post(
             f"/api/v1/assessment-attempts/{attempt_id}/submit",
             headers=candidate_auth,
         )
         assert submitted.status_code == 200, submitted.text
         assert submitted.json()["status"] == "submitted"
+        employer_transcript = client.get(
+            f"/api/v1/employer/attempts/{attempt_id}/ai-interview",
+            headers=reviewer_auth,
+        )
+        assert employer_transcript.status_code == 200, employer_transcript.text
+        assert len(employer_transcript.json()["turns"]) == 2
+        assert employer_transcript.json()["automated_hiring_decision"] is None
+        assert "mcq_answers" not in employer_transcript.text
+        assert client.get(
+            f"/api/v1/employer/attempts/{attempt_id}/ai-interview",
+            headers=candidate_auth,
+        ).status_code == 403
+        assert client.get(
+            f"/api/v1/employer/attempts/{attempt_id}/ai-interview",
+            headers=reviewer_second_org,
+        ).status_code == 404
+
         provisional = client.get(
             f"/api/v1/employer/attempts/{attempt_id}/provisional-mcq-score",
             headers=reviewer_auth,
@@ -477,4 +500,36 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
             ]},
         )
         assert excessive.status_code == 422
+
+        report = client.get(
+            f"/api/v1/employer/assessments/{aid}/report", headers=admin_auth
+        )
+        assert report.status_code == 200, report.text
+        assert report.json()["total_invitations"] == 2
+        assert report.json()["accepted_invitations"] == 1
+        assert report.json()["revoked_invitations"] == 1
+        assert report.json()["total_attempts"] == 1
+        assert report.json()["human_reviewed_attempts"] == 1
+        scored = report.json()["attempts"][0]
+        assert scored["human_reviews"][0]["awarded_marks"] == 52
+        assert scored["hiring_decision"] is None
+        assert "private_rubric" not in report.text
+        assert "acceptance_secret" not in report.text
+        csv_report = client.get(
+            f"/api/v1/employer/assessments/{aid}/report.csv", headers=admin_auth
+        )
+        assert csv_report.status_code == 200, csv_report.text
+        assert csv_report.headers["content-type"].startswith("text/csv")
+        assert csv_report.text.count("\r\n") == 2
+        assert ",52,100," in csv_report.text
+        assert "answer_key" not in csv_report.text
+        assert client.get(
+            f"/api/v1/employer/assessments/{aid}/report",
+            headers=candidate_auth,
+        ).status_code == 403
+        assert client.get(
+            f"/api/v1/employer/assessments/{aid}/report.csv",
+            headers=reviewer_second_org,
+        ).status_code == 404
+
 
