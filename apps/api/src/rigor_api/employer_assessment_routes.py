@@ -924,3 +924,23 @@ def employer_provisional_mcq_score(
             mcq_maximum_marks=mcq_max,
             human_review_pending_marks=attempt["maximum_marks"] - mcq_max,
         )
+
+
+
+@router.get("/assessment-attempts", response_model=list[AttemptView])
+def list_candidate_assessment_attempts(
+    engine: DatabaseEngine, principal: Principal,
+) -> list[AttemptView]:
+    """Recover candidate-owned sessions on another device without replaying tokens."""
+    with principal_transaction(engine, principal) as conn:
+        rows = conn.execute(
+            text(
+                f"""SELECT id FROM employer_assessment_attempts
+                    WHERE candidate_id={_USER}
+                    ORDER BY created_at DESC LIMIT 30"""
+            )
+        ).scalars().all()
+        return [
+            _attempt_view(conn, _candidate_attempt(conn, UUID(str(attempt_id))))
+            for attempt_id in rows
+        ]
