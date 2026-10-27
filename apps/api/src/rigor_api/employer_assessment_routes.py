@@ -233,6 +233,27 @@ def publish_employer_assessment(
             raise HTTPException(status_code=409, detail="An independent reviewer is required")
         if row["status"] != "review_required":
             raise HTTPException(status_code=409, detail="Assessment is not awaiting review")
+        mcq_numbers = {
+            str(item["number"]) for item in row["candidate_blueprint"]["questions"]
+            if item["kind"] == "multiple_choice"
+        }
+        if mcq_numbers:
+            private = conn.execute(
+                text(
+                    f"""SELECT private_rubric, source_sha256
+                        FROM employer_assessment_private_keys
+                        WHERE organization_id={_ORG}
+                          AND assessment_version_id=:assessment"""
+                ), {"assessment": assessment_id},
+            ).mappings().one_or_none()
+            if (
+                private is None
+                or private["source_sha256"] != row["content_sha256"]
+                or set(private["private_rubric"].get("mcq_answers", {})) != mcq_numbers
+            ):
+                raise HTTPException(
+                    status_code=409, detail="Approved assessment requires complete private MCQ key"
+                )
         updated = conn.execute(
             text(
                 f"""UPDATE employer_assessment_versions
