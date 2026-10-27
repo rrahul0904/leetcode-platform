@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -60,7 +60,7 @@ class InterviewSessionView(StrictModel):
     provider_configured: bool
 
 
-def _session(conn: Connection, attempt_id: UUID, *, lock: bool = False) -> dict:
+def _session(conn: Connection, attempt_id: UUID, *, lock: bool = False) -> dict[str, Any]:
     row = conn.execute(
         text(
             f"""SELECT id, attempt_id, candidate_id, organization_id, status,
@@ -87,7 +87,7 @@ def _messages(conn: Connection, session_id: UUID) -> list[InterviewMessageView]:
     return [InterviewMessageView.model_validate(dict(row)) for row in rows]
 
 
-def _view(conn: Connection, row: dict) -> InterviewSessionView:
+def _view(conn: Connection, row: dict[str, Any]) -> InterviewSessionView:
     return InterviewSessionView(
         id=row["id"], attempt_id=row["attempt_id"], status=row["status"],
         consent_version=row["consent_version"], consent_at=row["consent_at"],
@@ -96,7 +96,7 @@ def _view(conn: Connection, row: dict) -> InterviewSessionView:
     )
 
 
-def _require_active_attempt(conn: Connection, attempt_id: UUID) -> dict:
+def _require_active_attempt(conn: Connection, attempt_id: UUID) -> dict[str, Any]:
     row = _candidate_attempt(conn, attempt_id, lock=True)
     now = conn.execute(text("SELECT CURRENT_TIMESTAMP")).scalar_one()
     if row["status"] != "in_progress" or row["deadline_at"] <= now:
@@ -280,7 +280,7 @@ def send_employer_ai_interview_message(
         raise HTTPException(status_code=502, detail="AI interviewer unavailable") from exc
 
     with principal_transaction(engine, principal) as conn:
-        attempt = _candidate_attempt(conn, attempt_id, lock=True)
+        _require_active_attempt(conn, attempt_id)
         row = _session(conn, attempt_id, lock=True)
         if row["status"] != "active" or row["pending_request_id"] != request_id:
             raise HTTPException(status_code=409, detail="Interview session changed during reply")
