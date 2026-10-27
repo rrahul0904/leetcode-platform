@@ -28,6 +28,8 @@ env:
   WEB_PROBE_URL: ${{ vars.WEB_PROBE_URL }}
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
   RIGOR_ALLOWED_ORIGINS: ${{ vars.RIGOR_ALLOWED_ORIGINS }}
+  RIGOR_CLERK_ISSUER: ${{ vars.RIGOR_CLERK_ISSUER }}
+  API_PROBE_URL: ${{ vars.API_PROBE_URL }}
 jobs:
   deploy:
     name: Immutable web build and ECS rollout
@@ -52,6 +54,12 @@ jobs:
               pk_live_*) ;;
               *) echo "Production requires a Clerk live publishable key"; exit 1 ;;
             esac
+            if [ -z "$RIGOR_CLERK_ISSUER" ] || [ -z "$API_PROBE_URL" ]; then
+              echo "Production requires an HTTPS Clerk issuer and backend API probe URL"
+              exit 1
+            fi
+            [[ "$RIGOR_CLERK_ISSUER" == https://* ]] || exit 1
+            [[ "$API_PROBE_URL" == https://* ]] || exit 1
             if [ -z "$RIGOR_ALLOWED_ORIGINS" ]; then
               echo "Production requires an explicitly configured CORS origin allowlist"
               exit 1
@@ -63,6 +71,19 @@ jobs:
                 ;;
             esac
           fi
+      - name: Require live backend schema readiness before releasing browser
+        if: inputs.environment == 'production'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --show-error --silent --max-time 20 --retry 2 "${API_PROBE_URL%/}/readyz" > /tmp/skillforge-backend-readiness.json
+          jq -e '
+            .status == "ready"
+            and any(.checks[]; .name == "migration" and .status == "ready"
+              and (.detail | contains("expected=20261027_0024")))
+          ' /tmp/skillforge-backend-readiness.json > /dev/null
+          echo "Backend is ready on the required employer-assessment schema."
+
       - name: Checkout exact release commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -87,6 +108,7 @@ jobs:
           docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt \
             --build-arg NEXT_PUBLIC_RIGOR_AUTH_MODE=clerk \
             --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" \
+            --build-arg RIGOR_CLERK_ISSUER="$RIGOR_CLERK_ISSUER" \
             --build-arg NEXT_PUBLIC_RIGOR_API_URL=/api/backend \
             -t "$image" -f infra/docker/web.Dockerfile .
           echo "WEB_IMAGE=$image" >> "$GITHUB_ENV"
