@@ -23,22 +23,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Resolve latest upstream digest in verification only
-        id: distroless
-        run: |
-          set -euo pipefail
-          docker pull gcr.io/distroless/nodejs24-debian13:nonroot
-          runtime="$(docker image inspect gcr.io/distroless/nodejs24-debian13:nonroot --format '{{index .RepoDigests 0}}')"
-          echo "Scanning candidate distroless runtime: $runtime"
-          echo "runtime=$runtime" >> "$GITHUB_OUTPUT"
-
       - name: Build self-hosted web image
-        env:
-          RUNTIME_IMAGE: ${{ steps.distroless.outputs.runtime }}
         run: |
           set -euo pipefail
           docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt \
-            --build-arg RUNTIME_IMAGE="$RUNTIME_IMAGE" \
             --build-arg NEXT_PUBLIC_RIGOR_AUTH_MODE=clerk \
             --build-arg NEXT_PUBLIC_RIGOR_API_URL=/api/backend \
             -f infra/docker/web.Dockerfile -t skillforge-selfhosted-web:verify .
