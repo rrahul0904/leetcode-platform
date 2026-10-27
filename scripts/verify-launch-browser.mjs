@@ -18,6 +18,9 @@ const launchRoutes = [
   "/learning-paths",
   "/attempts",
   "/progress",
+  "/employer",
+  "/employer/assessments",
+  "/employer/reviews",
 ];
 
 function sleep(milliseconds) {
