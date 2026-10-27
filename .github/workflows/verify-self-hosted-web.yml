@@ -44,7 +44,7 @@ jobs:
             skillforge-selfhosted-web:verify
           trap 'docker logs skillforge-web-smoke || true; docker rm --force skillforge-web-smoke || true' EXIT
           ready=0
-          for iteration in $(seq 1 45); do
+          for _ in $(seq 1 45); do
             if curl --fail --silent --show-error --max-time 3 \
               http://127.0.0.1:3001/ >/dev/null 2>&1; then
               ready=1
