@@ -811,7 +811,10 @@ def save_employer_private_key(
         audit_event(
             conn, principal, actor, action="assessment.private_key_save",
             resource_type="employer_assessment", resource_id=str(assessment_id),
-            details={"source_sha256": assessment["content_sha256"], "question_count": len(expected)},
+            details={
+                "source_sha256": assessment["content_sha256"],
+                "question_count": len(expected),
+            },
         )
         return PrivateAssessmentKeyView(
             assessment_version_id=assessment_id,
@@ -841,7 +844,9 @@ def review_employer_private_key(
         if row is None:
             raise HTTPException(status_code=404, detail="Private assessment key unavailable")
         if row["source_sha256"] != assessment["content_sha256"]:
-            raise HTTPException(status_code=409, detail="Confidential key does not match this version")
+            raise HTTPException(
+                status_code=409, detail="Confidential key does not match this version"
+            )
         return PrivateAssessmentKeyView(
             assessment_version_id=assessment_id,
             source_sha256=row["source_sha256"],
@@ -894,16 +899,18 @@ def employer_provisional_mcq_score(
         ]
         if {str(q["number"]) for q in mcq_questions} != set(expected):
             raise HTTPException(status_code=409, detail="Private MCQ key coverage invalid")
-        answers = dict(
-            conn.execute(
-                text(
-                    f"""SELECT question_number, answer_text
-                        FROM employer_assessment_responses
-                        WHERE attempt_id=:attempt AND organization_id={_ORG}"""
-                ),
-                {"attempt": attempt_id},
-            ).all()
-        )
+        answer_rows = conn.execute(
+            text(
+                f"""SELECT question_number, answer_text
+                    FROM employer_assessment_responses
+                    WHERE attempt_id=:attempt AND organization_id={_ORG}"""
+            ),
+            {"attempt": attempt_id},
+        ).mappings().all()
+        answers: dict[int, str] = {
+            int(record["question_number"]): str(record["answer_text"])
+            for record in answer_rows
+        }
         mcq_max = sum(int(q["marks"]) for q in mcq_questions)
         earned = sum(
             int(q["marks"]) for q in mcq_questions
