@@ -6,22 +6,37 @@ from typing import cast
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-from rigor_api.auth import LocalOIDCProvider
+from rigor_api.auth import LOCAL_IDENTITIES, LocalIdentity, LocalOIDCProvider
+from rigor_api.schemas import Role
 from rigor_api.main import app
 from sqlalchemy import Engine, text
 
 
-def test_self_service_employer_onboarding_and_member_authorization() -> None:
+def test_self_service_employer_onboarding_and_member_authorization(monkeypatch) -> None:
+    suffix = uuid4().hex[:12]
+    owner_key = "employer-owner-" + suffix
+    reviewer_key = "employer-reviewer-" + suffix
+    for key in (owner_key, reviewer_key):
+        monkeypatch.setitem(
+            LOCAL_IDENTITIES,
+            key,
+            LocalIdentity(
+                subject_id="local-" + key,
+                email=key + "@rigor.test",
+                display_name=key,
+                roles=(Role.candidate,),
+            ),
+        )
     with TestClient(app) as client:
         provider = cast(LocalOIDCProvider, app.state.local_oidc_provider)
         engine = cast(Engine, app.state.database_engine)
         owner = {
             "Authorization": "Bearer "
-            + provider.issue_test_access_token("candidate", expires_in=900)
+            + provider.issue_test_access_token(owner_key, expires_in=900)
         }
         reviewer = {
             "Authorization": "Bearer "
-            + provider.issue_test_access_token("technical-reviewer", expires_in=900)
+            + provider.issue_test_access_token(reviewer_key, expires_in=900)
         }
         for auth in (owner, reviewer):
             assert client.get("/api/v1/me", headers=auth).status_code == 200
@@ -59,8 +74,9 @@ def test_self_service_employer_onboarding_and_member_authorization() -> None:
             user_id = conn.execute(
                 text(
                     "SELECT id::text FROM users "
-                    "WHERE identity_subject='local-technical-reviewer'"
+                    "WHERE identity_subject=:subject"
                 )
+                , {"subject": "local-" + reviewer_key}
             ).scalar_one()
 
         member_added = client.post(
