@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   consentToEmployerAIInterview,
   getEmployerAIInterview,
+  eraseEmployerAIInterview,
   sendEmployerAIInterviewMessage,
   withdrawEmployerAIInterview,
   type EmployerAIInterview,
@@ -69,6 +70,23 @@ export function EmployerAIInterviewPanel({
     }
   }
 
+  async function erase() {
+    if (!session || busy) return;
+    if (!window.confirm(
+      "Permanently delete the stored interview text for this assessment? " +
+      "This cannot be undone and keeps only consent/erasure timestamps.",
+    )) return;
+    setBusy(true);
+    setError("");
+    try {
+      setSession(await eraseEmployerAIInterview(attemptId));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Transcript erasure failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section aria-label="Optional AI technical interview" className="space-y-4 rounded-2xl border p-6">
       <h2 className="text-xl font-semibold">Optional text-based AI interview</h2>
@@ -125,8 +143,20 @@ export function EmployerAIInterviewPanel({
               Withdraw consent for further model calls
             </button>
           )}
+          {session.status !== "erased" ? (
+            <button type="button" disabled={busy} onClick={() => void erase()}
+              className="rounded-lg border px-4 py-2 text-sm disabled:opacity-40">
+              Permanently delete interview transcript
+            </button>
+          ) : (
+            <p role="status" className="text-sm">
+              Interview text erased. The consent and deletion timestamps are retained
+              for audit, but the message bodies cannot be recovered.
+            </p>
+          )}
           <p className="text-xs opacity-60">
-            Withdrawal prevents further processing but does not erase existing records.
+            Withdrawal stops new model calls. Transcript deletion removes already stored
+            candidate and model messages while retaining minimal consent audit metadata.
           </p>
         </div>
       )}
