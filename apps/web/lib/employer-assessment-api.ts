@@ -335,7 +335,7 @@ export type EmployerAIInterviewTurn = {
 export type EmployerAIInterview = {
   id: string;
   attempt_id: string;
-  status: "active" | "withdrawn" | "completed";
+  status: "active" | "withdrawn" | "completed" | "erased";
   consent_version: string;
   consent_at: string;
   turn_count: number;
@@ -452,4 +452,12 @@ export async function downloadEmployerAssessmentCSV(assessmentId: string): Promi
     throw new Error("Unable to export employer report: HTTP " + response.status);
   }
   return response.blob();
+}
+
+
+export function eraseEmployerAIInterview(attemptId: string) {
+  return request<EmployerAIInterview>(
+    "/api/v1/assessment-attempts/" + encodeURIComponent(attemptId) + "/ai-interview/erase",
+    "POST",
+  );
 }
