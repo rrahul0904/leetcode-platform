@@ -36,6 +36,7 @@ from .candidate_submission_routes import (
     list_candidate_session_submissions,
     list_candidate_submissions,
 )
+from .employer_assessment_routes import router as employer_assessment_router
 from .execution_capability import router as execution_capability_router
 from .execution_routes import (
     CanonicalExecutionAccepted,
@@ -233,3 +234,4 @@ app.add_api_route(
     response_model=MockInterviewSessionView,
 )
 app.include_router(pr_review_router)
+app.include_router(employer_assessment_router)
