@@ -44,7 +44,7 @@ Run migrations with the migrator database role before deploying a new API revisi
 uv run alembic upgrade head
 ```
 
-Expected head: `20260918_0021`.
+Candidate head: `20261027_0024`. Migration is not authorized until a staged restore/rehearsal and operator go/no-go.
 
 ## 5. GitHub deployment variables
 
@@ -63,3 +63,14 @@ The deployment workflow uses GitHub OIDC; no long-lived AWS access keys are requ
 ## 6. Release gate
 
 A production release is not complete until migrations, health/readiness, the trusted question-bank verifier, and representative Run/Submit execution checks pass against the deployed environment.
+
+
+## Self-hosted web release requirement (2026-10-27)
+
+Production Terraform now also defines a private ECS/Fargate web service with its own public HTTPS ALB, WAF, DNS, ACM certificate, logs and autoscaling, plus an ECR repository and a Secrets Manager key for the production Clerk secret.
+
+The production Terraform plan requires web_domain, web_image and clerk_publishable_key. An operator must provide a customer-owned web domain, real Clerk keys, immutable scanned web image in ECR, trusted OIDC AWS access and managed remote Terraform state. Populate the CLERK_SECRET_KEY Secrets Manager value before launching ECS web tasks. Never reapply Terraform locally against production resources without state import/reconciliation.
+
+The guarded workflow deploy-ecs-web.yml deploys the selected SHA only after validating HTTPS domain, Clerk issuer, live public key, CORS allowlist and upstream API readiness at Alembic 20261027_0024. Deployment uses a fail-closed image vulnerability scan, ECS service stability, HTTPS smoke and rollback.
+
+A passing Terraform validation or standalone image boot test does not certify an AWS deployment. Signed content rights, verified full employer coding assessment, candidate UAT, backup/restore receipts and protected production authorization remain mandatory.
