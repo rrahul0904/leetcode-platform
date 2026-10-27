@@ -178,6 +178,8 @@ jobs:
           cache: pnpm
       - name: Install locked JavaScript workspace
         run: pnpm install --frozen-lockfile
+      - name: Verify Expo CLI still parses the mobile app after Zod security override
+        run: pnpm --filter @rigor/mobile exec expo config --json > /tmp/skillforge-expo-config.json
       - name: Lint
         run: pnpm --filter @rigor/web lint
       - name: Typecheck
