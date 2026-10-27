@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 
 import {
   getEmployerAttempt,
+  getEmployerAssessmentReport,
+  downloadEmployerAssessmentCSV,
+  getEmployerInterviewTranscript,
   listEmployerAssessments,
   listEmployerAttempts,
   provisionalMCQScore,
@@ -11,6 +14,8 @@ import {
   type EmployerAssessment,
   type EmployerAttemptDetail,
   type EmployerAttemptSummary,
+  type EmployerAssessmentReport,
+  type EmployerTranscript,
   type HumanQuestionScore,
   type SubmittedHumanReview,
   type ProvisionalMCQScore,
@@ -20,6 +25,8 @@ export default function EmployerReviewWorkspace() {
   const [assessments, setAssessments] = useState<EmployerAssessment[]>([]);
   const [assessmentId, setAssessmentId] = useState("");
   const [attempts, setAttempts] = useState<EmployerAttemptSummary[]>([]);
+  const [report, setReport] = useState<EmployerAssessmentReport | null>(null);
+  const [transcript, setTranscript] = useState<EmployerTranscript | null>(null);
   const [detail, setDetail] = useState<EmployerAttemptDetail | null>(null);
   const [scores, setScores] = useState<Record<number, HumanQuestionScore>>({});
   const [overallNotes, setOverallNotes] = useState("");
@@ -43,6 +50,8 @@ export default function EmployerReviewWorkspace() {
   async function loadAttempts(id: string) {
     setAssessmentId(id);
     setDetail(null);
+    setReport(null);
+    setTranscript(null);
     setScores({});
     setResult(null);
     setProvisional(null);
@@ -53,7 +62,11 @@ export default function EmployerReviewWorkspace() {
     setBusy(true);
     setError("");
     try {
-      setAttempts(await listEmployerAttempts(id));
+      const [items, summary] = await Promise.all([
+        listEmployerAttempts(id), getEmployerAssessmentReport(id),
+      ]);
+      setAttempts(items);
+      setReport(summary);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to load attempts.");
     } finally {
@@ -62,6 +75,7 @@ export default function EmployerReviewWorkspace() {
   }
 
   async function openAttempt(id: string) {
+    setTranscript(null);
     setBusy(true);
     setError("");
     setResult(null);
@@ -80,6 +94,11 @@ export default function EmployerReviewWorkspace() {
       setOverallNotes("");
       if (response.attempt.status === "submitted") {
         try {
+          setTranscript(await getEmployerInterviewTranscript(response.attempt.id));
+        } catch {
+          setTranscript(null);
+        }
+        try {
           const scored = await provisionalMCQScore(response.attempt.id);
           setProvisional(scored);
         } catch {
@@ -90,6 +109,25 @@ export default function EmployerReviewWorkspace() {
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to load evidence.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function downloadCSV() {
+    if (!assessmentId || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const file = await downloadEmployerAssessmentCSV(assessmentId);
+      const url = URL.createObjectURL(file);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "skillforge-assessment-" + assessmentId + ".csv";
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to export assessment CSV.");
     } finally {
       setBusy(false);
     }
@@ -194,6 +232,34 @@ export default function EmployerReviewWorkspace() {
         </label>
       </section>
 
+      {report && (
+        <section className="space-y-4 rounded-2xl border p-6">
+          <div className="flex flex-wrap justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold">Employer assessment dashboard</h2>
+              <p className="text-sm opacity-70">Signed human reviews only. No automatic hiring decisions.</p>
+            </div>
+            <button type="button" disabled={busy} onClick={() => void downloadCSV()}
+              className="rounded-lg border px-4 py-2 text-sm disabled:opacity-40">
+              Download scorecards (CSV)
+            </button>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-4">
+            {([
+              ["Invited", report.total_invitations],
+              ["Started", report.total_attempts],
+              ["Submitted", report.submitted_attempts],
+              ["Human reviewed", report.human_reviewed_attempts],
+            ] as const).map(([label, value]) => (
+              <div key={label} className="rounded-xl border p-4">
+                <p className="text-xs opacity-60">{label}</p>
+                <p className="mt-2 text-2xl font-semibold">{value}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {detail && (
         <section className="space-y-6">
           <div className="flex flex-wrap justify-between gap-3 rounded-xl border p-5">
@@ -207,6 +273,20 @@ export default function EmployerReviewWorkspace() {
               Source version SHA-256: {detail.content_sha256}
             </p>
           </div>
+          {transcript && (
+            <section className="space-y-3 rounded-xl border p-5">
+              <h3 className="font-semibold">Consented AI interview transcript</h3>
+              <p className="text-sm opacity-65">
+                {transcript.turns.length} messages · {transcript.status}
+              </p>
+              {transcript.turns.map((item) => (
+                <div key={item.sequence_number} className="rounded-lg border p-4">
+                  <p className="text-xs font-semibold uppercase">{item.role}</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm">{item.content}</p>
+                </div>
+              ))}
+            </section>
+          )}
           {provisional && (
             <div className="space-y-2 rounded-xl border p-5">
               <h3 className="font-semibold">Objective questions — provisional evidence</h3>
