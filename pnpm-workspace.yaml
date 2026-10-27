@@ -27,3 +27,4 @@ overrides:
   "shell-quote@1.10.0": 1.11.0
   "source-map-js@1.2.1": 1.2.2
   "eslint-plugin-react-hooks>zod": 4.6.7
+  "@expo/cli>zod": 4.6.7
