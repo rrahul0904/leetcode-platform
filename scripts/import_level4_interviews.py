@@ -129,7 +129,11 @@ def ingest(input_dir: Path, output_dir: Path) -> dict[str, Any]:
         raise ValueError("Candidate and interviewer output must remain separate")
     candidate_dir.mkdir(parents=True, exist_ok=True)
     private_dir.mkdir(parents=True, exist_ok=True)
-    catalog: dict[str, Any] = {"schema_version": 1, "publication_state": "review_required", "sets": []}
+    catalog: dict[str, Any] = {
+        "schema_version": 1,
+        "publication_state": "review_required",
+        "sets": [],
+    }
     for number in range(3, 10):
         candidate_path = input_dir / CANDIDATE_PATTERN.format(n=number)
         guide_path = input_dir / GUIDE_PATTERN.format(n=number)
