@@ -8,7 +8,7 @@ module "network" {
 module "registry" {
   source = "../../modules/ecr"
 
-  names = ["skillforge-api", "skillforge-worker"]
+  names = ["skillforge-api", "skillforge-worker", "skillforge-web"]
 }
 
 module "execution_queue" {
@@ -38,6 +38,7 @@ module "secrets" {
     "RIGOR_OPERATIONAL_DATABASE_URL",
     "RIGOR_VALKEY_URL",
     "CLERK_WEBHOOK_SECRET",
+    "CLERK_SECRET_KEY",
     "SENTRY_DSN"
   ]
 }
@@ -126,4 +127,45 @@ module "api_cdn" {
 
   name               = "${var.name}-api"
   origin_domain_name = var.api_domain
+}
+
+
+# Original, customer-owned web frontend; no Vercel, Railway or Render.
+module "web_certificate" {
+  source = "../../modules/acm"
+
+  domain_name = var.web_domain
+  zone_id     = var.route53_zone_id
+}
+
+module "web" {
+  source = "../../modules/web_ecs"
+
+  name                  = var.name
+  cluster_name          = module.application.cluster_name
+  vpc_id                = module.network.vpc_id
+  public_subnet_ids     = module.network.public_subnet_ids
+  private_subnet_ids    = module.network.private_subnet_ids
+  web_image             = var.web_image
+  certificate_arn       = module.web_certificate.certificate_arn
+  backend_origin        = "https://${var.api_domain}"
+  clerk_issuer          = var.clerk_issuer
+  clerk_publishable_key = var.clerk_publishable_key
+  clerk_secret_arn      = module.secrets.secret_arns["CLERK_SECRET_KEY"]
+}
+
+module "web_waf" {
+  source = "../../modules/waf"
+
+  name    = "${var.name}-web-waf"
+  alb_arn = module.web.alb_arn
+}
+
+module "web_dns" {
+  source = "../../modules/route53"
+
+  zone_id        = var.route53_zone_id
+  record_name    = var.web_domain
+  alias_dns_name = module.web.alb_dns_name
+  alias_zone_id  = module.web.alb_zone_id
 }
