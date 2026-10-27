@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   acceptInterviewInvite,
   getInterviewAttempt,
+  listCandidateAssessmentAttempts,
   saveInterviewAnswer,
   submitInterviewAttempt,
   type AssessmentAttempt,
@@ -24,6 +25,7 @@ export default function AssessmentPage() {
   const [invitationId, setInvitationId] = useState("");
   const [secret, setSecret] = useState("");
   const [attempt, setAttempt] = useState<AssessmentAttempt | null>(null);
+  const [history, setHistory] = useState<AssessmentAttempt[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState(1);
   const [now, setNow] = useState(0);
@@ -46,6 +48,35 @@ export default function AssessmentPage() {
       });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void listCandidateAssessmentAttempts()
+      .then((items) => {
+        if (!cancelled) setHistory(items);
+      })
+      .catch(() => {
+        // First-time candidates have no history. Invitation entry still works.
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  async function restore(attemptId: string) {
+    setWorking(true);
+    setError("");
+    try {
+      const response = await getInterviewAttempt(attemptId);
+      setAttempt(response);
+      setDrafts(response.answers);
+      setSelected(1);
+      window.sessionStorage.setItem(resumeKey, response.id);
+      setNotice("Assessment restored from your secured candidate history.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to restore assessment.");
+    } finally {
+      setWorking(false);
+    }
+  }
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000);
@@ -177,9 +208,44 @@ export default function AssessmentPage() {
               {working ? "Starting…" : "Start assessment"}
             </button>
           </form>
+          {history.length > 0 && (
+            <section className="mt-8 space-y-3 border-t pt-6">
+              <h3 className="font-semibold">Your previous assessments</h3>
+              <p className="text-sm opacity-70">
+                Resume a saved assessment on this device without reusing the invitation secret.
+              </p>
+              {history.map((entry) => (
+                <button
+                  type="button"
+                  key={entry.id}
+                  disabled={working}
+                  className="block w-full rounded-lg border p-3 text-left text-sm disabled:opacity-40"
+                  onClick={() => void restore(entry.id)}
+                >
+                  <span className="font-semibold">
+                    {entry.status === "in_progress" ? "Resume" : "View"} session
+                  </span>
+                  <span className="ml-2">{entry.status}</span>
+                  <span className="mt-1 block break-all font-mono text-xs opacity-65">
+                    {entry.id}
+                  </span>
+                </button>
+              ))}
+            </section>
+          )}
         </section>
       ) : (
         <>
+          <button
+            type="button"
+            className="rounded-lg border px-4 py-2 text-sm"
+            onClick={() => {
+              setAttempt(null);
+              window.sessionStorage.removeItem(resumeKey);
+            }}
+          >
+            Switch assessment
+          </button>
           <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-5">
             <div>
               <p className="text-sm opacity-60">Candidate assessment session</p>
