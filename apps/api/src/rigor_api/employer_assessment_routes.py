@@ -445,3 +445,204 @@ def submit_assessment_attempt(
                 ), {"status": new_status, "id": attempt_id},
             )
         return _attempt_view(conn, _candidate_attempt(conn, attempt_id))
+
+
+class EmployerAttemptSummary(StrictModel):
+    id: UUID
+    assessment_version_id: UUID
+    candidate_id: UUID
+    status: str
+    started_at: datetime | None
+    deadline_at: datetime | None
+    submitted_at: datetime | None
+
+
+class AnswerSummary(StrictModel):
+    question_number: int
+    answer_text: str
+    updated_at: datetime
+
+
+class EmployerAttemptDetail(StrictModel):
+    attempt: EmployerAttemptSummary
+    questions: list[AssessmentQuestion]
+    answers: list[AnswerSummary]
+    maximum_marks: int
+    content_sha256: str
+
+
+class QuestionHumanScore(StrictModel):
+    question_number: int = Field(ge=1, le=100)
+    awarded_marks: int = Field(ge=0, le=100)
+    evidence_note: str = Field(min_length=10, max_length=2_000)
+
+
+class SubmitHumanReview(StrictModel):
+    scores: list[QuestionHumanScore] = Field(min_length=1, max_length=100)
+    overall_notes: str = Field(min_length=15, max_length=4_000)
+
+    @model_validator(mode="after")
+    def unique_review_items(self) -> SubmitHumanReview:
+        numbers = [score.question_number for score in self.scores]
+        if len(numbers) != len(set(numbers)):
+            raise ValueError("Each question may be scored once")
+        return self
+
+
+class SubmittedHumanReview(StrictModel):
+    review_id: UUID
+    attempt_id: UUID
+    reviewer_id: UUID
+    status: Literal["submitted"]
+    awarded_marks: int
+    maximum_marks: int
+    hiring_decision: None = None
+
+
+def _employer_attempt(conn: Connection, attempt_id: UUID) -> dict[str, Any]:
+    row = conn.execute(
+        text(
+            f"""SELECT a.id, a.status, a.candidate_id, a.started_at,
+                       a.deadline_at, a.submitted_at, v.candidate_blueprint,
+                       v.content_sha256, v.maximum_marks, i.assessment_version_id
+                FROM employer_assessment_attempts a
+                JOIN employer_assessment_invitations i
+                  ON i.id=a.invitation_id AND i.organization_id=a.organization_id
+                JOIN employer_assessment_versions v
+                  ON v.id=i.assessment_version_id
+                 AND v.organization_id=i.organization_id
+                WHERE a.id=:attempt AND a.organization_id={_ORG}"""
+        ), {"attempt": attempt_id},
+    ).mappings().one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Employer assessment attempt not found")
+    return dict(row)
+
+
+def _employer_attempt_summary(row: dict[str, Any]) -> EmployerAttemptSummary:
+    return EmployerAttemptSummary(
+        id=row["id"], assessment_version_id=row["assessment_version_id"],
+        candidate_id=row["candidate_id"], status=row["status"],
+        started_at=row["started_at"], deadline_at=row["deadline_at"],
+        submitted_at=row["submitted_at"],
+    )
+
+
+@router.get(
+    "/employer/assessments/{assessment_id}/attempts",
+    response_model=list[EmployerAttemptSummary],
+)
+def list_employer_assessment_attempts(
+    assessment_id: UUID, engine: DatabaseEngine, principal: Principal,
+) -> list[EmployerAttemptSummary]:
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "recruiter", "reviewer", "interviewer"))
+        _org_assessment(conn, assessment_id)
+        rows = conn.execute(
+            text(
+                f"""SELECT a.id, a.status, a.candidate_id, a.started_at,
+                           a.deadline_at, a.submitted_at, i.assessment_version_id
+                    FROM employer_assessment_attempts a
+                    JOIN employer_assessment_invitations i ON i.id=a.invitation_id
+                    WHERE a.organization_id={_ORG}
+                      AND i.assessment_version_id=:assessment
+                    ORDER BY a.created_at DESC LIMIT 200"""
+            ), {"assessment": assessment_id},
+        ).mappings().all()
+        return [_employer_attempt_summary(dict(row)) for row in rows]
+
+
+@router.get("/employer/attempts/{attempt_id}", response_model=EmployerAttemptDetail)
+def get_employer_assessment_attempt(
+    attempt_id: UUID, engine: DatabaseEngine, principal: Principal,
+) -> EmployerAttemptDetail:
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "reviewer", "interviewer"))
+        row = _employer_attempt(conn, attempt_id)
+        answer_rows = conn.execute(
+            text(
+                f"""SELECT question_number, answer_text, updated_at
+                    FROM employer_assessment_responses
+                    WHERE attempt_id=:attempt AND organization_id={_ORG}
+                    ORDER BY question_number"""
+            ), {"attempt": attempt_id},
+        ).mappings().all()
+        return EmployerAttemptDetail(
+            attempt=_employer_attempt_summary(row),
+            questions=[
+                AssessmentQuestion.model_validate(q)
+                for q in row["candidate_blueprint"]["questions"]
+            ],
+            answers=[AnswerSummary.model_validate(dict(a)) for a in answer_rows],
+            maximum_marks=row["maximum_marks"],
+            content_sha256=row["content_sha256"],
+        )
+
+
+@router.post(
+    "/employer/attempts/{attempt_id}/reviews",
+    response_model=SubmittedHumanReview,
+    status_code=201,
+)
+def submit_employer_human_review(
+    attempt_id: UUID, payload: SubmitHumanReview,
+    engine: DatabaseEngine, principal: Principal,
+) -> SubmittedHumanReview:
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "reviewer"))
+        row = _employer_attempt(conn, attempt_id)
+        reviewer = conn.execute(text(f"SELECT {_USER}")).scalar_one()
+        if reviewer == row["candidate_id"]:
+            raise HTTPException(status_code=403, detail="Self-review is not permitted")
+        if row["status"] != "submitted":
+            raise HTTPException(status_code=409, detail="Only submitted attempts may be reviewed")
+        questions = row["candidate_blueprint"]["questions"]
+        allowed = {int(q["number"]): int(q["marks"]) for q in questions}
+        given = {score.question_number: score for score in payload.scores}
+        if set(given) != set(allowed):
+            raise HTTPException(status_code=422, detail="A score is required for every question")
+        if any(
+            score.awarded_marks > allowed[score.question_number]
+            for score in payload.scores
+        ):
+            raise HTTPException(status_code=422, detail="Score exceeds question maximum")
+        total = sum(item.awarded_marks for item in payload.scores)
+        evidence = {
+            "source_content_sha256": row["content_sha256"],
+            "scorer": "human-reviewer-v1",
+            "scores": [item.model_dump() for item in payload.scores],
+            "overall_notes": payload.overall_notes,
+            "awarded_marks": total,
+            "maximum_marks": row["maximum_marks"],
+            "hiring_decision": None,
+        }
+        record = conn.execute(
+            text(
+                f"""INSERT INTO employer_assessment_reviews
+                       (organization_id, attempt_id, candidate_id, reviewer_id,
+                        status, evidence)
+                    VALUES ({_ORG}, :attempt, :candidate, {_USER}, 'submitted',
+                            CAST(:evidence AS jsonb))
+                    ON CONFLICT (attempt_id, reviewer_id) DO NOTHING
+                    RETURNING id"""
+            ), {
+                "attempt": attempt_id, "candidate": row["candidate_id"],
+                "evidence": json.dumps(evidence, separators=(",", ":")),
+            },
+        ).scalar_one_or_none()
+        if record is None:
+            raise HTTPException(status_code=409, detail="Reviewer already submitted evidence")
+        audit_event(
+            conn, principal, reviewer, action="assessment.human_review",
+            resource_type="employer_assessment_review", resource_id=str(record),
+            details={
+                "attempt_id": str(attempt_id),
+                "source_hash": row["content_sha256"],
+                "total_awarded": total,
+            },
+        )
+        return SubmittedHumanReview(
+            review_id=record, attempt_id=attempt_id, reviewer_id=reviewer,
+            status="submitted", awarded_marks=total,
+            maximum_marks=row["maximum_marks"],
+        )
