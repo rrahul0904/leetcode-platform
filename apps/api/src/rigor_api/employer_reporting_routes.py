@@ -16,7 +16,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import text
+from sqlalchemy import Connection, text
 
 from .auth import authenticated_principal
 from .database import DatabaseEngine, principal_transaction
@@ -81,7 +81,7 @@ class EmployerTranscript(StrictModel):
     automated_hiring_decision: None = None
 
 
-def _load_report(conn, assessment_id: UUID) -> EmployerAssessmentReport:
+def _load_report(conn: Connection, assessment_id: UUID) -> EmployerAssessmentReport:
     version = _org_assessment(conn, assessment_id)
     invitation_rows = conn.execute(
         text(
