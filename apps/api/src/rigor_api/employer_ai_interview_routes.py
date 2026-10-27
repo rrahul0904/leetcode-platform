@@ -5,7 +5,6 @@ Text-only and no hidden answer key transfer. Human review stays separate.
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID
@@ -115,7 +114,7 @@ def consent_to_employer_ai_interview(
             status_code=422, detail="AI processing is opt-in; consent must be explicit"
         )
     with principal_transaction(engine, principal) as conn:
-        attempt = _require_active_attempt(conn, attempt_id)
+        _require_active_attempt(conn, attempt_id)
         conn.execute(
             text(
                 f"""INSERT INTO employer_ai_interview_sessions
