@@ -648,3 +648,82 @@ def submit_employer_human_review(
             status="submitted", awarded_marks=total,
             maximum_marks=row["maximum_marks"],
         )
+
+
+
+class EmployerInvitationView(StrictModel):
+    id: UUID
+    assessment_version_id: UUID
+    candidate_id: UUID
+    state: str
+    expires_at: datetime
+    consumed_at: datetime | None
+    created_at: datetime
+
+
+@router.get(
+    "/employer/assessments/{assessment_id}/invitations",
+    response_model=list[EmployerInvitationView],
+)
+def list_employer_invitations(
+    assessment_id: UUID, engine: DatabaseEngine, principal: Principal,
+) -> list[EmployerInvitationView]:
+    """Show invitation status without ever returning token digests or secrets."""
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "recruiter"))
+        _org_assessment(conn, assessment_id)
+        rows = conn.execute(
+            text(
+                f"""SELECT id, assessment_version_id, candidate_id,
+                           state, expires_at, consumed_at, created_at
+                    FROM employer_assessment_invitations
+                    WHERE organization_id={_ORG}
+                      AND assessment_version_id=:assessment
+                    ORDER BY created_at DESC LIMIT 200"""
+            ),
+            {"assessment": assessment_id},
+        ).mappings().all()
+        return [EmployerInvitationView.model_validate(dict(row)) for row in rows]
+
+
+@router.post(
+    "/employer/invitations/{invitation_id}/revoke",
+    response_model=EmployerInvitationView,
+)
+def revoke_employer_invitation(
+    invitation_id: UUID, engine: DatabaseEngine, principal: Principal,
+) -> EmployerInvitationView:
+    """Revoke a pending invitation atomically; never invalidate active work."""
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "recruiter"))
+        existing = conn.execute(
+            text(
+                f"""SELECT state FROM employer_assessment_invitations
+                    WHERE id=:id AND organization_id={_ORG} FOR UPDATE"""
+            ),
+            {"id": invitation_id},
+        ).scalar_one_or_none()
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Invitation not found")
+        if existing != "pending":
+            raise HTTPException(
+                status_code=409,
+                detail="Only pending invitations can be revoked",
+            )
+        row = conn.execute(
+            text(
+                f"""UPDATE employer_assessment_invitations
+                    SET state='revoked'
+                    WHERE id=:id AND organization_id={_ORG} AND state='pending'
+                    RETURNING id, assessment_version_id, candidate_id, state,
+                              expires_at, consumed_at, created_at"""
+            ),
+            {"id": invitation_id},
+        ).mappings().one()
+        actor = conn.execute(text(f"SELECT {_USER}")).scalar_one()
+        audit_event(
+            conn, principal, actor, action="assessment.invitation_revoke",
+            resource_type="employer_invitation", resource_id=str(invitation_id),
+            details={"candidate_id": str(row["candidate_id"])},
+        )
+        return EmployerInvitationView.model_validate(dict(row))
