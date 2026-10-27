@@ -43,7 +43,7 @@ def tenant_policy(table: str, *, candidate: bool = False, privileged: bool = Fal
         "EXISTS (SELECT 1 FROM organization_memberships om "
         f"WHERE om.organization_id={table}.organization_id "
         "AND om.user_id::text=NULLIF(current_setting('rigor.user_id',true),'') "
-        f"AND om.role_slug IN ({roles}))"
+        f"AND om.role_slug IN ({roles}) AND om.status='active')"
     )
     candidate_access = (
         " OR (candidate_id::text=NULLIF(current_setting('rigor.user_id',true),'') "
@@ -141,6 +141,21 @@ def upgrade() -> None:
         ),
     )
     tenant_policy("employer_assessment_invitations", candidate=True)
+    # Published candidate-visible questions may be read only by the invited
+    # candidate; this policy never grants read access to private answer keys.
+    # Invitation RLS itself restricts this EXISTS to the candidate's own rows.
+    op.execute("""
+        CREATE POLICY employer_assessment_candidate_visible
+        ON employer_assessment_versions FOR SELECT TO rigor_app
+        USING (
+          status='published' AND EXISTS (
+            SELECT 1 FROM employer_assessment_invitations i
+            WHERE i.assessment_version_id=employer_assessment_versions.id
+              AND i.candidate_id=NULLIF(current_setting('rigor.user_id',true),'')::uuid
+              AND i.state='accepted'
+          )
+        )
+    """)
     op.create_index(
         "ix_assessment_invitation_candidate",
         "employer_assessment_invitations", ["candidate_id", "expires_at"]
