@@ -9,6 +9,7 @@ import {
   publishEmployerAssessment,
   type EmployerAssessment,
   type EmployerInvitation,
+  type AssessmentQuestion,
 } from "@/lib/employer-assessment-api";
 
 export default function EmployerAssessmentsPage() {
@@ -18,9 +19,13 @@ export default function EmployerAssessmentsPage() {
   const [notice, setNotice] = useState("");
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
-  const [prompt, setPrompt] = useState("");
+  const [questions, setQuestions] = useState<AssessmentQuestion[]>([
+    { number: 1, kind: "written", prompt: "", marks: 100, options: [] },
+  ]);
   const [candidateId, setCandidateId] = useState("");
-  const [evidence, setEvidence] = useState("");
+  const [rightsEvidence, setRightsEvidence] = useState("");
+  const [technicalEvidence, setTechnicalEvidence] = useState("");
+  const [editorialEvidence, setEditorialEvidence] = useState("");
   const [invitation, setInvitation] = useState<EmployerInvitation | null>(null);
 
   async function refresh() {
@@ -57,18 +62,19 @@ export default function EmployerAssessmentsPage() {
         slug: slug.trim(),
         title: title.trim(),
         duration_minutes: 60,
-        questions: [{
-          number: 1,
-          kind: "written",
-          prompt: prompt.trim(),
-          marks: 100,
-          options: [],
-        }],
+        questions: questions.map((q, index) => ({
+          ...q,
+          number: index + 1,
+          prompt: q.prompt.trim(),
+          options: q.options.map((option) => option.trim()),
+        })),
       });
       setNotice("Draft " + response.slug + " created. An independent reviewer must approve it.");
       setTitle("");
       setSlug("");
-      setPrompt("");
+      setQuestions([
+        { number: 1, kind: "written", prompt: "", marks: 100, options: [] },
+      ]);
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Cannot create assessment.");
@@ -83,9 +89,9 @@ export default function EmployerAssessmentsPage() {
     setError("");
     try {
       await publishEmployerAssessment(id, {
-        rights_evidence: evidence.trim(),
-        technical_evidence: evidence.trim(),
-        editorial_evidence: evidence.trim(),
+        rights_evidence: rightsEvidence.trim(),
+        technical_evidence: technicalEvidence.trim(),
+        editorial_evidence: editorialEvidence.trim(),
       });
       setNotice("Published after independent reviewer attestation.");
       await refresh();
@@ -166,7 +172,11 @@ export default function EmployerAssessmentsPage() {
               {assessment.status === "review_required" && (
                 <button
                   type="button"
-                  disabled={busy || evidence.trim().length < 10}
+                  disabled={
+                    busy || rightsEvidence.trim().length < 10
+                    || technicalEvidence.trim().length < 10
+                    || editorialEvidence.trim().length < 10
+                  }
                   className="rounded-md border border-sky-500 px-4 py-2 text-sm disabled:opacity-40"
                   onClick={() => void publish(assessment.id)}
                 >
@@ -208,14 +218,115 @@ export default function EmployerAssessmentsPage() {
                   value={slug} onChange={(event) => setSlug(event.target.value)}
                 />
               </label>
-              <label className="block text-sm">
-                Written problem prompt
-                <textarea
-                  required minLength={10} rows={5}
-                  className="mt-1 w-full rounded-lg border bg-transparent p-3"
-                  value={prompt} onChange={(event) => setPrompt(event.target.value)}
-                />
-              </label>
+              <fieldset className="space-y-5 rounded-lg border p-3">
+                <legend className="px-2 font-semibold">Questions and marks</legend>
+                {questions.map((question, index) => (
+                  <div key={question.number} className="space-y-3 rounded-lg border p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <strong className="text-sm">Question {index + 1}</strong>
+                      <button
+                        type="button"
+                        disabled={questions.length === 1}
+                        className="rounded border px-2 py-1 text-xs disabled:opacity-40"
+                        onClick={() => setQuestions((all) =>
+                          all.filter((_, i) => i !== index).map((q, i) => ({
+                            ...q, number: i + 1,
+                          }))
+                        )}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <label className="block text-sm">
+                      Type
+                      <select
+                        value={question.kind}
+                        className="mt-1 w-full rounded-lg border bg-transparent p-2"
+                        onChange={(event) => {
+                          const kind = event.target.value as AssessmentQuestion["kind"];
+                          setQuestions((all) => all.map((q, i) => (
+                            i === index ? {
+                              ...q, kind,
+                              options: kind === "multiple_choice" ? ["", "", "", ""] : [],
+                            } : q
+                          )));
+                        }}
+                      >
+                        <option value="written">Written scenario</option>
+                        <option value="code">Coding (review-only until runner available)</option>
+                        <option value="multiple_choice">Multiple choice</option>
+                      </select>
+                    </label>
+                    <label className="block text-sm">
+                      Points
+                      <input
+                        type="number" required min={1} max={100}
+                        className="mt-1 w-full rounded-lg border bg-transparent p-2"
+                        value={question.marks}
+                        onChange={(event) => {
+                          const marks = Number(event.target.value);
+                          setQuestions((all) => all.map((q, i) =>
+                            i === index ? { ...q, marks } : q
+                          ));
+                        }}
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      Public question prompt
+                      <textarea
+                        required minLength={10} maxLength={20000} rows={4}
+                        className="mt-1 w-full rounded-lg border bg-transparent p-3"
+                        value={question.prompt}
+                        onChange={(event) => setQuestions((all) => all.map((q, i) =>
+                          i === index ? { ...q, prompt: event.target.value } : q
+                        ))}
+                      />
+                    </label>
+                    {question.kind === "multiple_choice" && (
+                      <div className="space-y-2">
+                        <p className="text-xs opacity-65">
+                          Enter four public options. Correct answers are not stored in this builder.
+                        </p>
+                        {question.options.map((option, choice) => (
+                          <label key={choice} className="block text-sm">
+                            Option {String.fromCharCode(65 + choice)}
+                            <input
+                              required maxLength={2000}
+                              value={option}
+                              className="mt-1 w-full rounded-lg border bg-transparent p-2"
+                              onChange={(event) => setQuestions((all) => all.map((q, i) =>
+                                i === index ? {
+                                  ...q,
+                                  options: q.options.map((o, j) =>
+                                    j === choice ? event.target.value : o
+                                  ),
+                                } : q
+                              ))}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  disabled={questions.length >= 100}
+                  onClick={() => setQuestions((all) => [...all, {
+                    number: all.length + 1,
+                    kind: "written",
+                    prompt: "",
+                    marks: 10,
+                    options: [],
+                  }])}
+                  className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40"
+                >
+                  Add question
+                </button>
+                <p className="text-sm opacity-70">
+                  Total points: {questions.reduce((sum, q) => sum + q.marks, 0)}
+                </p>
+              </fieldset>
               <button
                 disabled={busy} type="submit"
                 className="rounded-lg bg-sky-600 px-4 py-2 font-semibold text-white disabled:opacity-40"
@@ -226,17 +337,23 @@ export default function EmployerAssessmentsPage() {
           </section>
           <section className="space-y-4 rounded-2xl border p-6">
             <h2 className="font-semibold">Reviewer evidence and invitations</h2>
-            <label className="block text-sm">
-              Independent review receipts (rights, technical and editorial)
-              <textarea
-                value={evidence} minLength={10} rows={4}
-                onChange={(event) => setEvidence(event.target.value)}
-                className="mt-1 w-full rounded-lg border bg-transparent p-3"
-              />
-            </label>
+            {([
+              ["Rights and originality evidence", rightsEvidence, setRightsEvidence],
+              ["Technical correctness review", technicalEvidence, setTechnicalEvidence],
+              ["Editorial and accessibility review", editorialEvidence, setEditorialEvidence],
+            ] as const).map(([label, value, onChange]) => (
+              <label key={label} className="block text-sm">
+                {label}
+                <textarea
+                  value={value} required minLength={10} maxLength={500} rows={3}
+                  onChange={(event) => onChange(event.target.value)}
+                  className="mt-1 w-full rounded-lg border bg-transparent p-3"
+                />
+              </label>
+            ))}
             <p className="text-xs opacity-65">
-              This early interface sends one receipt text across three evidence fields.
-              Formal distinct reviews and reviewer assignment remain release-gated.
+              Review evidence is attributed to the independently authenticated approver.
+              Formal multi-person review queues remain a release gate.
             </p>
             <label className="block text-sm">
               Registered candidate UUID
