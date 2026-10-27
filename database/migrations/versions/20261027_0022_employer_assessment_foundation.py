@@ -299,6 +299,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Remove policy referencing invitations before dropping invitation table.
+    op.execute(
+        "DROP POLICY IF EXISTS employer_assessment_candidate_visible "
+        "ON employer_assessment_versions"
+    )
     op.execute(
         "DROP TRIGGER IF EXISTS tr_employer_assessment_immutable "
         "ON employer_assessment_versions"
