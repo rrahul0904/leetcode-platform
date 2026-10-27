@@ -133,6 +133,17 @@ jobs:
           aws ecs describe-task-definition --task-definition "$previous" --query taskDefinition > web-task.json
           jq -e '.containerDefinitions | any(.name=="web")' web-task.json
           jq -e '.containerDefinitions[] | select(.name=="web") | (.environment // [] | any(.name=="RIGOR_BACKEND_ORIGIN"))' web-task.json
+          jq -e '.containerDefinitions[] | select(.name=="web") | (.secrets // [] | any(.name=="CLERK_SECRET_KEY"))' web-task.json
+          if [ "${{ inputs.environment }}" = "production" ]; then
+            jq -e --arg expected "${API_PROBE_URL%/}" '
+              .containerDefinitions[]
+              | select(.name=="web")
+              | (.environment // [] | any(
+                  .name=="RIGOR_BACKEND_ORIGIN"
+                  and ((.value | rtrimstr("/")) == $expected)
+                ))
+            ' web-task.json
+          fi
           jq 'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)' web-task.json > web-task-clean.json
       - name: Render ECS web task definition
         id: render
