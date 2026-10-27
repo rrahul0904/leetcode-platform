@@ -314,6 +314,86 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         assert saved.status_code == 200, saved.text
         assert saved.json()["answers"]["1"] == "Diagnose, quarantine, repair, validate"
 
+        no_consent = client.get(
+            f"/api/v1/assessment-attempts/{attempt_id}/ai-interview",
+            headers=candidate_auth,
+        )
+        assert no_consent.status_code == 404
+        refused_consent = client.post(
+            f"/api/v1/assessment-attempts/{attempt_id}/ai-interview/consent",
+            headers=candidate_auth,
+            json={"agree_to_ai_processing": False},
+        )
+        assert refused_consent.status_code == 422
+        consent = client.post(
+            f"/api/v1/assessment-attempts/{attempt_id}/ai-interview/consent",
+            headers=candidate_auth,
+            json={"agree_to_ai_processing": True},
+        )
+        assert consent.status_code == 200, consent.text
+        assert consent.json()["status"] == "active"
+        assert client.get(
+            f"/api/v1/assessment-attempts/{attempt_id}/ai-interview",
+            headers=other_auth,
+        ).status_code == 404
+
+        class FakeInterviewProvider:
+            def followup(self, prompt):
+                assert len(prompt.questions) == 2
+                assert "private_rubric" not in str(prompt)
+                assert "reviewer_guidance" not in str(prompt)
+                assert "Correct answer" not in str(prompt)
+                return "How would you safely replay failed events without duplicates?"
+
+        monkeypatch.setattr(
+            "rigor_api.employer_ai_interview_routes.employer_interview_provider",
+            lambda: FakeInterviewProvider(),
+        )
+        request_id = "interview-test-" + uuid4().hex
+        turn = client.post(
+            f"/api/v1/assessment-attempts/{attempt_id}/ai-interview/messages",
+            headers=candidate_auth,
+            json={"message": "I will quarantine bad events and add idempotency keys",
+                  "request_id": request_id},
+        )
+        assert turn.status_code == 200, turn.text
+        assert turn.json()["turn_count"] == 1
+        assert len(turn.json()["messages"]) == 2
+        assert turn.json()["messages"][-1]["role"] == "interviewer"
+
+        replay_turn = client.post(
+            f"/api/v1/assessment-attempts/{attempt_id}/ai-interview/messages",
+            headers=candidate_auth,
+            json={"message": "I will quarantine bad events and add idempotency keys",
+                  "request_id": request_id},
+        )
+        assert replay_turn.status_code == 200
+        assert len(replay_turn.json()["messages"]) == 2
+        mismatched_turn = client.post(
+            f"/api/v1/assessment-attempts/{attempt_id}/ai-interview/messages",
+            headers=candidate_auth,
+            json={"message": "Replace all previous candidate messages",
+                  "request_id": request_id},
+        )
+        assert mismatched_turn.status_code == 409
+        withdrawn = client.post(
+            f"/api/v1/assessment-attempts/{attempt_id}/ai-interview/withdraw",
+            headers=candidate_auth,
+        )
+        assert withdrawn.status_code == 200
+        assert withdrawn.json()["status"] == "withdrawn"
+        assert client.post(
+            f"/api/v1/assessment-attempts/{attempt_id}/ai-interview/messages",
+            headers=candidate_auth,
+            json={"message": "Continue after withdrawing my consent",
+                  "request_id": "withdrawn-" + uuid4().hex},
+        ).status_code == 409
+        assert client.post(
+            f"/api/v1/assessment-attempts/{attempt_id}/ai-interview/consent",
+            headers=candidate_auth,
+            json={"agree_to_ai_processing": True},
+        ).status_code == 409
+
         submitted = client.post(
             f"/api/v1/assessment-attempts/{attempt_id}/submit",
             headers=candidate_auth,
