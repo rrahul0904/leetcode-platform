@@ -307,3 +307,50 @@ def send_employer_ai_interview_message(
             ), {"session": row["id"]},
         )
         return _view(conn, _session(conn, attempt_id))
+
+
+
+@router.post("/{attempt_id}/ai-interview/erase", response_model=InterviewSessionView)
+def erase_candidate_ai_interview(
+    attempt_id: UUID, engine: DatabaseEngine, principal: Principal,
+) -> InterviewSessionView:
+    """Physically delete stored dialogue after validating live candidate ownership.
+
+    Erasure retains only the interview session's consent and erasure timestamps,
+    so auditors can prove consent was withdrawn without recovering conversation
+    content. It cannot interrupt an already outbound model request: the server
+    first requires that no model call is in flight.
+    """
+    with principal_transaction(engine, principal) as conn:
+        _candidate_attempt(conn, attempt_id)
+        row = _session(conn, attempt_id, lock=True)
+        if row["pending_request_id"] is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="Finish or retry the pending response before transcript erasure",
+            )
+        if row["status"] != "erased":
+            conn.execute(
+                text(
+                    f"""DELETE FROM employer_ai_interview_messages
+                        WHERE session_id=:session AND candidate_id={_USER}"""
+                ),
+                {"session": row["id"]},
+            )
+            conn.execute(
+                text(
+                    """UPDATE employer_ai_interview_sessions
+                       SET status='erased', erased_at=CURRENT_TIMESTAMP,
+                           updated_at=CURRENT_TIMESTAMP,
+                           pending_request_id=NULL, pending_at=NULL
+                       WHERE id=:session"""
+                ),
+                {"session": row["id"]},
+            )
+            actor = conn.execute(text(f"SELECT {_USER}")).scalar_one()
+            audit_event(
+                conn, principal, actor, action="employer.ai_interview_erase",
+                resource_type="employer_interview", resource_id=str(row["id"]),
+                details={"erasure_scope": "candidate_and_interviewer_messages"},
+            )
+        return _view(conn, _session(conn, attempt_id))
