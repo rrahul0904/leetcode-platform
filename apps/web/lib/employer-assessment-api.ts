@@ -258,3 +258,39 @@ export function addEmployerMember(
     { user_id: userId, role },
   );
 }
+
+
+export type PrivateAnswerKey = {
+  assessment_version_id: string;
+  source_sha256: string;
+  mcq_answers: Record<number, "A" | "B" | "C" | "D">;
+  reviewer_guidance: string;
+};
+
+export function savePrivateAnswerKey(
+  assessmentId: string,
+  mcqAnswers: Record<number, "A" | "B" | "C" | "D">,
+  reviewerGuidance: string,
+) {
+  return request<PrivateAnswerKey>(
+    "/api/v1/employer/assessments/" + encodeURIComponent(assessmentId) + "/private-key",
+    "PUT",
+    { mcq_answers: mcqAnswers, reviewer_guidance: reviewerGuidance },
+  );
+}
+
+export type ProvisionalMCQScore = {
+  assessment_attempt_id: string;
+  source_sha256: string;
+  mcq_awarded_marks: number;
+  mcq_maximum_marks: number;
+  human_review_pending_marks: number;
+  scoring_status: "provisional_mcq_only";
+  hiring_decision: null;
+};
+
+export function provisionalMCQScore(attemptId: string) {
+  return request<ProvisionalMCQScore>(
+    "/api/v1/employer/attempts/" + encodeURIComponent(attemptId) + "/provisional-mcq-score",
+  );
+}
