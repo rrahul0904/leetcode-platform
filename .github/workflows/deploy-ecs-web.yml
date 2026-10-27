@@ -90,6 +90,17 @@ jobs:
           ref: ${{ env.RELEASE_SHA }}
       - name: Verify checked-out SHA
         run: test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+      - name: Prohibit unmerged production releases
+        if: inputs.environment == 'production'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          git fetch --no-tags --force origin main
+          if ! git merge-base --is-ancestor "$RELEASE_SHA" origin/main; then
+            echo "Production release denied: requested commit has not merged into main"
+            exit 1
+          fi
       - name: Configure AWS OIDC credentials
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
