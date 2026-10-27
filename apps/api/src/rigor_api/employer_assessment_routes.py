@@ -22,7 +22,7 @@ from .database import DatabaseEngine, principal_transaction
 from .persistence import audit_event
 from .schemas import AuthenticatedPrincipal
 
-router = APIRouter(prefix="/api/v1", tags=["employer-assessments"])
+router = APIRouter(tags=["employer-assessments"])
 Principal = Annotated[AuthenticatedPrincipal, Depends(authenticated_principal)]
 _USER = "NULLIF(current_setting('rigor.user_id',true),'')::uuid"
 _ORG = "NULLIF(current_setting('rigor.organization_id',true),'')::uuid"
