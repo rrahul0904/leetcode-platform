@@ -13,7 +13,7 @@ from .execution_routes import (
 )
 from .schemas import ReadinessCheck, ReadinessResponse
 
-EXPECTED_MIGRATION_VERSION = "20261027_0023"
+EXPECTED_MIGRATION_VERSION = "20261027_0024"
 REQUIRED_TABLES = (
     "users",
     "user_roles",
