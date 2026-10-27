@@ -150,6 +150,37 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         )
         assert cannot_self_approve.status_code == 409
 
+        no_key_approval = client.post(
+            f"/api/v1/employer/assessments/{aid}/publish",
+            headers=reviewer_auth,
+            json={
+                "rights_evidence": "Original authored employer content confirmed",
+                "technical_evidence": "Independent technical review receipt",
+                "editorial_evidence": "Independent editorial review receipt",
+            },
+        )
+        assert no_key_approval.status_code == 409
+        saved_secret_key = client.put(
+            f"/api/v1/employer/assessments/{aid}/private-key",
+            headers=admin_auth,
+            json={
+                "mcq_answers": {"2": "B"},
+                "reviewer_guidance": "Human reviewers should evaluate the pipeline recovery logic.",
+            },
+        )
+        assert saved_secret_key.status_code == 200, saved_secret_key.text
+        reviewer_private_key = client.get(
+            f"/api/v1/employer/assessments/{aid}/private-key",
+            headers=reviewer_auth,
+        )
+        assert reviewer_private_key.status_code == 200, reviewer_private_key.text
+        assert reviewer_private_key.json()["mcq_answers"]["2"] == "B"
+        candidate_private_key = client.get(
+            f"/api/v1/employer/assessments/{aid}/private-key",
+            headers=candidate_auth,
+        )
+        assert candidate_private_key.status_code == 403
+
         approved = client.post(
             f"/api/v1/employer/assessments/{aid}/publish",
             headers=reviewer_auth,
@@ -282,6 +313,19 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         )
         assert submitted.status_code == 200, submitted.text
         assert submitted.json()["status"] == "submitted"
+        provisional = client.get(
+            f"/api/v1/employer/attempts/{attempt_id}/provisional-mcq-score",
+            headers=reviewer_auth,
+        )
+        assert provisional.status_code == 200, provisional.text
+        assert provisional.json()["mcq_awarded_marks"] == 0
+        assert provisional.json()["mcq_maximum_marks"] == 40
+        assert provisional.json()["human_review_pending_marks"] == 60
+        assert provisional.json()["hiring_decision"] is None
+        assert client.get(
+            f"/api/v1/employer/attempts/{attempt_id}/provisional-mcq-score",
+            headers=candidate_auth,
+        ).status_code == 403
         assert client.put(
             f"/api/v1/assessment-attempts/{attempt_id}/responses",
             headers=candidate_auth,
