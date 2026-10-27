@@ -54,8 +54,12 @@ def candidate_fixture():
         items.append(f"SECTION {section} - PRACTICE")
         for number in numbers:
             if number <= 6:
-                items.append(f"Question {number} - Synthetic Question [{10} marks | recommended 6 min]")
-                items.extend(["Requirements", "Explain solution.", "What is being assessed: Reasoning"])
+                items.append(
+                    f"Question {number} - Synthetic Question [10 marks | recommended 6 min]"
+                )
+                items.extend(
+                    ["Requirements", "Explain solution.", "What is being assessed: Reasoning"]
+                )
             else:
                 items.append(f"{number}. Choose the correct design.")
                 items.extend([f"{c}. choice {c}" for c in "ABCD"])
