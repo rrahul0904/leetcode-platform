@@ -9,6 +9,7 @@ const webdriverElementKey = "element-6066-11e4-a52e-4f735466cecf";
 
 const launchRoutes = [
   "/question-bank",
+  "/assessments",
   "/companies",
   "/design-lab",
   "/pr-review",
@@ -70,7 +71,12 @@ const browserApiStub = String.raw`
     });
 
   window.fetch = async (input, init = {}) => {
-    const url = typeof input === "string" ? input : input.url;
+    const url = typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : input?.url;
+    if (typeof url !== "string") return originalFetch(input, init);
 
     if (url.endsWith("/api/v1/auth/me")) {
       return json({
