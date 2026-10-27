@@ -366,7 +366,7 @@ export default function AssessmentPage() {
               )}
             </article>
           </div>
-          <EmployerAIInterviewPanel attemptId={attempt.id} active={active} />
+          <EmployerAIInterviewPanel key={attempt.id} attemptId={attempt.id} active={active} />
           <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border p-5">
             <p className="text-sm opacity-70">
               Submit only after saving each response. The server rejects changes after submission.
