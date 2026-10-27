@@ -228,8 +228,8 @@ def employer_interview_transcript(
                     WHERE organization_id={_ORG} AND attempt_id=:attempt"""
             ), {"attempt": attempt_id},
         ).mappings().one_or_none()
-        if session is None:
-            raise HTTPException(status_code=404, detail="No opted-in AI interview transcript")
+        if session is None or session["status"] == "erased":
+            raise HTTPException(status_code=404, detail="No retained AI interview transcript")
         rows = conn.execute(
             text(
                 f"""SELECT sequence_number, role, content, created_at
