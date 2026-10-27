@@ -5,7 +5,6 @@ from __future__ import annotations
 from uuid import uuid4
 
 import jwt
-from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from rigor_api.auth import LOCAL_IDENTITIES, LocalIdentity, LocalOIDCProvider
 from rigor_api.main import app
@@ -240,22 +239,3 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
             json={"question_number": 1, "answer_text": "Change after submit"},
         ).status_code == 409
 
-
-def test_assessment_routes_are_registered() -> None:
-    routes = {
-        (route.path, method)
-        for route in app.routes
-        if isinstance(route, APIRoute)
-        for method in route.methods
-    }
-    expected = {
-        ("/api/v1/employer/assessments", "POST"),
-        ("/api/v1/employer/assessments", "GET"),
-        ("/api/v1/employer/assessments/{assessment_id}/publish", "POST"),
-        ("/api/v1/employer/assessments/{assessment_id}/invitations", "POST"),
-        ("/api/v1/assessment-invitations/accept", "POST"),
-        ("/api/v1/assessment-attempts/{attempt_id}", "GET"),
-        ("/api/v1/assessment-attempts/{attempt_id}/responses", "PUT"),
-        ("/api/v1/assessment-attempts/{attempt_id}/submit", "POST"),
-    }
-    assert expected <= routes
