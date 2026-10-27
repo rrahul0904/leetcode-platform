@@ -58,7 +58,6 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         author_id = _identity_id(engine, "local-platform-administrator")
         reviewer_id = _identity_id(engine, "local-technical-reviewer")
         candidate_id = _identity_id(engine, "local-candidate")
-        other_id = _identity_id(engine, f"local-{name}")
 
         with engine.begin() as conn:
             org = conn.execute(
