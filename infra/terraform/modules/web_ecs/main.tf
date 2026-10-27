@@ -14,6 +14,10 @@ variable "private_subnet_ids" {
   type = list(string)
 }
 
+variable "cluster_name" {
+  type = string
+}
+
 variable "web_image" {
   type = string
 }
@@ -247,7 +251,7 @@ resource "aws_ecs_task_definition" "web" {
 
 resource "aws_ecs_service" "web" {
   name                 = "${var.name}-web"
-  cluster              = aws_ecs_cluster.this.id
+  cluster              = var.cluster_name
   task_definition      = aws_ecs_task_definition.web.arn
   desired_count        = var.desired_count
   launch_type          = "FARGATE"
@@ -276,7 +280,7 @@ resource "aws_ecs_service" "web" {
 resource "aws_appautoscaling_target" "web" {
   max_capacity       = 6
   min_capacity       = 2
-  resource_id        = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.web.name}"
+  resource_id        = "service/${var.cluster_name}/${aws_ecs_service.web.name}"
   scalable_dimension = "ecs:service:DesiredCount"
   service_namespace  = "ecs"
 }
@@ -313,5 +317,5 @@ output "alb_zone_id" {
 }
 
 output "cluster_name" {
-  value = aws_ecs_cluster.this.name
+  value = var.cluster_name
 }
