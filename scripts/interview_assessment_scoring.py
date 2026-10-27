@@ -9,17 +9,9 @@ from __future__ import annotations
 
 from typing import Any
 
-PROFILES = {
-    "data-engineering": {
-        "written": 6,
-        "total": 16,
-        "marks": [10, 10, 8, 8, 9, 15] + [4] * 10,
-    },
-    "devops": {
-        "written": 4,
-        "total": 14,
-        "marks": [15] * 4 + [4] * 10,
-    },
+PROFILES: dict[str, tuple[int, int, list[int]]] = {
+    "data-engineering": (6, 16, [10, 10, 8, 8, 9, 15] + [4] * 10),
+    "devops": (4, 14, [15] * 4 + [4] * 10),
 }
 
 
@@ -32,9 +24,7 @@ def score_assessment(
 ) -> dict[str, Any]:
     if profile not in PROFILES:
         raise ValueError("Unknown assessment profile")
-    spec = PROFILES[profile]
-    written = int(spec["written"])
-    count = int(spec["total"])
+    written, count, expected_marks = PROFILES[profile]
     expected = {str(n) for n in range(1, count + 1)}
     expected_keys = {str(n) for n in range(written + 1, count + 1)}
     if len(questions) != count or [q.get("number") for q in questions] != list(
@@ -43,7 +33,7 @@ def score_assessment(
         raise ValueError("Missing, duplicate or out-of-order assessment questions")
     if [
         q.get("marks") for q in questions
-    ] != spec["marks"]:
+    ] != expected_marks:
         raise ValueError("Question point allocations do not match source contract")
     if set(answers) - expected:
         raise ValueError("Unknown answer in response")
