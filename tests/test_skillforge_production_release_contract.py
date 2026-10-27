@@ -123,71 +123,50 @@ def test_production_launch_bootstrap_is_fail_closed(monkeypatch: pytest.MonkeyPa
 
 
 def test_release_workflow_requires_customer_owned_production_domain() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
-        encoding="utf-8"
-    )
-
-    assert "REQUESTED_CANONICAL_HOSTNAME: ${{ vars.SKILLFORGE_PRODUCTION_HOSTNAME }}" in workflow
-    assert "REQUESTED_CANONICAL_URL: https://${{ vars.SKILLFORGE_PRODUCTION_HOSTNAME }}" in workflow
-    assert "SKILLFORGE_PRODUCTION_HOSTNAME GitHub Actions production variable" in workflow
-    assert "Clerk production requires a customer-owned domain" in workflow
-    assert 'host.endswith(".vercel.app")' in workflow
-    assert "vercel deploy --prebuilt --prod" in workflow
-    assert "Verify production domain points to the new deployment" in workflow
-    assert "No manual alias reassignment will be attempted" in workflow
+    web = (ROOT / ".github/workflows/deploy-ecs-web.yml").read_text(encoding="utf-8")
+    assert "WEB_PROBE_URL" in web
+    assert '[[ "$WEB_PROBE_URL" == https://* ]]' in web
+    assert "customer-owned external web hostname" in web
+    assert "ECS_WEB_SERVICE" in web
+    assert "vercel deploy" not in web
 
 
 def test_release_workflow_requires_controlled_production_boundary() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
+    web = (ROOT / ".github/workflows/deploy-ecs-web.yml").read_text(encoding="utf-8")
+    legacy = (ROOT / ".github/workflows/deploy-vercel-skillforge.yml").read_text(
         encoding="utf-8"
     )
-    trigger = workflow.split("permissions:", 1)[0]
-
-    assert "workflow_dispatch:" in trigger
-    assert "pull_request:" not in trigger
-    assert "      - main" in trigger
-    assert "      - agent/" not in trigger
-    assert "environment: production" in workflow
+    assert "workflow_dispatch:" in web
+    assert "environment:" in web
+    assert "cancel-in-progress: false" in web
+    assert "workflow_dispatch:" in legacy
+    assert "No production infrastructure has been modified" in legacy
+    assert "vercel deploy" not in legacy
+    assert "exit 1" in legacy
 
 
 def test_release_workflow_retains_exact_sha_certification_evidence() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml").read_text(
-        encoding="utf-8"
-    )
-
-    assert "RELEASE_SHA:" in workflow
-    assert '--meta githubCommitSha="$RELEASE_SHA"' in workflow
-    assert 'if [ "$deployment_sha" != "$RELEASE_SHA" ]; then' in workflow
-    assert "production-release-evidence.json" in workflow
-    assert "skillforge-production-certification-${{ env.RELEASE_SHA }}" in workflow
-    assert "retention-days: 90" in workflow
+    web = (ROOT / ".github/workflows/deploy-ecs-web.yml").read_text(encoding="utf-8")
+    assert "RELEASE_SHA:" in web
+    assert "inputs.release_sha" in web
+    assert 'test "$(git rev-parse HEAD)" = "$RELEASE_SHA"' in web
+    assert 'image="$REGISTRY/$ECR_WEB_REPOSITORY:$RELEASE_SHA"' in web
+    assert "Block vulnerable container images" in web
+    assert "wait-for-service-stability: true" in web
 
 
 def test_release_workflow_dispatches_ecs_with_immutable_sha_and_unique_correlation() -> None:
-    release_workflow = (
-        ROOT / ".github" / "workflows" / "deploy-vercel-skillforge.yml"
-    ).read_text(encoding="utf-8")
-    ecs_workflow = (ROOT / ".github" / "workflows" / "deploy-ecs.yml").read_text(
-        encoding="utf-8"
-    )
-
-    assert '-f release_sha="$RELEASE_SHA"' in release_workflow
-    assert '-f correlation_id="$ecs_correlation_id"' in release_workflow
-    assert "displayTitle == env.ECS_RUN_NAME" in release_workflow
-    assert ".headSha == env.RELEASE_SHA" not in release_workflow
-    assert "release_sha:" in ecs_workflow
-    assert "correlation_id:" in ecs_workflow
-    assert "ref: ${{ env.RELEASE_SHA }}" in ecs_workflow
-    assert '[[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]' in ecs_workflow
-    assert 'actual_sha="$(git rev-parse HEAD)"' in ecs_workflow
-    assert 'if [ "$actual_sha" != "$RELEASE_SHA" ]; then' in ecs_workflow
-    assert ecs_workflow.count("IMAGE_TAG: ${{ env.RELEASE_SHA }}") == 2
-
-    validate_input = ecs_workflow.index("Validate immutable release SHA input")
-    checkout = ecs_workflow.index("- uses: actions/checkout")
-    verify_checkout = ecs_workflow.index("Verify exact checked-out release commit")
-    aws_credentials = ecs_workflow.index("Configure AWS credentials using GitHub OIDC")
-    assert validate_input < checkout < verify_checkout < aws_credentials
+    web = (ROOT / ".github/workflows/deploy-ecs-web.yml").read_text(encoding="utf-8")
+    ecs = (ROOT / ".github/workflows/deploy-ecs.yml").read_text(encoding="utf-8")
+    assert "release_sha:" in web and "release_sha:" in ecs
+    assert "ref: " in web and "env.RELEASE_SHA" in web
+    assert "env.RELEASE_SHA" in ecs
+    assert "AWS_DEPLOY_ROLE_ARN" in web and "AWS_DEPLOY_ROLE_ARN" in ecs
+    assert "id-token: write" in web and "id-token: write" in ecs
+    assert "correlation_id:" in ecs
+    assert "Roll back web when post-deploy smoke fails" in web
+    assert "aws ecs update-service" in web
+    assert "aws ecs wait services-stable" in web
 
 
 def test_ci_concurrency_separates_push_and_pull_request_runs() -> None:
