@@ -372,3 +372,84 @@ export function withdrawEmployerAIInterview(attemptId: string) {
     "POST",
   );
 }
+
+
+export type HumanReviewReceipt = {
+  reviewer_id: string;
+  review_id: string;
+  awarded_marks: number;
+  maximum_marks: number;
+  submitted_at: string;
+};
+
+export type EmployerReportAttempt = {
+  attempt_id: string;
+  candidate_id: string;
+  state: string;
+  started_at: string | null;
+  submitted_at: string | null;
+  human_reviews: HumanReviewReceipt[];
+  hiring_decision: null;
+};
+
+export type EmployerAssessmentReport = {
+  assessment_version_id: string;
+  content_sha256: string;
+  maximum_marks: number;
+  total_invitations: number;
+  accepted_invitations: number;
+  pending_invitations: number;
+  revoked_invitations: number;
+  total_attempts: number;
+  submitted_attempts: number;
+  human_reviewed_attempts: number;
+  attempts: EmployerReportAttempt[];
+};
+
+export type EmployerTranscript = {
+  attempt_id: string;
+  session_id: string;
+  consent_version: string;
+  consent_at: string;
+  status: string;
+  turns: {
+    sequence_number: number;
+    role: "candidate" | "interviewer";
+    content: string;
+    created_at: string;
+  }[];
+  automated_hiring_decision: null;
+};
+
+export function getEmployerAssessmentReport(assessmentId: string) {
+  return request<EmployerAssessmentReport>(
+    "/api/v1/employer/assessments/" + encodeURIComponent(assessmentId) + "/report",
+  );
+}
+
+export function getEmployerInterviewTranscript(attemptId: string) {
+  return request<EmployerTranscript>(
+    "/api/v1/employer/attempts/" + encodeURIComponent(attemptId) + "/ai-interview",
+  );
+}
+
+export async function downloadEmployerAssessmentCSV(assessmentId: string): Promise<Blob> {
+  const path =
+    "/api/v1/employer/assessments/" + encodeURIComponent(assessmentId) + "/report.csv";
+  const token = localAccessToken();
+  const organization = selectedEmployerOrganization();
+  const response = await fetch(apiUrl + path, {
+    method: "GET",
+    credentials: "same-origin",
+    headers: {
+      Accept: "text/csv",
+      ...(token ? { Authorization: "Bearer " + token } : {}),
+      ...(organization ? { "X-Rigor-Organization-ID": organization } : {}),
+    },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("Unable to export employer report: HTTP " + response.status);
+  }
+  return response.blob();
+}
