@@ -38,9 +38,16 @@ module "secrets" {
     "RIGOR_OPERATIONAL_DATABASE_URL",
     "RIGOR_VALKEY_URL",
     "CLERK_WEBHOOK_SECRET",
-    "CLERK_SECRET_KEY",
     "SENTRY_DSN"
   ]
+}
+
+# Do not inject the web-only Clerk key into API or worker task environments.
+module "web_secrets" {
+  source = "../../modules/secrets"
+
+  name_prefix  = var.name
+  secret_names = ["CLERK_SECRET_KEY"]
 }
 
 module "certificate" {
@@ -151,7 +158,7 @@ module "web" {
   backend_origin        = "https://${var.api_domain}"
   clerk_issuer          = var.clerk_issuer
   clerk_publishable_key = var.clerk_publishable_key
-  clerk_secret_arn      = module.secrets.secret_arns["CLERK_SECRET_KEY"]
+  clerk_secret_arn      = module.web_secrets.secret_arns["CLERK_SECRET_KEY"]
 }
 
 module "web_waf" {
