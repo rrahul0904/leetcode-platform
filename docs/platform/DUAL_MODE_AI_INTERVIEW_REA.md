@@ -1,7 +1,7 @@
 # Rigor / SkillForge — Dual-Mode Learner + AI Interview Platform
 ## REA implementation contract (initial vertical, 2026-10-26)
 
-**Canonical product:** \`rrahul0904/leetcode-platform\`. This is a two-sided original platform for technical learning AND employer-initiated structured interviews/assessments. HackerRank and CodeSignal are product-pattern references, not sources of copied code, questions, data, design or private behavior. **The existing SkillForge V1 release gates in issue #55 remain independent and BLOCKED.** This document does not authorize production deployment.
+**Canonical product:** `rrahul0904/leetcode-platform`. This is a two-sided original platform for technical learning AND employer-initiated structured interviews/assessments. HackerRank and CodeSignal are product-pattern references, not sources of copied code, questions, data, design or private behavior. **The existing SkillForge V1 release gates in issue #55 remain independent and BLOCKED.** This document does not authorize production deployment.
 
 ## 1. Product boundaries
 
@@ -28,18 +28,18 @@ Per set: **60 minutes / 100 marks / Level 4 Senior–Lead Data Engineering**.
 | PySpark | written/architecture | 1 | 15 |
 | Snowflake | single-answer MCQ | 10 | 40 |
 
-This is a **staging source**, not a published commercial question bank. Each DOCX is user-provided and is processed offline. The source files, full questions and complete solution guides are intentionally NOT committed to the public repository. Before any publication: establish ownership/redistribution rights, item editorial and technical review, content-version checksums, real executable fixtures for any claimed coding problem, accessibility review, and an independent security review. The CLI produces \`candidate_review_only\` and \`private_interviewer_only\` in different folders. Do not place either folder beneath Next.js \`public/\`, commit them to the public repository, or serve the private one via candidate APIs.
+This is a **staging source**, not a published commercial question bank. Each DOCX is user-provided and is processed offline. The source files, full questions and complete solution guides are intentionally NOT committed to the public repository. Before any publication: establish ownership/redistribution rights, item editorial and technical review, content-version checksums, real executable fixtures for any claimed coding problem, accessibility review, and an independent security review. The CLI produces `candidate_review_only` and `private_interviewer_only` in different folders. Do not place either folder beneath Next.js `public/`, commit them to the public repository, or serve the private one via candidate APIs.
 
-**Imported format:** IDs \`l4-de-s3-q01\` through \`l4-de-s9-q16\`, source digests, questions, options, points, recommended timing, publication_state=review_required. Privileged solution artifact contains keyed Snowflake answers and interview reference guide with its own digest. Source text must be reviewed before any learner, public or employer use.
+**Imported format:** IDs `l4-de-s3-q01` through `l4-de-s9-q16`, source digests, questions, options, points, recommended timing, publication_state=review_required. Privileged solution artifact contains keyed Snowflake answers and interview reference guide with its own digest. Source text must be reviewed before any learner, public or employer use.
 
 ### Reproduction with locally provided documents
 
-\`\`\`bash
+```bash
 python scripts/import_level4_interviews.py \
   --input-dir /path/to/private/input-docx \
   --output-dir /path/to/private/staging
 python -m unittest -v tests/test_level4_interview_import.py
-\`\`\`
+```
 
 Use a private location outside the tracked git checkout and outside a served web directory. The import does not modify PostgreSQL, register an assessment, invite anyone, call an AI model or publish content.
 
