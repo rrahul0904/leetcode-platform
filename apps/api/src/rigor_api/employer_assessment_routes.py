@@ -59,6 +59,8 @@ class AssessmentDraftInput(StrictModel):
     def unique_numbers(self) -> AssessmentDraftInput:
         if [q.number for q in self.questions] != list(range(1, len(self.questions) + 1)):
             raise ValueError("Questions must be sequential, unique, starting with 1")
+        if sum(q.marks for q in self.questions) > 1_000:
+            raise ValueError("Total assessment marks cannot exceed 1000")
         return self
 
 
