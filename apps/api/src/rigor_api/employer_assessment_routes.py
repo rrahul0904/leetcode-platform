@@ -727,3 +727,172 @@ def revoke_employer_invitation(
             details={"candidate_id": str(row["candidate_id"])},
         )
         return EmployerInvitationView.model_validate(dict(row))
+
+
+
+class PrivateAssessmentKeyInput(StrictModel):
+    """Confidential rubric; never serialize in a candidate view or event audit."""
+    mcq_answers: dict[int, Literal["A", "B", "C", "D"]]
+    reviewer_guidance: str = Field(min_length=10, max_length=20_000)
+
+
+class PrivateAssessmentKeyView(StrictModel):
+    assessment_version_id: UUID
+    source_sha256: str
+    mcq_answers: dict[int, Literal["A", "B", "C", "D"]]
+    reviewer_guidance: str
+
+
+@router.put(
+    "/employer/assessments/{assessment_id}/private-key",
+    response_model=PrivateAssessmentKeyView,
+)
+def save_employer_private_key(
+    assessment_id: UUID,
+    payload: PrivateAssessmentKeyInput,
+    engine: DatabaseEngine,
+    principal: Principal,
+) -> PrivateAssessmentKeyView:
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin"))
+        assessment = _org_assessment(conn, assessment_id, lock=True)
+        if assessment["status"] != "review_required":
+            raise HTTPException(status_code=409, detail="Cannot change a published rubric")
+        expected = {
+            int(q["number"]) for q in assessment["candidate_blueprint"]["questions"]
+            if q["kind"] == "multiple_choice"
+        }
+        if set(payload.mcq_answers) != expected:
+            raise HTTPException(
+                status_code=422,
+                detail="Answer key must cover exactly the assessment's MCQ questions",
+            )
+        private_rubric = {
+            "mcq_answers": {str(k): v for k, v in payload.mcq_answers.items()},
+            "reviewer_guidance": payload.reviewer_guidance,
+        }
+        conn.execute(
+            text(
+                f"""INSERT INTO employer_assessment_private_keys
+                       (assessment_version_id, organization_id, private_rubric, source_sha256)
+                    VALUES (:assessment, {_ORG}, CAST(:rubric AS jsonb), :source_sha256)
+                    ON CONFLICT (assessment_version_id) DO UPDATE
+                    SET private_rubric=EXCLUDED.private_rubric,
+                        source_sha256=EXCLUDED.source_sha256"""
+            ),
+            {
+                "assessment": assessment_id,
+                "rubric": json.dumps(private_rubric, separators=(",", ":")),
+                "source_sha256": assessment["content_sha256"],
+            },
+        )
+        actor = conn.execute(text(f"SELECT {_USER}")).scalar_one()
+        audit_event(
+            conn, principal, actor, action="assessment.private_key_save",
+            resource_type="employer_assessment", resource_id=str(assessment_id),
+            details={"source_sha256": assessment["content_sha256"], "question_count": len(expected)},
+        )
+        return PrivateAssessmentKeyView(
+            assessment_version_id=assessment_id,
+            source_sha256=assessment["content_sha256"],
+            mcq_answers=payload.mcq_answers,
+            reviewer_guidance=payload.reviewer_guidance,
+        )
+
+
+@router.get(
+    "/employer/assessments/{assessment_id}/private-key",
+    response_model=PrivateAssessmentKeyView,
+)
+def review_employer_private_key(
+    assessment_id: UUID, engine: DatabaseEngine, principal: Principal,
+) -> PrivateAssessmentKeyView:
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "reviewer"))
+        assessment = _org_assessment(conn, assessment_id)
+        row = conn.execute(
+            text(
+                f"""SELECT private_rubric, source_sha256
+                    FROM employer_assessment_private_keys
+                    WHERE assessment_version_id=:assessment AND organization_id={_ORG}"""
+            ), {"assessment": assessment_id},
+        ).mappings().one_or_none()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Private assessment key unavailable")
+        if row["source_sha256"] != assessment["content_sha256"]:
+            raise HTTPException(status_code=409, detail="Confidential key does not match this version")
+        return PrivateAssessmentKeyView(
+            assessment_version_id=assessment_id,
+            source_sha256=row["source_sha256"],
+            mcq_answers={int(k): v for k, v in row["private_rubric"]["mcq_answers"].items()},
+            reviewer_guidance=row["private_rubric"]["reviewer_guidance"],
+        )
+
+
+class ProvisionalMCQScore(StrictModel):
+    assessment_attempt_id: UUID
+    source_sha256: str
+    mcq_awarded_marks: int = Field(ge=0)
+    mcq_maximum_marks: int = Field(ge=0)
+    human_review_pending_marks: int = Field(ge=0)
+    scoring_status: Literal["provisional_mcq_only"] = "provisional_mcq_only"
+    hiring_decision: None = None
+
+
+@router.get(
+    "/employer/attempts/{attempt_id}/provisional-mcq-score",
+    response_model=ProvisionalMCQScore,
+)
+def employer_provisional_mcq_score(
+    attempt_id: UUID, engine: DatabaseEngine, principal: Principal,
+) -> ProvisionalMCQScore:
+    """Only authorized reviewers receive provisional objective scoring.
+
+    The score never constitutes a final hiring decision. Written, code and human
+    interview tasks remain unrated until independently reviewed.
+    """
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "reviewer"))
+        attempt = _employer_attempt(conn, attempt_id)
+        if attempt["status"] != "submitted":
+            raise HTTPException(status_code=409, detail="Candidate has not submitted")
+        rubric = conn.execute(
+            text(
+                f"""SELECT private_rubric, source_sha256
+                    FROM employer_assessment_private_keys
+                    WHERE organization_id={_ORG} AND assessment_version_id=:assessment"""
+            ),
+            {"assessment": attempt["assessment_version_id"]},
+        ).mappings().one_or_none()
+        if rubric is None or rubric["source_sha256"] != attempt["content_sha256"]:
+            raise HTTPException(status_code=409, detail="Approved private key unavailable")
+        expected = rubric["private_rubric"]["mcq_answers"]
+        mcq_questions = [
+            item for item in attempt["candidate_blueprint"]["questions"]
+            if item["kind"] == "multiple_choice"
+        ]
+        if {str(q["number"]) for q in mcq_questions} != set(expected):
+            raise HTTPException(status_code=409, detail="Private MCQ key coverage invalid")
+        answers = dict(
+            conn.execute(
+                text(
+                    f"""SELECT question_number, answer_text
+                        FROM employer_assessment_responses
+                        WHERE attempt_id=:attempt AND organization_id={_ORG}"""
+                ),
+                {"attempt": attempt_id},
+            ).all()
+        )
+        mcq_max = sum(int(q["marks"]) for q in mcq_questions)
+        earned = sum(
+            int(q["marks"]) for q in mcq_questions
+            if str(answers.get(int(q["number"]), "")).strip().upper()
+            == expected[str(q["number"])]
+        )
+        return ProvisionalMCQScore(
+            assessment_attempt_id=attempt_id,
+            source_sha256=attempt["content_sha256"],
+            mcq_awarded_marks=earned,
+            mcq_maximum_marks=mcq_max,
+            human_review_pending_marks=attempt["maximum_marks"] - mcq_max,
+        )
