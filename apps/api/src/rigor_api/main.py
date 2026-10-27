@@ -36,8 +36,8 @@ from .candidate_submission_routes import (
     list_candidate_session_submissions,
     list_candidate_submissions,
 )
-from .employer_assessment_routes import router as employer_assessment_router
 from .employer_ai_interview_routes import router as employer_ai_interview_router
+from .employer_assessment_routes import router as employer_assessment_router
 from .employer_organization_routes import router as employer_organization_router
 from .execution_capability import router as execution_capability_router
 from .execution_routes import (
