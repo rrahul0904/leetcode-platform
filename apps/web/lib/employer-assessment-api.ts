@@ -294,3 +294,7 @@ export function provisionalMCQScore(attemptId: string) {
     "/api/v1/employer/attempts/" + encodeURIComponent(attemptId) + "/provisional-mcq-score",
   );
 }
+
+export function listCandidateAssessmentAttempts() {
+  return request<AssessmentAttempt[]>("/api/v1/assessment-attempts");
+}
