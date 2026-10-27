@@ -11,7 +11,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import text
+from sqlalchemy import Connection, text
 
 from .auth import authenticated_principal
 from .database import DatabaseEngine, principal_transaction
@@ -119,7 +119,7 @@ def create_employer_organization(
         )
 
 
-def _require_owner_admin(conn, organization_id: UUID) -> UUID:
+def _require_owner_admin(conn: Connection, organization_id: UUID) -> UUID:
     active_org = conn.execute(text(f"SELECT {_ORG}")).scalar_one_or_none()
     if active_org != organization_id:
         raise HTTPException(status_code=403, detail="Select this employer workspace first")
