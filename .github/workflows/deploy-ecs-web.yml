@@ -27,6 +27,7 @@ env:
   AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
   WEB_PROBE_URL: ${{ vars.WEB_PROBE_URL }}
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+  RIGOR_ALLOWED_ORIGINS: ${{ vars.RIGOR_ALLOWED_ORIGINS }}
 jobs:
   deploy:
     name: Immutable web build and ECS rollout
@@ -46,6 +47,22 @@ jobs:
             fi
           done
           [[ "$WEB_PROBE_URL" == https://* ]] || exit 1
+          if [ "${{ inputs.environment }}" = "production" ]; then
+            case "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" in
+              pk_live_*) ;;
+              *) echo "Production requires a Clerk live publishable key"; exit 1 ;;
+            esac
+            if [ -z "$RIGOR_ALLOWED_ORIGINS" ]; then
+              echo "Production requires an explicitly configured CORS origin allowlist"
+              exit 1
+            fi
+            case "$WEB_PROBE_URL" in
+              *".vercel.app"* | *"localhost"* | *"127.0.0.1"*)
+                echo "Production requires a customer-owned external web hostname"
+                exit 1
+                ;;
+            esac
+          fi
       - name: Checkout exact release commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
