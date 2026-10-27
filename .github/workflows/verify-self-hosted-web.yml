@@ -40,6 +40,7 @@ jobs:
             --publish 127.0.0.1:3001:3001 \
             --env RIGOR_BACKEND_ORIGIN=https://api.example.invalid \
             --env NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k \
+            --env CLERK_SECRET_KEY=sk_test_dummy_ci_runtime_only_not_valid_credentials \
             skillforge-selfhosted-web:verify
           trap 'docker logs skillforge-web-smoke || true; docker rm --force skillforge-web-smoke || true' EXIT
           ready=0
