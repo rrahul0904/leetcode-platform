@@ -313,7 +313,7 @@ def _candidate_attempt(conn: Connection, attempt_id: UUID, *, lock: bool = False
     return dict(row)
 
 
-def _attempt_view(conn: Connection, row: dict) -> AttemptView:
+def _attempt_view(conn: Connection, row: dict[str, Any]) -> AttemptView:
     answers = conn.execute(
         text(
             f"""SELECT question_number, answer_text FROM employer_assessment_responses
