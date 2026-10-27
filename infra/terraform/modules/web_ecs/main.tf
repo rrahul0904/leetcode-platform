@@ -219,9 +219,9 @@ resource "aws_ecs_task_definition" "web" {
   task_role_arn            = aws_iam_role.task.arn
 
   container_definitions = jsonencode([{
-    name      = "web"
-    image     = var.web_image
-    essential = true
+    name                   = "web"
+    image                  = var.web_image
+    essential              = true
     readonlyRootFilesystem = true
     portMappings = [{
       containerPort = 3001
@@ -250,11 +250,11 @@ resource "aws_ecs_task_definition" "web" {
 }
 
 resource "aws_ecs_service" "web" {
-  name                 = "${var.name}-web"
-  cluster              = var.cluster_name
-  task_definition      = aws_ecs_task_definition.web.arn
-  desired_count        = var.desired_count
-  launch_type          = "FARGATE"
+  name                              = "${var.name}-web"
+  cluster                           = var.cluster_name
+  task_definition                   = aws_ecs_task_definition.web.arn
+  desired_count                     = var.desired_count
+  launch_type                       = "FARGATE"
   health_check_grace_period_seconds = 90
 
   network_configuration {
