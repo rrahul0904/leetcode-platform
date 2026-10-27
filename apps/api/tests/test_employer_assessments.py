@@ -238,3 +238,57 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
             json={"question_number": 1, "answer_text": "Change after submit"},
         ).status_code == 409
 
+        listing = client.get(
+            f"/api/v1/employer/assessments/{aid}/attempts",
+            headers=reviewer_auth,
+        )
+        assert listing.status_code == 200, listing.text
+        assert attempt_id in {a["id"] for a in listing.json()}
+        detail = client.get(
+            f"/api/v1/employer/attempts/{attempt_id}", headers=reviewer_auth
+        )
+        assert detail.status_code == 200, detail.text
+        assert detail.json()["answers"][0]["answer_text"].startswith("Diagnose")
+        assert detail.json()["maximum_marks"] == 100
+        assert "answer_key" not in detail.text
+
+        review_payload = {
+            "scores": [
+                {
+                    "question_number": 1, "awarded_marks": 52,
+                    "evidence_note": "The candidate identified triage and quarantine.",
+                },
+                {
+                    "question_number": 2, "awarded_marks": 0,
+                    "evidence_note": "The candidate did not provide an option.",
+                },
+            ],
+            "overall_notes": "Human rubric review completed with evidence for both items.",
+        }
+        refused = client.post(
+            f"/api/v1/employer/attempts/{attempt_id}/reviews",
+            headers=candidate_auth, json=review_payload,
+        )
+        assert refused.status_code == 403
+        reviewed = client.post(
+            f"/api/v1/employer/attempts/{attempt_id}/reviews",
+            headers=reviewer_auth, json=review_payload,
+        )
+        assert reviewed.status_code == 201, reviewed.text
+        assert reviewed.json()["awarded_marks"] == 52
+        assert reviewed.json()["hiring_decision"] is None
+        duplicate = client.post(
+            f"/api/v1/employer/attempts/{attempt_id}/reviews",
+            headers=reviewer_auth, json=review_payload,
+        )
+        assert duplicate.status_code == 409
+        excessive = client.post(
+            f"/api/v1/employer/attempts/{attempt_id}/reviews",
+            headers=admin_auth,
+            json={**review_payload, "scores": [
+                {**review_payload["scores"][0], "awarded_marks": 100},
+                review_payload["scores"][1],
+            ]},
+        )
+        assert excessive.status_code == 422
+
