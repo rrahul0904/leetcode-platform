@@ -85,9 +85,15 @@ export default function EmployerReviewWorkspace() {
     setBusy(true);
     setError("");
     try {
+      const scoresToSubmit = detail.questions
+        .map((question) => scores[question.number])
+        .filter((score): score is HumanQuestionScore => score !== undefined);
+      if (scoresToSubmit.length !== detail.questions.length) {
+        throw new Error("Every question needs a completed reviewer score.");
+      }
       const submitted = await submitEmployerHumanReview(
         detail.attempt.id,
-        detail.questions.map((question) => scores[question.number]),
+        scoresToSubmit,
         overallNotes.trim(),
       );
       setResult(submitted);
