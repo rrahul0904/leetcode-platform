@@ -44,6 +44,12 @@ async function request<T>(
   body?: unknown,
 ): Promise<T> {
   const token = localAccessToken();
+  const selectedOrg =
+    typeof window !== "undefined" &&
+    path.startsWith("/api/v1/employer/") &&
+    path !== "/api/v1/employer/organizations"
+      ? window.localStorage.getItem("rigor.employer.organization-id")
+      : null;
   const response = await fetch(apiUrl + path, {
     method,
     credentials: "same-origin",
@@ -51,6 +57,7 @@ async function request<T>(
       Accept: "application/json",
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: "Bearer " + token } : {}),
+      ...(selectedOrg ? { "X-Rigor-Organization-ID": selectedOrg } : {}),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     cache: "no-store",
@@ -196,5 +203,58 @@ export function submitEmployerHumanReview(
     "/api/v1/employer/attempts/" + encodeURIComponent(attemptId) + "/reviews",
     "POST",
     { scores, overall_notes: overallNotes },
+  );
+}
+
+
+export type EmployerOrganization = {
+  id: string;
+  name: string;
+  slug: string;
+  membership_role: string;
+};
+
+export type EmployerMember = {
+  user_id: string;
+  role: string;
+  status: string;
+};
+
+export function selectedEmployerOrganization() {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem("rigor.employer.organization-id");
+}
+
+export function selectEmployerOrganization(organizationId: string) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem("rigor.employer.organization-id", organizationId);
+  }
+}
+
+export function listEmployerOrganizations() {
+  return request<EmployerOrganization[]>("/api/v1/employer/organizations");
+}
+
+export function createEmployerOrganization(name: string, slug: string) {
+  return request<EmployerOrganization>(
+    "/api/v1/employer/organizations", "POST", { name, slug },
+  );
+}
+
+export function listEmployerMembers(organizationId: string) {
+  return request<EmployerMember[]>(
+    "/api/v1/employer/organizations/" + encodeURIComponent(organizationId) + "/members",
+  );
+}
+
+export function addEmployerMember(
+  organizationId: string,
+  userId: string,
+  role: "admin" | "recruiter" | "interviewer" | "reviewer",
+) {
+  return request<EmployerMember>(
+    "/api/v1/employer/organizations/" + encodeURIComponent(organizationId) + "/members",
+    "POST",
+    { user_id: userId, role },
   );
 }
