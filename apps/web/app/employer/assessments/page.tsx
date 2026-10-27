@@ -5,11 +5,14 @@ import { useEffect, useState } from "react";
 import {
   createEmployerAssessment,
   inviteEmployerCandidate,
+  listAssessmentInvitations,
+  revokeAssessmentInvitation,
   listEmployerAssessments,
   publishEmployerAssessment,
   savePrivateAnswerKey,
   type EmployerAssessment,
   type EmployerInvitation,
+  type EmployerInvitationStatus,
   type AssessmentQuestion,
 } from "@/lib/employer-assessment-api";
 
@@ -28,6 +31,8 @@ export default function EmployerAssessmentsPage() {
   const [technicalEvidence, setTechnicalEvidence] = useState("");
   const [editorialEvidence, setEditorialEvidence] = useState("");
   const [invitation, setInvitation] = useState<EmployerInvitation | null>(null);
+  const [shownInvitations, setShownInvitations] = useState<string | null>(null);
+  const [invitationStatuses, setInvitationStatuses] = useState<EmployerInvitationStatus[]>([]);
   const [privateAnswers, setPrivateAnswers] = useState<Record<string, "A" | "B" | "C" | "D">>({});
   const [privateGuidance, setPrivateGuidance] = useState("");
 
@@ -100,6 +105,40 @@ export default function EmployerAssessmentsPage() {
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Cannot approve assessment.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function viewInvitations(id: string) {
+    if (shownInvitations === id) {
+      setShownInvitations(null);
+      setInvitationStatuses([]);
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const items = await listAssessmentInvitations(id);
+      setShownInvitations(id);
+      setInvitationStatuses(items);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Cannot list invitations.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revokeInvitation(assessmentId: string, invitationId: string) {
+    if (busy || !window.confirm("Revoke this pending candidate invitation?")) return;
+    setBusy(true);
+    setError("");
+    try {
+      await revokeAssessmentInvitation(invitationId);
+      setInvitationStatuses(await listAssessmentInvitations(assessmentId));
+      setNotice("Pending invitation revoked. Its one-use secret no longer works.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Cannot revoke invitation.");
     } finally {
       setBusy(false);
     }
@@ -202,6 +241,42 @@ export default function EmployerAssessmentsPage() {
                 {" "}{assessment.maximum_marks} marks
               </p>
               <p className="break-all font-mono text-xs opacity-50">{assessment.id}</p>
+              {assessment.status === "published" && (
+                <div className="space-y-3 rounded-xl border p-4">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className="rounded-lg border px-4 py-2 text-sm disabled:opacity-40"
+                    onClick={() => void viewInvitations(assessment.id)}
+                  >
+                    {shownInvitations === assessment.id ? "Hide invitations" : "View invitations"}
+                  </button>
+                  {shownInvitations === assessment.id && (
+                    <div className="space-y-2">
+                      {invitationStatuses.length === 0 && (
+                        <p className="text-sm opacity-70">No invitations for this assessment.</p>
+                      )}
+                      {invitationStatuses.map((item) => (
+                        <div key={item.id} className="rounded-lg border p-3 text-sm">
+                          <p className="font-semibold">State: {item.state}</p>
+                          <p className="break-all font-mono text-xs">{item.candidate_id}</p>
+                          <p className="text-xs opacity-70">Expires: {item.expires_at}</p>
+                          {item.state === "pending" && (
+                            <button
+                              type="button"
+                              className="mt-2 rounded border px-3 py-1 text-xs"
+                              disabled={busy}
+                              onClick={() => void revokeInvitation(assessment.id, item.id)}
+                            >
+                              Revoke pending invitation
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               {assessment.status === "review_required" && assessment.questions.some(
                 (question) => question.kind === "multiple_choice"
               ) && (
