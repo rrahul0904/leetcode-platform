@@ -85,7 +85,7 @@ def upgrade() -> None:
         sa.Column("maximum_marks", sa.Integer(), nullable=False),
         sa.Column("candidate_blueprint", postgresql.JSONB(), nullable=False),
         sa.Column("content_sha256", sa.String(64), nullable=False),
-        sa.Column("created_by", sa.Uuid(), sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("created_by", sa.Uuid(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         stamp(),
         sa.Column("approved_at", sa.DateTime(timezone=True)),
         sa.CheckConstraint("version >= 1", name="ck_employer_assessment_version"),
@@ -130,8 +130,8 @@ def upgrade() -> None:
         "employer_assessment_invitations",
         uid(), org(),
         sa.Column("assessment_version_id", sa.Uuid(), nullable=False),
-        sa.Column("candidate_id", sa.Uuid(), sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("invited_by", sa.Uuid(), sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("candidate_id", sa.Uuid(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("invited_by", sa.Uuid(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("token_digest", sa.String(64), nullable=False, unique=True),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("state", sa.String(24), nullable=False, server_default="pending"),
@@ -176,7 +176,7 @@ def upgrade() -> None:
         "employer_assessment_attempts",
         uid(), org(),
         sa.Column("invitation_id", sa.Uuid(), nullable=False, unique=True),
-        sa.Column("candidate_id", sa.Uuid(), sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("candidate_id", sa.Uuid(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("status", sa.String(24), nullable=False, server_default="created"),
         sa.Column("started_at", sa.DateTime(timezone=True)),
         sa.Column("deadline_at", sa.DateTime(timezone=True)),
@@ -201,6 +201,7 @@ def upgrade() -> None:
                 "employer_assessment_invitations.candidate_id",
             ],
             name="fk_assessment_attempt_invitation_scope",
+            ondelete="CASCADE",
         ),
     )
     tenant_policy("employer_assessment_attempts", candidate=True)
@@ -209,7 +210,7 @@ def upgrade() -> None:
         "employer_assessment_responses",
         uid(), org(),
         sa.Column("attempt_id", sa.Uuid(), nullable=False),
-        sa.Column("candidate_id", sa.Uuid(), sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("candidate_id", sa.Uuid(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("question_number", sa.SmallInteger(), nullable=False),
         sa.Column("answer_text", sa.Text(), nullable=False),
         sa.Column("answer_sha256", sa.String(64), nullable=False),
@@ -226,6 +227,7 @@ def upgrade() -> None:
                 "employer_assessment_attempts.candidate_id",
             ],
             name="fk_assessment_response_scope",
+            ondelete="CASCADE",
         ),
     )
     tenant_policy("employer_assessment_responses", candidate=True)
@@ -234,8 +236,8 @@ def upgrade() -> None:
         "employer_assessment_reviews",
         uid(), org(),
         sa.Column("attempt_id", sa.Uuid(), nullable=False),
-        sa.Column("candidate_id", sa.Uuid(), sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("reviewer_id", sa.Uuid(), sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("candidate_id", sa.Uuid(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("reviewer_id", sa.Uuid(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("evidence", postgresql.JSONB(), nullable=False),
         sa.Column("status", sa.String(24), nullable=False, server_default="draft"),
         stamp(),
@@ -251,6 +253,7 @@ def upgrade() -> None:
                 "employer_assessment_attempts.candidate_id",
             ],
             name="fk_assessment_review_scope",
+            ondelete="CASCADE",
         ),
     )
     tenant_policy("employer_assessment_reviews", privileged=True)
