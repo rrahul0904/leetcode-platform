@@ -100,3 +100,40 @@ export function submitInterviewAttempt(attemptId: string) {
 export function listEmployerAssessments() {
   return request<EmployerAssessment[]>("/api/v1/employer/assessments");
 }
+
+export function createEmployerAssessment(payload: {
+  slug: string;
+  title: string;
+  duration_minutes: number;
+  questions: AssessmentQuestion[];
+}) {
+  return request<EmployerAssessment>("/api/v1/employer/assessments", "POST", payload);
+}
+
+export function publishEmployerAssessment(
+  assessmentId: string,
+  evidence: { rights_evidence: string; technical_evidence: string; editorial_evidence: string },
+) {
+  return request<EmployerAssessment>(
+    "/api/v1/employer/assessments/" + encodeURIComponent(assessmentId) + "/publish",
+    "POST",
+    evidence,
+  );
+}
+
+export type EmployerInvitation = {
+  id: string;
+  candidate_id: string;
+  expires_at: string;
+  acceptance_secret: string;
+};
+
+export function inviteEmployerCandidate(
+  assessmentId: string, candidateId: string, expiresInHours: number,
+) {
+  return request<EmployerInvitation>(
+    "/api/v1/employer/assessments/" + encodeURIComponent(assessmentId) + "/invitations",
+    "POST",
+    { candidate_id: candidateId, expires_in_hours: expiresInHours },
+  );
+}
