@@ -28,6 +28,7 @@ jobs:
           set -euo pipefail
           docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt \
             --build-arg NEXT_PUBLIC_RIGOR_AUTH_MODE=clerk \
+            --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k \
             --build-arg NEXT_PUBLIC_RIGOR_API_URL=/api/backend \
             -f infra/docker/web.Dockerfile -t skillforge-selfhosted-web:verify .
 
@@ -38,6 +39,7 @@ jobs:
           docker run --detach --rm --name skillforge-web-smoke \
             --publish 127.0.0.1:3001:3001 \
             --env RIGOR_BACKEND_ORIGIN=https://api.example.invalid \
+            --env NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k \
             skillforge-selfhosted-web:verify
           trap 'docker logs skillforge-web-smoke || true; docker rm --force skillforge-web-smoke || true' EXIT
           ready=0
