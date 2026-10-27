@@ -337,11 +337,9 @@ def accept_assessment_invitation(
         row = conn.execute(
             text(
                 f"""SELECT i.id, i.organization_id, i.assessment_version_id,
-                           i.state, i.expires_at, v.duration_minutes
+                           i.state, i.expires_at
                     FROM employer_assessment_invitations i
-                    JOIN employer_assessment_versions v ON v.id=i.assessment_version_id
                     WHERE i.id=:id AND i.candidate_id={_USER} AND i.token_digest=:digest
-                      AND v.status='published'
                     FOR UPDATE OF i"""
             ), {"id": payload.invitation_id, "digest": digest},
         ).mappings().one_or_none()
@@ -357,6 +355,15 @@ def accept_assessment_invitation(
                 "SET state='accepted', consumed_at=CURRENT_TIMESTAMP WHERE id=:id"
             ), {"id": row["id"]},
         )
+        version = conn.execute(
+            text(
+                """SELECT duration_minutes, status
+                   FROM employer_assessment_versions WHERE id=:assessment"""
+            ),
+            {"assessment": row["assessment_version_id"]},
+        ).mappings().one_or_none()
+        if version is None or version["status"] != "published":
+            raise HTTPException(status_code=409, detail="Assessment is no longer available")
         attempt = conn.execute(
             text(
                 f"""INSERT INTO employer_assessment_attempts
@@ -368,7 +375,7 @@ def accept_assessment_invitation(
                     RETURNING id"""
             ), {
                 "org": row["organization_id"], "invitation": row["id"],
-                "minutes": row["duration_minutes"],
+                "minutes": version["duration_minutes"],
             },
         ).scalar_one()
         return _attempt_view(conn, _candidate_attempt(conn, attempt))
