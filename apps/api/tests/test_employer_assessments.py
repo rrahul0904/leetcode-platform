@@ -176,6 +176,43 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         invitation = invite.json()
         assert len(invitation["acceptance_secret"]) > 32
 
+        listed_invitations = client.get(
+            f"/api/v1/employer/assessments/{aid}/invitations",
+            headers=admin_auth,
+        )
+        assert listed_invitations.status_code == 200, listed_invitations.text
+        assert invitation["id"] in {entry["id"] for entry in listed_invitations.json()}
+        assert "token_digest" not in listed_invitations.text
+        assert "acceptance_secret" not in listed_invitations.text
+
+        revoke_target = client.post(
+            f"/api/v1/employer/assessments/{aid}/invitations",
+            headers=admin_auth,
+            json={"candidate_id": candidate_id, "expires_in_hours": 2},
+        )
+        assert revoke_target.status_code == 201, revoke_target.text
+        revoked_invitation = revoke_target.json()
+        revoked = client.post(
+            f"/api/v1/employer/invitations/{revoked_invitation['id']}/revoke",
+            headers=admin_auth,
+        )
+        assert revoked.status_code == 200, revoked.text
+        assert revoked.json()["state"] == "revoked"
+        assert "token_digest" not in revoked.text
+        assert client.post(
+            f"/api/v1/employer/invitations/{revoked_invitation['id']}/revoke",
+            headers=admin_auth,
+        ).status_code == 409
+        revoked_accept = client.post(
+            "/api/v1/assessment-invitations/accept",
+            headers=candidate_auth,
+            json={
+                "invitation_id": revoked_invitation["id"],
+                "acceptance_secret": revoked_invitation["acceptance_secret"],
+            },
+        )
+        assert revoked_accept.status_code == 409
+
         cannot_accept_other = client.post(
             "/api/v1/assessment-invitations/accept",
             headers=other_auth,
