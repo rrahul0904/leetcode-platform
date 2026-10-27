@@ -532,4 +532,35 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
             headers=reviewer_second_org,
         ).status_code == 404
 
+        erased = client.post(
+            f"/api/v1/assessment-attempts/{attempt_id}/ai-interview/erase",
+            headers=candidate_auth,
+        )
+        assert erased.status_code == 200, erased.text
+        assert erased.json()["status"] == "erased"
+        assert erased.json()["messages"] == []
+        assert client.post(
+            f"/api/v1/assessment-attempts/{attempt_id}/ai-interview/erase",
+            headers=other_auth,
+        ).status_code == 404
+        assert client.get(
+            f"/api/v1/employer/attempts/{attempt_id}/ai-interview",
+            headers=reviewer_auth,
+        ).status_code == 404
+        assert client.post(
+            f"/api/v1/assessment-attempts/{attempt_id}/ai-interview/consent",
+            headers=candidate_auth,
+            json={"agree_to_ai_processing": True},
+        ).status_code == 409
+        with engine.connect() as connection:
+            saved_count = connection.execute(
+                text(
+                    """SELECT count(*) FROM employer_ai_interview_messages
+                       WHERE candidate_id=:candidate"""
+                ),
+                {"candidate": candidate_id},
+            ).scalar_one()
+        assert saved_count == 0
+
+
 
