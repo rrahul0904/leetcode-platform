@@ -32,7 +32,19 @@ export default function EmployerAssessmentsPage() {
     }
   }
 
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => {
+    let active = true;
+    void listEmployerAssessments()
+      .then((items) => {
+        if (active) setAssessments(items);
+      })
+      .catch((cause: unknown) => {
+        if (active) {
+          setError(cause instanceof Error ? cause.message : "Cannot load assessments.");
+        }
+      });
+    return () => { active = false; };
+  }, []);
 
   async function create(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
