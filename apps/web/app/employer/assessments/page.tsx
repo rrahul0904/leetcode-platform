@@ -7,6 +7,7 @@ import {
   inviteEmployerCandidate,
   listEmployerAssessments,
   publishEmployerAssessment,
+  savePrivateAnswerKey,
   type EmployerAssessment,
   type EmployerInvitation,
   type AssessmentQuestion,
@@ -27,6 +28,8 @@ export default function EmployerAssessmentsPage() {
   const [technicalEvidence, setTechnicalEvidence] = useState("");
   const [editorialEvidence, setEditorialEvidence] = useState("");
   const [invitation, setInvitation] = useState<EmployerInvitation | null>(null);
+  const [privateAnswers, setPrivateAnswers] = useState<Record<string, "A" | "B" | "C" | "D">>({});
+  const [privateGuidance, setPrivateGuidance] = useState("");
 
   async function refresh() {
     try {
@@ -97,6 +100,32 @@ export default function EmployerAssessmentsPage() {
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Cannot approve assessment.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function savePrivateKey(assessment: EmployerAssessment) {
+    if (busy || privateGuidance.trim().length < 10) return;
+    const mcq = assessment.questions.filter((q) => q.kind === "multiple_choice");
+    const answers: Record<number, "A" | "B" | "C" | "D"> = {};
+    for (const question of mcq) {
+      const choice = privateAnswers[assessment.id + ":" + question.number];
+      if (!choice) {
+        setError("Select a confidential answer for each multiple-choice question.");
+        return;
+      }
+      answers[question.number] = choice;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await savePrivateAnswerKey(assessment.id, answers, privateGuidance.trim());
+      setPrivateGuidance("");
+      setPrivateAnswers({});
+      setNotice("Confidential key saved server-side and bound to this assessment version.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save confidential key.");
     } finally {
       setBusy(false);
     }
@@ -173,6 +202,58 @@ export default function EmployerAssessmentsPage() {
                 {" "}{assessment.maximum_marks} marks
               </p>
               <p className="break-all font-mono text-xs opacity-50">{assessment.id}</p>
+              {assessment.status === "review_required" && assessment.questions.some(
+                (question) => question.kind === "multiple_choice"
+              ) && (
+                <fieldset className="space-y-3 rounded-lg border p-4">
+                  <legend className="px-2 text-sm font-semibold">
+                    Confidential MCQ key — authorized authors only
+                  </legend>
+                  <p className="text-xs opacity-70">
+                    Key answers are sent to the restricted server-only rubric table.
+                    Never paste interviewer solutions into the public question prompt.
+                  </p>
+                  {assessment.questions.filter((question) =>
+                    question.kind === "multiple_choice"
+                  ).map((question) => (
+                    <label key={question.number} className="block text-sm">
+                      Question {question.number} correct choice
+                      <select
+                        value={privateAnswers[assessment.id + ":" + question.number] ?? ""}
+                        onChange={(event) => setPrivateAnswers((current) => ({
+                          ...current,
+                          [assessment.id + ":" + question.number]:
+                            event.target.value as "A" | "B" | "C" | "D",
+                        }))}
+                        className="mt-2 w-full rounded-lg border bg-transparent p-2"
+                      >
+                        <option value="" disabled>Select correct choice</option>
+                        {(["A", "B", "C", "D"] as const).map((choice) => (
+                          <option key={choice} value={choice}>{choice}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+                  <label className="block text-sm">
+                    Confidential reviewer guidance
+                    <textarea
+                      value={privateGuidance}
+                      maxLength={20000}
+                      rows={3}
+                      onChange={(event) => setPrivateGuidance(event.target.value)}
+                      className="mt-2 w-full rounded-lg border bg-transparent p-3"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={busy || privateGuidance.trim().length < 10}
+                    onClick={() => void savePrivateKey(assessment)}
+                    className="rounded-lg border border-sky-500 px-4 py-2 text-sm disabled:opacity-40"
+                  >
+                    Save restricted answer key
+                  </button>
+                </fieldset>
+              )}
               {assessment.status === "review_required" && (
                 <button
                   type="button"
