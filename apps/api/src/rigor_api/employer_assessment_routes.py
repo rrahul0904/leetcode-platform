@@ -10,7 +10,7 @@ import hashlib
 import json
 import secrets
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -128,7 +128,7 @@ def _member(conn: Connection, principal: AuthenticatedPrincipal, roles: tuple[st
         raise HTTPException(status_code=403, detail="Employer organization permission required")
 
 
-def _org_assessment(conn: Connection, assessment_id: UUID, *, lock: bool = False) -> dict:
+def _org_assessment(conn: Connection, assessment_id: UUID, *, lock: bool = False) -> dict[str, Any]:
     row = conn.execute(
         text(
             f"""SELECT id, slug, version, status, duration_minutes, maximum_marks,
@@ -144,7 +144,7 @@ def _org_assessment(conn: Connection, assessment_id: UUID, *, lock: bool = False
     return dict(row)
 
 
-def _assessment_view(row: dict) -> AssessmentView:
+def _assessment_view(row: dict[str, Any]) -> AssessmentView:
     data = row["candidate_blueprint"]
     return AssessmentView(
         id=row["id"],
@@ -293,7 +293,7 @@ def create_employer_invitation(
         )
 
 
-def _candidate_attempt(conn: Connection, attempt_id: UUID, *, lock: bool = False) -> dict:
+def _candidate_attempt(conn: Connection, attempt_id: UUID, *, lock: bool = False) -> dict[str, Any]:
     row = conn.execute(
         text(
             f"""SELECT a.id, a.status, a.started_at, a.deadline_at, a.submitted_at,
@@ -323,7 +323,10 @@ def _attempt_view(conn: Connection, row: dict) -> AttemptView:
         status=row["status"], started_at=row["started_at"],
         deadline_at=row["deadline_at"], submitted_at=row["submitted_at"],
         duration_minutes=row["duration_minutes"],
-        questions=[AssessmentQuestion.model_validate(q) for q in row["candidate_blueprint"]["questions"]],
+        questions=[
+            AssessmentQuestion.model_validate(q)
+            for q in row["candidate_blueprint"]["questions"]
+        ],
         answers={str(number): text_value for number, text_value in answers},
     )
 
