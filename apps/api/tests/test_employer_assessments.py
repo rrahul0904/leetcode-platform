@@ -167,6 +167,19 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         )
         assert wrong_org.status_code == 403
 
+        reviewer_second_org = _headers(provider, "technical-reviewer", other_org)
+        isolated_listing = client.get(
+            "/api/v1/employer/assessments", headers=reviewer_second_org
+        )
+        assert isolated_listing.status_code == 200, isolated_listing.text
+        assert aid not in {item["id"] for item in isolated_listing.json()}
+        isolated_invite = client.post(
+            f"/api/v1/employer/assessments/{aid}/invitations",
+            headers=reviewer_second_org,
+            json={"candidate_id": candidate_id, "expires_in_hours": 1},
+        )
+        assert isolated_invite.status_code == 404
+
         invite = client.post(
             f"/api/v1/employer/assessments/{aid}/invitations",
             headers=admin_auth,
@@ -288,6 +301,11 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         assert detail.json()["answers"][0]["answer_text"].startswith("Diagnose")
         assert detail.json()["maximum_marks"] == 100
         assert "answer_key" not in detail.text
+        foreign_attempt = client.get(
+            f"/api/v1/employer/attempts/{attempt_id}",
+            headers=reviewer_second_org,
+        )
+        assert foreign_attempt.status_code == 404
 
         review_payload = {
             "scores": [
