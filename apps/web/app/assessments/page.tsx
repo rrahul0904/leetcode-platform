@@ -26,7 +26,7 @@ export default function AssessmentPage() {
   const [attempt, setAttempt] = useState<AssessmentAttempt | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState(1);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(0);
   const [working, setWorking] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
