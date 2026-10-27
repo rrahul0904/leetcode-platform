@@ -20,7 +20,6 @@ export function EmployerAIInterviewPanel({
 
   useEffect(() => {
     let cancelled = false;
-    setSession(null);
     void getEmployerAIInterview(attemptId)
       .then((value) => { if (!cancelled) setSession(value); })
       .catch(() => {});
