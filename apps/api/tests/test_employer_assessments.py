@@ -294,6 +294,13 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         )
         assert replay.status_code == 409
 
+        own_history = client.get("/api/v1/assessment-attempts", headers=candidate_auth)
+        assert own_history.status_code == 200, own_history.text
+        assert attempt_id in {item["id"] for item in own_history.json()}
+        other_history = client.get("/api/v1/assessment-attempts", headers=other_auth)
+        assert other_history.status_code == 200
+        assert attempt_id not in {item["id"] for item in other_history.json()}
+
         other_read = client.get(
             f"/api/v1/assessment-attempts/{attempt_id}", headers=other_auth
         )
