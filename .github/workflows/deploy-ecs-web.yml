@@ -103,7 +103,7 @@ jobs:
           container-name: web
           image: ${{ env.WEB_IMAGE }}
       - name: Deploy and await ECS stability
-        id: deploy-web
+        id: deploy_web
         uses: aws-actions/amazon-ecs-deploy-task-definition@c465972ecbd160473f22e683363b422a5412a3de # v2.6.3
         with:
           task-definition: ${{ steps.render.outputs.task-definition }}
@@ -122,7 +122,7 @@ jobs:
           test "$desired" -gt 0
           test "$desired" -eq "$running"
       - name: Roll back web when post-deploy smoke fails
-        if: failure() && steps.deploy-web.outcome == 'success'
+        if: failure() && steps.deploy_web.outcome == 'success'
         shell: bash
         run: |
           set -euo pipefail
