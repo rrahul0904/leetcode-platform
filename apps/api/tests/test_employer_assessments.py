@@ -719,6 +719,17 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
                   "reviewer_guidance": "Independent SQL evaluation requires human review"},
         )
         assert base_key.status_code == 200, base_key.text
+        without_fixtures = client.post(
+            f"/api/v1/employer/assessments/{sql_assessment_id}/publish",
+            headers=reviewer_auth,
+            json={
+                "rights_evidence": "Independent original SQL assessment authorship verified",
+                "technical_evidence": "Reviewer verified question and intended grading",
+                "editorial_evidence": "Reviewer verified question wording and access",
+            },
+        )
+        assert without_fixtures.status_code == 409
+        assert "private test cases" in without_fixtures.text
         private_cases = {
             "language": "sql",
             "cases": [
