@@ -86,15 +86,21 @@ def stage_employer_code_bundle(
         _member(conn, principal, ("owner", "admin"))
         assessment = _org_assessment(conn, assessment_id, lock=True)
         if assessment["status"] != "review_required":
-            raise HTTPException(status_code=409, detail="Published assessment fixtures are immutable")
+            raise HTTPException(
+                status_code=409, detail="Published assessment fixtures are immutable"
+            )
         questions = assessment["candidate_blueprint"]["questions"]
         question = next((q for q in questions if int(q["number"]) == question_number), None)
         if question is None or question["kind"] != "code":
             raise HTTPException(status_code=422, detail="Fixture target must be a coding question")
         if question.get("language") != payload.language:
-            raise HTTPException(status_code=422, detail="Fixture runtime must equal published language")
+            raise HTTPException(
+                status_code=422, detail="Fixture runtime must equal published language"
+            )
         if sum(case.points for case in payload.cases) != int(question["marks"]):
-            raise HTTPException(status_code=422, detail="Hidden case points must equal question marks")
+            raise HTTPException(
+                status_code=422, detail="Hidden case points must equal question marks"
+            )
 
         existing = conn.execute(
             text(
