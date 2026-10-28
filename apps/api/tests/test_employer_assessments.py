@@ -599,5 +599,78 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
             ).scalar_one()
         assert saved_count == 0
 
+        # A published SQL coding question keeps its explicit language through
+        # employer authoring, candidate acceptance, server persistence and
+        # authorized human review, without invoking an unsafe local SQL runner.
+        sql_draft = client.post(
+            "/api/v1/employer/assessments",
+            headers=admin_auth,
+            json={
+                "slug": f"sql-screen-{uuid4().hex[:10]}",
+                "title": "SQL execution-plan comprehension assessment",
+                "duration_minutes": 60,
+                "questions": [{
+                    "number": 1, "kind": "code", "language": "sql",
+                    "marks": 100, "options": [],
+                    "prompt": "Write a SQL query to count unique event IDs by partition.",
+                }],
+            },
+        )
+        assert sql_draft.status_code == 201, sql_draft.text
+        sql_assessment_id = sql_draft.json()["id"]
+        assert sql_draft.json()["questions"][0]["language"] == "sql"
+        published_sql = client.post(
+            f"/api/v1/employer/assessments/{sql_assessment_id}/publish",
+            headers=reviewer_auth,
+            json={
+                "rights_evidence": "Independent original SQL assessment authorship verified",
+                "technical_evidence": "Reviewer confirmed valid SQL contract and wording",
+                "editorial_evidence": "Reviewer confirmed clarity and accessibility",
+            },
+        )
+        assert published_sql.status_code == 200, published_sql.text
+        sql_invite = client.post(
+            f"/api/v1/employer/assessments/{sql_assessment_id}/invitations",
+            headers=admin_auth,
+            json={"candidate_id": candidate_id, "expires_in_hours": 1},
+        )
+        assert sql_invite.status_code == 201, sql_invite.text
+        sql_session = client.post(
+            "/api/v1/assessment-invitations/accept",
+            headers=candidate_auth,
+            json={
+                "invitation_id": sql_invite.json()["id"],
+                "acceptance_secret": sql_invite.json()["acceptance_secret"],
+            },
+        )
+        assert sql_session.status_code == 200, sql_session.text
+        assert sql_session.json()["questions"][0]["language"] == "sql"
+        sql_attempt_id = sql_session.json()["id"]
+        candidate_sql = "SELECT partition_id, COUNT(DISTINCT event_id) FROM events GROUP BY 1"
+        saved_sql = client.put(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/responses",
+            headers=candidate_auth,
+            json={"question_number": 1, "answer_text": candidate_sql},
+        )
+        assert saved_sql.status_code == 200, saved_sql.text
+        assert saved_sql.json()["answers"]["1"] == candidate_sql
+        assert client.get(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}",
+            headers=other_auth,
+        ).status_code == 404
+        submitted_sql = client.post(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/submit",
+            headers=candidate_auth,
+        )
+        assert submitted_sql.status_code == 200, submitted_sql.text
+        reviewed_sql = client.get(
+            f"/api/v1/employer/attempts/{sql_attempt_id}", headers=reviewer_auth,
+        )
+        assert reviewed_sql.status_code == 200, reviewed_sql.text
+        assert reviewed_sql.json()["questions"][0]["language"] == "sql"
+        assert reviewed_sql.json()["answers"][0]["answer_text"] == candidate_sql
+        assert "hidden_tests" not in reviewed_sql.text
+        assert "private_rubric" not in reviewed_sql.text
+
 
 
