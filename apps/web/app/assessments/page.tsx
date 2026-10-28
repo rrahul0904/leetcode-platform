@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { AssessmentCodingPads } from "@/components/assessment-coding-pads";
 import { nextPendingAssessmentResponse } from "@/lib/assessment-autosave";
+import { readCandidateInvitationFragment } from "@/lib/assessment-invitation-link";
 import { EmployerAIInterviewPanel } from "@/components/employer-ai-interview-panel";
 
 import {
@@ -38,6 +39,24 @@ export default function AssessmentPage() {
   const lastAutoSaveRef = useRef<string | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    // Link secrets are consumed from a URL fragment, never from query params.
+    // Remove from history immediately, before any background API requests.
+    const fragment = window.location.hash;
+    if (!fragment.startsWith("#invitation=")) return;
+    const credentials = readCandidateInvitationFragment(fragment);
+    window.history.replaceState(
+      window.history.state, "", window.location.pathname + window.location.search,
+    );
+    if (!credentials) {
+      setError("This invitation link is invalid. Request a new one-use link.");
+      return;
+    }
+    setInvitationId(credentials.invitationId);
+    setSecret(credentials.acceptanceSecret);
+    setNotice("Private invitation loaded. Verify your account and press Start assessment.");
+  }, []);
 
   useEffect(() => {
     const stored = window.sessionStorage.getItem(resumeKey);
@@ -215,7 +234,7 @@ export default function AssessmentPage() {
 
       {!attempt ? (
         <section className="max-w-xl rounded-2xl border p-6">
-          <h2 className="mb-2 text-xl font-semibold">Enter your invitation</h2>
+          <h2 className="mb-2 text-xl font-semibold">Start your invited assessment</h2>
           <p className="mb-6 text-sm opacity-70">
             Use the invitation ID and secret supplied by the interviewer.
             Your secret is not stored in the browser after acceptance.
