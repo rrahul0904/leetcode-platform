@@ -9,9 +9,11 @@ import {
   getEmployerInterviewTranscript,
   listEmployerAssessments,
   listEmployerAttempts,
+  listEmployerCodeExecutionResults,
   provisionalMCQScore,
   submitEmployerHumanReview,
   type EmployerAssessment,
+  type CandidateCodeExecution,
   type EmployerAttemptDetail,
   type EmployerAttemptSummary,
   type EmployerAssessmentReport,
@@ -32,6 +34,7 @@ export default function EmployerReviewWorkspace() {
   const [overallNotes, setOverallNotes] = useState("");
   const [result, setResult] = useState<SubmittedHumanReview | null>(null);
   const [provisional, setProvisional] = useState<ProvisionalMCQScore | null>(null);
+  const [codeExecutions, setCodeExecutions] = useState<CandidateCodeExecution[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -55,6 +58,7 @@ export default function EmployerReviewWorkspace() {
     setScores({});
     setResult(null);
     setProvisional(null);
+    setCodeExecutions([]);
     if (!id) {
       setAttempts([]);
       return;
@@ -80,6 +84,7 @@ export default function EmployerReviewWorkspace() {
     setError("");
     setResult(null);
     setProvisional(null);
+    setCodeExecutions([]);
     try {
       const response = await getEmployerAttempt(id);
       setDetail(response);
@@ -97,6 +102,12 @@ export default function EmployerReviewWorkspace() {
           setTranscript(await getEmployerInterviewTranscript(response.attempt.id));
         } catch {
           setTranscript(null);
+        }
+        try {
+          const codeReceipts = await listEmployerCodeExecutionResults(response.attempt.id);
+          setCodeExecutions(codeReceipts);
+        } catch {
+          setCodeExecutions([]);
         }
         try {
           const scored = await provisionalMCQScore(response.attempt.id);
@@ -299,6 +310,47 @@ export default function EmployerReviewWorkspace() {
                 Human reviewers must score every question independently below.
               </p>
             </div>
+          )}
+          {codeExecutions.length > 0 && (
+            <section className="space-y-3 rounded-xl border p-5">
+              <div className="flex flex-wrap justify-between gap-3">
+                <h3 className="font-semibold">Isolated Python/SQL execution evidence</h3>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void openAttempt(detail.attempt.id)}
+                  className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40"
+                >
+                  Refresh code results
+                </button>
+              </div>
+              <p className="text-sm opacity-70">
+                Results are version-bound and advisory to the signed human review.
+                Hidden test inputs and expected outputs are never displayed.
+              </p>
+              {codeExecutions.map((execution) => (
+                <div key={execution.id} className="rounded-lg border p-3 text-sm">
+                  <p>
+                    Question {execution.question_number} · {execution.language.toUpperCase()}
+                    {" · "}{execution.execution_mode} · {execution.status}
+                  </p>
+                  {execution.status === "completed" &&
+                    execution.execution_mode === "SUBMIT" && (
+                    <p className="mt-1 font-semibold">
+                      {execution.awarded_marks ?? "Pending"} objective points ·
+                      {" "}{execution.hidden_passed ?? 0} /
+                      {execution.hidden_total ?? 0} hidden cases passed
+                    </p>
+                  )}
+                  {execution.runtime_ms !== null && (
+                    <p className="mt-1 text-xs opacity-65">
+                      Runtime {execution.runtime_ms} ms ·
+                      Receipt {execution.id.slice(0, 12)}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </section>
           )}
           {detail.questions.map((question) => {
             const score = scores[question.number];
