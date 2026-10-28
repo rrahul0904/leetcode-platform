@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -35,7 +35,7 @@ def certified() -> dict:
                 "https://github.com/rrahul0904/leetcode-platform/"
                 "actions/runs/40630606777"
             ),
-            "observed_at": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+            "observed_at": (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
             "environment": "synthetic-test-only-not-production",
             "negative_case": "synthetic forbidden cross-tenant test",
             "artifact_sha256": "a" * 64,
@@ -109,7 +109,7 @@ def test_fake_link_digest_and_future_receipt_are_rejected() -> None:
     with pytest.raises(GateError, match="SHA-256"):
         validate(state)
     receipt["artifact_sha256"] = "b" * 64
-    receipt["observed_at"] = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
+    receipt["observed_at"] = (datetime.now(UTC) + timedelta(days=2)).isoformat()
     with pytest.raises(GateError, match="not future"):
         validate(state)
 
