@@ -1091,10 +1091,11 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         )
         assert completed_review.status_code == 201, completed_review.text
         assert completed_review.json()["awarded_marks"] == 100
+        # A principal with no membership is denied before tenant lookup.
         assert client.get(
             f"/api/v1/employer/attempts/{sql_attempt_id}/code-executions",
             headers=wrong_org_auth,
-        ).status_code == 404
+        ).status_code == 403
         reviewed_sql = client.get(
             f"/api/v1/employer/attempts/{sql_attempt_id}", headers=reviewer_auth,
         )
