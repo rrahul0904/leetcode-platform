@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "product": "SkillForge / Rigor technical learning and employer assessments",
+  "repository": "rrahul0904/leetcode-platform",
+  "production_target": "AWS",
+  "release_sha": null,
+  "builder": "implementation-team",
+  "last_baselined": "2026-10-28",
+  "source_issue_ids": [
+    55,
+    71
+  ],
+  "source_pr": 70,
+  "waves": [
+    {
+      "id": "W1",
+      "name": "Reconcile, specify, and secure",
+      "status": "building"
+    },
+    {
+      "id": "W2",
+      "name": "Trusted Python and SQL assessments",
+      "status": "blocked"
+    },
+    {
+      "id": "W3",
+      "name": "Human-centered AI and full user journeys",
+      "status": "blocked"
+    },
+    {
+      "id": "W4",
+      "name": "AWS deployment and independent certification",
+      "status": "blocked"
+    }
+  ],
+  "gates": [
+    {
+      "id": "L01",
+      "wave": "W2",
+      "title": "Employer Python/SQL Run/Submit with private hidden tests",
+      "status": "blocked",
+      "reason": "Editor currently saves text; employer isolated execution missing",
+      "evidence": []
+    },
+    {
+      "id": "L02",
+      "wave": "W2",
+      "title": "Real SQS to trusted EKS/gVisor runtime and abuse proof",
+      "status": "blocked",
+      "reason": "Cloud execution plane not observed",
+      "evidence": []
+    },
+    {
+      "id": "L03",
+      "wave": "W4",
+      "title": "AWS live deployment, Clerk identity and tenant persistence",
+      "status": "blocked",
+      "reason": "Terraform code exists; no observed production infrastructure",
+      "evidence": []
+    },
+    {
+      "id": "L04",
+      "wave": "W2",
+      "title": "Rights-reviewed lawfully published assessments",
+      "status": "blocked",
+      "reason": "252 questions staged only; approvals pending",
+      "evidence": []
+    },
+    {
+      "id": "L05",
+      "wave": "W3",
+      "title": "Two-org two-candidate real deployed end-to-end testing",
+      "status": "blocked",
+      "reason": "HTTP and stub browser smoke only",
+      "evidence": []
+    },
+    {
+      "id": "L06",
+      "wave": "W3",
+      "title": "AI provider consent, privacy and abuse evaluation or disable feature",
+      "status": "blocked",
+      "reason": "No live production provider and red-team receipt",
+      "evidence": []
+    },
+    {
+      "id": "L07",
+      "wave": "W3",
+      "title": "Optional integrity evidence, appeal, retention if marketed",
+      "status": "blocked",
+      "reason": "Standalone V4/V5 demonstration only",
+      "evidence": []
+    },
+    {
+      "id": "L08",
+      "wave": "W3",
+      "title": "Email invitations, accessibility and accommodation acceptance",
+      "status": "blocked",
+      "reason": "Manual secure link exists; no delivery/accessibility UAT",
+      "evidence": []
+    },
+    {
+      "id": "L09",
+      "wave": "W4",
+      "title": "PITR restore, rollback, load and alerts",
+      "status": "blocked",
+      "reason": "No production restore/rollback/load drill",
+      "evidence": []
+    },
+    {
+      "id": "L10",
+      "wave": "W4",
+      "title": "Independent review and exact-SHA authorized promotion",
+      "status": "blocked",
+      "reason": "PR #70 draft/unmerged; no production signoff",
+      "evidence": []
+    }
+  ]
+}
