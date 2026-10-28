@@ -312,17 +312,20 @@ export default function AssessmentPage() {
       const response = await submitInterviewAttempt(attempt.id);
       setAttempt(response);
       setNotice(
-        "Assessment " + response.status
-          + ". Final code grading was queued atomically by the server."
+        response.status === "submitted"
+          ? "Assessment submitted. Final code grading was queued atomically by the server."
+          : "Assessment " + response.status
+            + ". Saved answers are retained; final grading was not queued."
       );
       try {
         const receipts = await listCandidateCodeExecutionResults(response.id);
         setCodeExecutions(latestCodeReceipts(receipts));
       } catch {
         setNotice(
-          "Assessment " + response.status
-            + ". The server accepted your submission and grading; "
-            + "execution status can be retrieved after refresh."
+          response.status === "submitted"
+            ? "Assessment submitted. Final grading was queued by the server; "
+              + "refresh to retrieve its execution status."
+            : "Assessment " + response.status + ". Saved answers are retained."
         );
       }
     } catch (cause) {
