@@ -68,7 +68,9 @@ def _verify_receipt(receipt: Any, release_sha: str, builder: str, gate_id: str) 
         raise GateError(f"{gate_id}: observed_at must be timezone-aware and not future")
 
 
-def validate(ledger: Any, *, ready: bool = False, release_sha: str | None = None) -> dict[str, Any]:
+def validate(
+    ledger: Any, *, ready: bool = False, release_sha: str | None = None
+) -> dict[str, Any]:
     if not isinstance(ledger, dict) or ledger.get("schema_version") != 1:
         raise GateError("unsupported four-wave release ledger version")
     if ledger.get("repository") != "rrahul0904/leetcode-platform":
@@ -79,7 +81,10 @@ def validate(ledger: Any, *, ready: bool = False, release_sha: str | None = None
     if not _nonblank(builder):
         raise GateError("implementation builder identity required")
     waves = ledger.get("waves")
-    if not isinstance(waves, list) or [w.get("id") for w in waves if isinstance(w, dict)] != list(WAVE_IDS):
+    if (
+        not isinstance(waves, list)
+        or [w.get("id") for w in waves if isinstance(w, dict)] != list(WAVE_IDS)
+    ):
         raise GateError("four ordered implementation waves required")
     if any(w.get("status") not in {"blocked", "building", "verified"} for w in waves):
         raise GateError("invalid wave lifecycle state")
@@ -90,7 +95,9 @@ def validate(ledger: Any, *, ready: bool = False, release_sha: str | None = None
     if len(gate_ids) != len(set(gate_ids)) or set(gate_ids) != set(REQUIRED_GATES):
         raise GateError("missing, duplicated or unrecognized launch gate")
     expected_sha = release_sha or ledger.get("release_sha")
-    if expected_sha is not None and (not isinstance(expected_sha, str) or not SHA.fullmatch(expected_sha)):
+    if expected_sha is not None and (
+        not isinstance(expected_sha, str) or not SHA.fullmatch(expected_sha)
+    ):
         raise GateError("release SHA must be a full immutable 40-character Git commit")
     if release_sha is not None and ledger.get("release_sha") != release_sha:
         raise GateError("requested release SHA differs from ledger release SHA")
@@ -114,10 +121,17 @@ def validate(ledger: Any, *, ready: bool = False, release_sha: str | None = None
             for receipt in receipts:
                 _verify_receipt(receipt, expected_sha, str(builder), gate_id)
             verified += 1
-    if ready and (verified != len(REQUIRED_GATES) or any(w["status"] != "verified" for w in waves)):
+    if ready and (
+        verified != len(REQUIRED_GATES)
+        or any(w["status"] != "verified" for w in waves)
+    ):
         raise GateError("NO-GO: all ten gates and all four waves must be verified before launch")
     return {
-        "verdict": "RECEIPTS_VALIDATION_PASSED_REQUIRES_INDEPENDENT_REVIEW" if ready else "NO_GO_PENDING_LIVE_CERTIFICATION",
+        "verdict": (
+            "RECEIPTS_VALIDATION_PASSED_REQUIRES_INDEPENDENT_REVIEW"
+            if ready
+            else "NO_GO_PENDING_LIVE_CERTIFICATION"
+        ),
         "gate_count": len(REQUIRED_GATES),
         "verified_gates": verified,
         "blocked_gates": len(REQUIRED_GATES) - verified,
