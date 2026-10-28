@@ -114,6 +114,13 @@ export function queueCandidateCodeExecution(
   );
 }
 
+export function listCandidateCodeExecutionResults(attemptId: string) {
+  return request<CandidateCodeExecution[]>(
+    "/api/v1/assessment-attempts/" + encodeURIComponent(attemptId)
+      + "/code-executions",
+  );
+}
+
 export function listEmployerCodeExecutionResults(attemptId: string) {
   return request<CandidateCodeExecution[]>(
     "/api/v1/employer/attempts/" + encodeURIComponent(attemptId)
