@@ -31,7 +31,10 @@ def certified() -> dict:
         gate["evidence"] = [{
             "release_sha": SHA,
             "reviewer": "independent-test-reviewer",
-            "evidence_url": "https://github.com/rrahul0904/leetcode-platform/actions/runs/40630606777",
+            "evidence_url": (
+                "https://github.com/rrahul0904/leetcode-platform/"
+                "actions/runs/40630606777"
+            ),
             "observed_at": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
             "environment": "synthetic-test-only-not-production",
             "negative_case": "synthetic forbidden cross-tenant test",
