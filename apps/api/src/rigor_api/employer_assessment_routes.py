@@ -38,6 +38,9 @@ class AssessmentQuestion(StrictModel):
     prompt: str = Field(min_length=10, max_length=20_000)
     marks: int = Field(ge=1, le=100)
     options: list[str] = Field(default_factory=list, max_length=6)
+    # Explicit language travels in the candidate blueprint; never guess SQL
+    # from natural language question text or change it after publication.
+    language: Literal["python", "sql"] | None = None
 
     @model_validator(mode="after")
     def check_options(self) -> AssessmentQuestion:
@@ -46,6 +49,8 @@ class AssessmentQuestion(StrictModel):
                 raise ValueError("Single-answer MCQs require four nonempty public options")
         elif self.options:
             raise ValueError("Written and code problems do not have options")
+        if self.kind != "code" and self.language is not None:
+            raise ValueError("Only coding questions may specify an execution language")
         return self
 
 
