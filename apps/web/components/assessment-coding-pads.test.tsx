@@ -41,6 +41,31 @@ describe("AssessmentCodingPads", () => {
     expect(screen.getByText(/Run, sample tests and hidden tests are not connected/)).toBeInTheDocument();
   });
 
+  it("reports background autosave without freezing source edits or allowing duplicate submits", () => {
+    const onChange = vi.fn();
+    const onSave = vi.fn();
+    render(
+      <AssessmentCodingPads
+        question={sqlQuestion}
+        answer="SELECT event_id FROM events"
+        active
+        working={false}
+        saving
+        dirty
+        onChange={onChange}
+        onSave={onSave}
+      />,
+    );
+    expect(screen.getByText("Autosaving…")).toBeInTheDocument();
+    const editor = screen.getByRole("textbox", {
+      name: "SQL Pad source response for question 3",
+    });
+    expect(editor).toBeEnabled();
+    fireEvent.change(editor, { target: { value: "SELECT 42" } });
+    expect(onChange).toHaveBeenCalledWith("SELECT 42");
+    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+  });
+
   it("does not disclose AI code assistance or permit edits after submission", () => {
     const onChange = vi.fn();
     const onSave = vi.fn();
