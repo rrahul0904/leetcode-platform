@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from typing import Any, Literal
 from uuid import UUID
 
@@ -31,15 +32,34 @@ class PrivateCodeCase(BaseModel):
     points: int = Field(ge=0, le=100)
 
 
+def _finite_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError("Non-finite JSON numeric value")
+    return parsed
+
+
+def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for name, value in pairs:
+        if name in result:
+            raise ValueError(f"Duplicate JSON property {name!r}")
+        result[name] = value
+    return result
+
+
 def _json(text: str, label: str) -> Any:
     try:
         return json.loads(
-            text, parse_constant=lambda value: (_ for _ in ()).throw(
+            text,
+            parse_constant=lambda value: (_ for _ in ()).throw(
                 ValueError(f"Invalid JSON constant {value}")
             ),
+            parse_float=_finite_float,
+            object_pairs_hook=_unique_object,
         )
-    except (ValueError, TypeError) as exc:
-        raise ValueError(f"{label} must be valid finite JSON") from exc
+    except (ValueError, TypeError, RecursionError) as exc:
+        raise ValueError(f"{label} must be valid finite JSON with unique keys") from exc
 
 
 def _sql_input(value: object) -> dict[str, str]:
