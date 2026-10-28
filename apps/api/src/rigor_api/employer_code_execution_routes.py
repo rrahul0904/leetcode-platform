@@ -18,7 +18,13 @@ from sqlalchemy import text
 
 from .auth import authenticated_principal
 from .database import DatabaseEngine, principal_transaction
-from .employer_assessment_routes import _USER, _candidate_attempt
+from .employer_assessment_routes import (
+    _ORG,
+    _USER,
+    _candidate_attempt,
+    _employer_attempt,
+    _member,
+)
 from .schemas import AuthenticatedPrincipal
 
 router = APIRouter(prefix="/api/v1", tags=["employer-candidate-code-executions"])
@@ -230,3 +236,32 @@ def get_employer_code_execution(
         if row is None:
             raise HTTPException(status_code=404, detail="Coding execution not found")
         return _view(dict(row))
+
+
+@router.get(
+    "/employer/attempts/{attempt_id}/code-executions",
+    response_model=list[CodeExecutionView],
+)
+def list_employer_code_execution_results(
+    attempt_id: UUID,
+    engine: DatabaseEngine,
+    principal: Principal,
+) -> list[CodeExecutionView]:
+    """Review-only test outcomes; hidden case contents never leave privileged storage."""
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "reviewer", "interviewer"))
+        attempt = _employer_attempt(conn, attempt_id)
+        if attempt["status"] != "submitted":
+            raise HTTPException(
+                status_code=409, detail="Coding results require a submitted assessment",
+            )
+        rows = conn.execute(
+            text(
+                f"""SELECT {_EXECUTION_COLUMNS}
+                    FROM employer_code_executions
+                    WHERE attempt_id=:attempt AND organization_id={_ORG}
+                    ORDER BY created_at DESC LIMIT 200"""
+            ),
+            {"attempt": attempt_id},
+        ).mappings().all()
+        return [_view(dict(row)) for row in rows]
