@@ -5,9 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 
-from pydantic import ValidationError
 import pytest
-
+from pydantic import ValidationError
 from rigor_api.employer_execution_fixture_routes import PrivateCodeBundle
 
 
