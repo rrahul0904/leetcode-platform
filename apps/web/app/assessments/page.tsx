@@ -64,13 +64,17 @@ export default function AssessmentPage() {
     }
     if (!credentials) {
       if (direct) {
-        setError("This invitation link is invalid. Request a new one-use link.");
+        queueMicrotask(() =>
+          setError("This invitation link is invalid. Request a new one-use link."),
+        );
       }
       return;
     }
-    setInvitationId(credentials.invitationId);
-    setSecret(credentials.acceptanceSecret);
-    setNotice("Private invitation loaded. Verify your account and press Start assessment.");
+    queueMicrotask(() => {
+      setInvitationId(credentials.invitationId);
+      setSecret(credentials.acceptanceSecret);
+      setNotice("Private invitation loaded. Verify your account and press Start assessment.");
+    });
   }, []);
 
   useEffect(() => {
