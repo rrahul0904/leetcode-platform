@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { AssessmentCodingPads } from "@/components/assessment-coding-pads";
 import { EmployerAIInterviewPanel } from "@/components/employer-ai-interview-panel";
 
 import {
@@ -318,6 +319,19 @@ export default function AssessmentPage() {
                         );
                       })}
                     </fieldset>
+                  ) : current.kind === "code" ? (
+                    <AssessmentCodingPads
+                      key={attempt.id + ":" + current.number}
+                      question={current}
+                      answer={draftAnswer}
+                      active={active}
+                      working={working}
+                      dirty={dirty}
+                      onChange={(source) => setDrafts((previous) => ({
+                        ...previous, [String(current.number)]: source,
+                      }))}
+                      onSave={() => void save(current.number, draftAnswer)}
+                    />
                   ) : (
                     <div>
                       <label
@@ -366,7 +380,9 @@ export default function AssessmentPage() {
               )}
             </article>
           </div>
-          <EmployerAIInterviewPanel key={attempt.id} attemptId={attempt.id} active={active} />
+          <section id="assessment-ai-interview" aria-label="Optional AI technical interview">
+            <EmployerAIInterviewPanel key={attempt.id} attemptId={attempt.id} active={active} />
+          </section>
           <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border p-5">
             <p className="text-sm opacity-70">
               Submit only after saving each response. The server rejects changes after submission.
