@@ -852,6 +852,38 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         )
         assert saved_sql.status_code == 200, saved_sql.text
         assert saved_sql.json()["answers"]["1"] == candidate_sql
+        run_headers = {**candidate_auth, "Idempotency-Key": "sql-run-first-check"}
+        first_run = client.post(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
+            headers=run_headers,
+            json={"question_number": 1, "mode": "RUN"},
+        )
+        assert first_run.status_code == 202, first_run.text
+        assert first_run.json()["status"] == "queued"
+        assert first_run.json()["awarded_marks"] is None
+        assert first_run.json()["public_results"] is None
+        assert first_run.json()["hidden_total"] is None
+        repeat_run = client.post(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
+            headers=run_headers,
+            json={"question_number": 1, "mode": "RUN"},
+        )
+        assert repeat_run.status_code == 202
+        assert repeat_run.json()["id"] == first_run.json()["id"]
+        assert repeat_run.json()["duplicate"] is True
+        assert client.get(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions/{first_run.json()['id']}",
+            headers=other_auth,
+        ).status_code == 404
+        assert client.get(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions/{first_run.json()['id']}",
+            headers=candidate_auth,
+        ).status_code == 200
+        assert client.post(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
+            headers={**candidate_auth, "Idempotency-Key": "sql-submit-too-early"},
+            json={"question_number": 1, "mode": "SUBMIT"},
+        ).status_code == 409
         assert client.get(
             f"/api/v1/assessment-attempts/{sql_attempt_id}",
             headers=other_auth,
@@ -861,6 +893,32 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
             headers=candidate_auth,
         )
         assert submitted_sql.status_code == 200, submitted_sql.text
+        final_code = client.post(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
+            headers={**candidate_auth, "Idempotency-Key": "sql-hidden-final-grade"},
+            json={"question_number": 1, "mode": "SUBMIT"},
+        )
+        assert final_code.status_code == 202, final_code.text
+        assert final_code.json()["execution_mode"] == "SUBMIT"
+        assert final_code.json()["status"] == "queued"
+        assert client.post(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
+            headers={**candidate_auth, "Idempotency-Key": "sql-hidden-repeat-grade"},
+            json={"question_number": 1, "mode": "SUBMIT"},
+        ).status_code == 409
+        assert client.post(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
+            headers={**candidate_auth, "Idempotency-Key": "sql-run-after-final"},
+            json={"question_number": 1, "mode": "RUN"},
+        ).status_code == 409
+        with engine.connect() as connection:
+            queued_count = connection.execute(
+                text("""SELECT count(*) FROM employer_code_execution_outbox o
+                        JOIN employer_code_executions e ON e.id=o.execution_id
+                        WHERE e.attempt_id=:attempt"""),
+                {"attempt": sql_attempt_id},
+            ).scalar_one()
+        assert queued_count == 2
         reviewed_sql = client.get(
             f"/api/v1/employer/attempts/{sql_attempt_id}", headers=reviewer_auth,
         )
