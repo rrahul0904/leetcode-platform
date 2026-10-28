@@ -44,7 +44,7 @@ Run migrations with the migrator database role before deploying a new API revisi
 uv run alembic upgrade head
 ```
 
-Candidate head: `20261027_0024`. Migration is not authorized until a staged restore/rehearsal and operator go/no-go.
+Candidate head: `20261028_0025`. Migration is not authorized until a staged restore/rehearsal and operator go/no-go.
 
 ## 5. GitHub deployment variables
 
@@ -71,6 +71,6 @@ Production Terraform now also defines a private ECS/Fargate web service with its
 
 The production Terraform plan requires web_domain, web_image and clerk_publishable_key. An operator must provide a customer-owned web domain, real Clerk keys, immutable scanned web image in ECR, trusted OIDC AWS access and managed remote Terraform state. Populate the CLERK_SECRET_KEY Secrets Manager value before launching ECS web tasks. Never reapply Terraform locally against production resources without state import/reconciliation.
 
-The guarded workflow deploy-ecs-web.yml deploys the selected SHA only after validating HTTPS domain, Clerk issuer, live public key, CORS allowlist and upstream API readiness at Alembic 20261027_0024. Deployment uses a fail-closed image vulnerability scan, ECS service stability, HTTPS smoke and rollback.
+The guarded workflow deploy-ecs-web.yml deploys the selected SHA only after validating HTTPS domain, Clerk issuer, live public key, CORS allowlist and upstream API readiness at Alembic 20261028_0025. Deployment uses a fail-closed image vulnerability scan, ECS service stability, HTTPS smoke and rollback.
 
 A passing Terraform validation or standalone image boot test does not certify an AWS deployment. Signed content rights, verified full employer coding assessment, candidate UAT, backup/restore receipts and protected production authorization remain mandatory.
