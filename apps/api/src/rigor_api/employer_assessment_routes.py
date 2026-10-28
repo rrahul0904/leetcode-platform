@@ -17,9 +17,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import Connection, text
 
-from .employer_code_contract import verified_code_fixtures as _verified_code_fixtures
 from .auth import authenticated_principal
 from .database import DatabaseEngine, principal_transaction
+from .employer_code_contract import verified_code_fixtures as _verified_code_fixtures
 from .persistence import audit_event
 from .schemas import AuthenticatedPrincipal
 
