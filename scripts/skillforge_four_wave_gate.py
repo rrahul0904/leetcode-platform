@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -64,7 +64,7 @@ def _verify_receipt(receipt: Any, release_sha: str, builder: str, gate_id: str) 
         observed = datetime.fromisoformat(str(receipt["observed_at"]).replace("Z", "+00:00"))
     except (KeyError, TypeError, ValueError) as exc:
         raise GateError(f"{gate_id}: invalid observed_at timestamp") from exc
-    if observed.tzinfo is None or observed > datetime.now(timezone.utc):
+    if observed.tzinfo is None or observed > datetime.now(UTC):
         raise GateError(f"{gate_id}: observed_at must be timezone-aware and not future")
 
 
