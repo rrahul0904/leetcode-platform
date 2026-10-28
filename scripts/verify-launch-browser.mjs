@@ -66,6 +66,10 @@ function chromeDriverCommand() {
 
 const browserApiStub = String.raw`
 (() => {
+  // Test-only deterministic session bootstrap before React hydration.
+  // Rehydration across full-page WebDriver navigations must not depend on
+  // whether a previous page finished asynchronously validating its token.
+  window.localStorage.setItem('rigor.auth.access-token', 'launch-smoke-token');
   const originalFetch = window.fetch.bind(window);
   const json = (value, status = 200) =>
     new Response(JSON.stringify(value), {
