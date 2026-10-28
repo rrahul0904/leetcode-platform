@@ -13,10 +13,12 @@ import {
   publishEmployerAssessment,
   savePrivateAnswerKey,
   stageEmployerCodeTestBundle,
+  listEmployerCodeFixtureReadiness,
   type EmployerAssessment,
   type EmployerInvitation,
   type EmployerInvitationStatus,
   type AssessmentQuestion,
+  type ConfidentialCodeFixtureStatus,
 } from "@/lib/employer-assessment-api";
 
 type CodeFixtureDraft = {
@@ -50,6 +52,9 @@ export default function EmployerAssessmentsPage() {
   const [privateAnswers, setPrivateAnswers] = useState<Record<string, "A" | "B" | "C" | "D">>({});
   const [privateGuidance, setPrivateGuidance] = useState("");
   const [codeFixtures, setCodeFixtures] = useState<Record<string, CodeFixtureDraft>>({});
+  const [fixtureReadiness, setFixtureReadiness] = useState<
+    Record<string, ConfidentialCodeFixtureStatus[]>
+  >({});
 
   async function refresh() {
     try {
@@ -192,6 +197,20 @@ export default function EmployerAssessmentsPage() {
     }));
   }
 
+  async function refreshFixtureReadiness(assessmentId: string) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const status = await listEmployerCodeFixtureReadiness(assessmentId);
+      setFixtureReadiness((current) => ({ ...current, [assessmentId]: status }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Fixture readiness unavailable.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveCodeFixtures(assessment: EmployerAssessment, question: AssessmentQuestion) {
     const key = assessment.id + ":" + question.number;
     const fixture = codeFixtures[key] ?? emptyFixture();
@@ -236,6 +255,18 @@ export default function EmployerAssessmentsPage() {
         const remaining = { ...current };
         delete remaining[key];
         return remaining;
+      });
+      setFixtureReadiness((current) => {
+        const previous = current[assessment.id] ?? [];
+        return {
+          ...current,
+          [assessment.id]: previous.map((item) =>
+            item.question_number === question.number ? {
+              ...item, ready: true, sample_count: receipt.sample_count,
+              hidden_count: receipt.hidden_count, bundle_sha256: receipt.bundle_sha256,
+            } : item
+          ),
+        };
       });
       setNotice(
         "Private fixture saved with version digest " + receipt.bundle_sha256.slice(0, 12)
@@ -412,6 +443,27 @@ export default function EmployerAssessmentsPage() {
               ) && (
                 <section className="space-y-3 rounded-lg border p-4">
                   <h4 className="text-sm font-semibold">Confidential coding test bundles</h4>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void refreshFixtureReadiness(assessment.id)}
+                    className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40"
+                  >
+                    Check private test readiness
+                  </button>
+                  {(fixtureReadiness[assessment.id] ?? []).map((item) => (
+                    <p key={item.question_number} className="text-xs opacity-75">
+                      Question {item.question_number} · {item.language.toUpperCase()} ·
+                      {item.ready
+                        ? ` ready (${item.sample_count} sample, ${item.hidden_count} hidden)`
+                        : " missing or invalid private test fixtures"}
+                      {item.bundle_sha256 && (
+                        <span className="ml-2 font-mono">
+                          hash {item.bundle_sha256.slice(0, 12)}
+                        </span>
+                      )}
+                    </p>
+                  ))}
                   <p className="text-xs opacity-70">
                     Save the restricted rubric first, then stage original sample and hidden
                     test cases for every coding question. All four fields use valid JSON.
