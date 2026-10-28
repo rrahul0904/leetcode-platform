@@ -456,6 +456,13 @@ export async function downloadEmployerAssessmentCSV(assessmentId: string): Promi
 }
 
 
+export function recoverEmployerAIInterview(attemptId: string) {
+  return request<EmployerAIInterview>(
+    "/api/v1/assessment-attempts/" + encodeURIComponent(attemptId) + "/ai-interview/recover",
+    "POST",
+  );
+}
+
 export function eraseEmployerAIInterview(attemptId: string) {
   return request<EmployerAIInterview>(
     "/api/v1/assessment-attempts/" + encodeURIComponent(attemptId) + "/ai-interview/erase",
