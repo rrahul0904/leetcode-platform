@@ -108,7 +108,7 @@ class InvitationAccept(StrictModel):
 
 class ResponseSave(StrictModel):
     question_number: int = Field(ge=1, le=100)
-    answer_text: str = Field(min_length=1, max_length=100_000)
+    answer_text: str = Field(max_length=100_000)
 
 
 class AttemptView(StrictModel):
