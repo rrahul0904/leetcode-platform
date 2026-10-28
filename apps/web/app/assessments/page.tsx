@@ -338,32 +338,23 @@ export default function AssessmentPage() {
                         htmlFor="assessment-answer"
                         className="mb-2 block text-sm font-medium"
                       >
-                        {current.kind === "code" ? "Source code" : "Written response"}
+                        Written response
                       </label>
                       <textarea
                         id="assessment-answer"
                         disabled={!active || working}
                         rows={15}
                         maxLength={100_000}
-                        spellCheck={current.kind !== "code"}
-                        className={
-                          "w-full rounded-xl border bg-transparent p-4 text-sm " +
-                          (current.kind === "code" ? "font-mono" : "")
-                        }
+                        spellCheck
+                        className="w-full rounded-xl border bg-transparent p-4 text-sm"
                         value={draftAnswer}
                         onChange={(event) => setDrafts((previous) => ({
                           ...previous, [String(current.number)]: event.target.value,
                         }))}
                       />
-                      {current.kind === "code" && (
-                        <p className="mt-2 text-xs opacity-60">
-                          Code execution is not yet enabled in this assessment workspace.
-                          Save your source response for reviewer evaluation.
-                        </p>
-                      )}
                     </div>
                   )}
-                  <div className="mt-6 flex flex-wrap items-center gap-3">
+                  {current.kind !== "code" && <div className="mt-6 flex flex-wrap items-center gap-3">
                     <button
                       type="button"
                       disabled={!active || working || !dirty || !draftAnswer.trim()}
@@ -375,7 +366,7 @@ export default function AssessmentPage() {
                     <span className="text-sm opacity-65">
                       {dirty ? "Unsaved changes" : "Saved to server"}
                     </span>
-                  </div>
+                  </div>}
                 </>
               )}
             </article>
