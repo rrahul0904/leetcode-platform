@@ -106,8 +106,9 @@ export function AssessmentCodingPads({
             </div>
             <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 bg-slate-900 px-4 py-3">
               <div className="max-w-xl text-xs leading-5 text-slate-400">
-                Run, sample tests and hidden tests are not connected for employer assessments.
-                Your answer is securely saved through the authenticated assessment API, never run inside this page.
+                Python and SQL Run requests use the trusted isolated execution service.
+                Save the source before testing. Hidden tests run only after final submission;
+                your code never executes in this page.
               </div>
               <button
                 type="button"
