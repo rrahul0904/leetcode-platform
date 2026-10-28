@@ -163,7 +163,7 @@ def queue_employer_code_execution(
         if request.mode == "SUBMIT":
             submitted = conn.execute(
                 text(
-                    f"""SELECT id FROM employer_code_executions
+                    """SELECT id FROM employer_code_executions
                         WHERE attempt_id=:attempt AND question_number=:number
                           AND execution_mode='SUBMIT'"""
                 ),
