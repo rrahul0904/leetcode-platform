@@ -95,14 +95,17 @@ def list_employer_code_fixture_status(
                 assessment["content_sha256"],
                 {"code_test_bundles": {number: entry}},
             )
-            cases = entry["bundle"]["cases"] if ready else []
+            safe_entry = entry if ready and isinstance(entry, dict) else None
+            cases = safe_entry["bundle"]["cases"] if safe_entry is not None else []
             status.append(PrivateCodeFixtureStatus(
                 question_number=int(number),
                 language=question["language"],
                 ready=ready,
                 sample_count=sum(case["visibility"] == "sample" for case in cases),
                 hidden_count=sum(case["visibility"] == "hidden" for case in cases),
-                bundle_sha256=entry["bundle_sha256"] if ready else None,
+                bundle_sha256=(
+                    safe_entry["bundle_sha256"] if safe_entry is not None else None
+                ),
             ))
         return status
 
