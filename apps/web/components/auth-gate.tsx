@@ -5,6 +5,11 @@ import { LoaderCircle } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect } from "react";
 
+import {
+  readCandidateInvitationFragment,
+  safeSignInReturnPath,
+  stashPendingCandidateInvitation,
+} from "@/lib/assessment-invitation-link";
 import { ApiError, getProfile } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
@@ -86,6 +91,20 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isPublic && status === "anonymous") {
+      if (isEmployerAssessment && window.location.hash.startsWith("#invitation=")) {
+        const link = readCandidateInvitationFragment(window.location.hash);
+        if (link) {
+          try {
+            stashPendingCandidateInvitation(window.sessionStorage, link);
+          } catch {
+            // Browser storage may be disabled. The candidate can still enter
+            // the credentials manually after authentication.
+          }
+        }
+        window.history.replaceState(
+          window.history.state, "", window.location.pathname + window.location.search,
+        );
+      }
       router.replace(`/sign-in?returnTo=${encodeURIComponent(pathname)}`);
       return;
     }
@@ -93,7 +112,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
       (pathname === "/sign-in" || pathname === "/sign-up") &&
       status === "authenticated"
     ) {
-      router.replace("/workspace");
+      const requested = new URLSearchParams(window.location.search).get("returnTo");
+      router.replace(safeSignInReturnPath(requested));
       return;
     }
     if (wrongWorkspace) {
@@ -101,7 +121,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       return;
     }
     if (onboardingRequired) router.replace("/onboarding");
-  }, [isPublic, onboardingRequired, pathname, router, status, wrongWorkspace]);
+  }, [isEmployerAssessment, isPublic, onboardingRequired, pathname, router, status, wrongWorkspace]);
 
   if (isPublic && !(isStandalonePractice && status === "authenticated")) return children;
   if (
