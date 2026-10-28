@@ -14,6 +14,7 @@ import {
   acceptInterviewInvite,
   getInterviewAttempt,
   getCandidateCodeExecution,
+  listCandidateCodeExecutionResults,
   queueCandidateCodeExecution,
   listCandidateAssessmentAttempts,
   saveInterviewAnswer,
@@ -30,6 +31,19 @@ function formatClock(seconds: number) {
   const minutes = Math.floor((safe % 3600) / 60);
   const secs = safe % 60;
   return [hours, minutes, secs].map((number) => String(number).padStart(2, "0")).join(":");
+}
+
+function latestCodeReceipts(
+  receipts: CandidateCodeExecution[],
+): Record<string, CandidateCodeExecution> {
+  const latest: Record<string, CandidateCodeExecution> = {};
+  // The backend returns newest first; keep only the latest RUN per question
+  // and the unique immutable SUBMIT receipt per question.
+  for (const receipt of receipts) {
+    const key = receipt.execution_mode + ":" + receipt.question_number;
+    if (!(key in latest)) latest[key] = receipt;
+  }
+  return latest;
 }
 
 export default function AssessmentPage() {
@@ -110,6 +124,22 @@ export default function AssessmentPage() {
       });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    const attemptId = attempt?.id;
+    if (!attemptId) return;
+    let cancelled = false;
+    queueMicrotask(() => setCodeExecutions({}));
+    void listCandidateCodeExecutionResults(attemptId)
+      .then((receipts) => {
+        if (!cancelled) setCodeExecutions(latestCodeReceipts(receipts));
+      })
+      .catch(() => {
+        // Assessment content remains usable if execution history is down.
+        // The candidate may refresh the results without submitting again.
+      });
+    return () => { cancelled = true; };
+  }, [attempt?.id]);
 
   async function restore(attemptId: string) {
     setWorking(true);
@@ -281,33 +311,19 @@ export default function AssessmentPage() {
     try {
       const response = await submitInterviewAttempt(attempt.id);
       setAttempt(response);
-      const codingQuestions = response.status === "submitted"
-        ? response.questions.filter((question) =>
-          question.kind === "code" && (response.answers[String(question.number)] ?? "").trim()
-        ) : [];
-      const queued = await Promise.allSettled(
-        codingQuestions.map((question) => queueCandidateCodeExecution(
-          response.id, question.number, "SUBMIT",
-          "final-" + response.id + "-" + question.number,
-        )),
-      );
-      setCodeExecutions((current) => {
-        const next = { ...current };
-        queued.forEach((result, index) => {
-          const question = codingQuestions[index];
-          if (result.status === "fulfilled" && question) {
-            next["SUBMIT:" + question.number] = result.value;
-          }
-        });
-        return next;
-      });
-      const failures = queued.filter((result) => result.status === "rejected").length;
       setNotice(
-        "Assessment " + response.status + ". "
-        + (codingQuestions.length - failures) + " coding evaluations queued."
+        "Assessment " + response.status
+          + ". Final code grading was queued atomically by the server."
       );
-      if (failures) {
-        setError("Some coding evaluations could not be queued. Use Retry final grade.");
+      try {
+        const receipts = await listCandidateCodeExecutionResults(response.id);
+        setCodeExecutions(latestCodeReceipts(receipts));
+      } catch {
+        setNotice(
+          "Assessment " + response.status
+            + ". The server accepted your submission and grading; "
+            + "execution status can be retrieved after refresh."
+        );
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Assessment could not be submitted.");
@@ -518,10 +534,19 @@ export default function AssessmentPage() {
                           <button
                             type="button"
                             disabled={working}
-                            onClick={() => void queueCode(current.number, "SUBMIT", draftAnswer)}
+                            onClick={() => {
+                              void listCandidateCodeExecutionResults(attempt.id)
+                                .then((receipts) => {
+                                  setCodeExecutions(latestCodeReceipts(receipts));
+                                })
+                                .catch((cause) => {
+                                  setError(cause instanceof Error
+                                    ? cause.message : "Unable to refresh coding results.");
+                                });
+                            }}
                             className="rounded-lg border border-sky-500 px-4 py-2 text-sm disabled:opacity-40"
                           >
-                            Retry final grade
+                            Refresh final grade
                           </button>
                         )}
                     </div>
