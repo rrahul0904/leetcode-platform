@@ -202,7 +202,7 @@ def test_documented_production_migration_head_matches_release_contract() -> None
     preflight = (
         ROOT / ".github/workflows/skillforge-production-migration-preflight.yml"
     ).read_text(encoding="utf-8")
-    head = "20261027_0024"
+    head = "20261028_0025"
     assert f'EXPECTED_MIGRATION_VERSION = "{head}"' in runtime
     assert head in ci
     assert head in preflight
