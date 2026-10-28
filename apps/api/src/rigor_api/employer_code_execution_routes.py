@@ -160,6 +160,31 @@ def queue_employer_code_execution(
                 status_code=409,
                 detail="Final hidden-test grading requires a submitted assessment",
             )
+        if request.mode == "RUN":
+            limits = conn.execute(
+                text(
+                    """SELECT
+                         count(*) FILTER (WHERE status IN
+                           ('queued','dispatching','running')) AS active,
+                         count(*) FILTER (WHERE question_number=:number) AS per_question,
+                         count(*) AS per_attempt
+                       FROM employer_code_executions
+                       WHERE attempt_id=:attempt AND execution_mode='RUN'"""
+                ),
+                {"attempt": attempt_id, "number": request.question_number},
+            ).mappings().one()
+            # The locked assessment attempt serializes concurrent candidate
+            # requests. Limit queue cost even if SQS or Kubernetes is delayed.
+            if (
+                int(limits["active"]) >= 2
+                or int(limits["per_question"]) >= 30
+                or int(limits["per_attempt"]) >= 150
+            ):
+                raise HTTPException(
+                    status_code=429,
+                    detail="Coding run limit reached; wait for a previous run or contact support",
+                )
+
         if request.mode == "SUBMIT":
             submitted = conn.execute(
                 text(
