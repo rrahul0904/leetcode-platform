@@ -893,14 +893,39 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
             headers=candidate_auth,
         )
         assert submitted_sql.status_code == 200, submitted_sql.text
+        # The backend MUST queue the final hidden grade in its own submit
+        # transaction; browser follow-up requests are no longer required.
+        queued_receipts = client.get(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
+            headers=candidate_auth,
+        )
+        assert queued_receipts.status_code == 200, queued_receipts.text
+        assert len(queued_receipts.json()) == 2
+        final_receipt = next(
+            item for item in queued_receipts.json()
+            if item["execution_mode"] == "SUBMIT"
+        )
+        assert final_receipt["status"] == "queued"
+        assert final_receipt["awarded_marks"] is None
+        assert "hidden_one" not in queued_receipts.text
+        assert client.get(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
+            headers=other_auth,
+        ).status_code == 404
+        # Retry with the deterministic idempotency key sees the SAME job.
         final_code = client.post(
             f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
-            headers={**candidate_auth, "Idempotency-Key": "sql-hidden-final-grade"},
+            headers={**candidate_auth,
+                     "Idempotency-Key": f"final-{sql_attempt_id}-1"},
             json={"question_number": 1, "mode": "SUBMIT"},
         )
         assert final_code.status_code == 202, final_code.text
-        assert final_code.json()["execution_mode"] == "SUBMIT"
-        assert final_code.json()["status"] == "queued"
+        assert final_code.json()["id"] == final_receipt["id"]
+        assert final_code.json()["duplicate"] is True
+        assert client.post(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/submit",
+            headers=candidate_auth,
+        ).status_code == 200
         assert client.post(
             f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
             headers={**candidate_auth, "Idempotency-Key": "sql-hidden-repeat-grade"},
