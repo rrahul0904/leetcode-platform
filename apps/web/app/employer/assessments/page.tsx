@@ -12,11 +12,23 @@ import {
   listEmployerAssessments,
   publishEmployerAssessment,
   savePrivateAnswerKey,
+  stageEmployerCodeTestBundle,
   type EmployerAssessment,
   type EmployerInvitation,
   type EmployerInvitationStatus,
   type AssessmentQuestion,
 } from "@/lib/employer-assessment-api";
+
+type CodeFixtureDraft = {
+  sampleInput: string;
+  sampleExpected: string;
+  hiddenInput: string;
+  hiddenExpected: string;
+};
+
+function emptyFixture(): CodeFixtureDraft {
+  return { sampleInput: "", sampleExpected: "", hiddenInput: "", hiddenExpected: "" };
+}
 
 export default function EmployerAssessmentsPage() {
   const [assessments, setAssessments] = useState<EmployerAssessment[]>([]);
@@ -37,6 +49,7 @@ export default function EmployerAssessmentsPage() {
   const [invitationStatuses, setInvitationStatuses] = useState<EmployerInvitationStatus[]>([]);
   const [privateAnswers, setPrivateAnswers] = useState<Record<string, "A" | "B" | "C" | "D">>({});
   const [privateGuidance, setPrivateGuidance] = useState("");
+  const [codeFixtures, setCodeFixtures] = useState<Record<string, CodeFixtureDraft>>({});
 
   async function refresh() {
     try {
@@ -172,6 +185,57 @@ export default function EmployerAssessmentsPage() {
     }
   }
 
+  function editFixture(key: string, field: keyof CodeFixtureDraft, value: string) {
+    setCodeFixtures((current) => ({
+      ...current,
+      [key]: { ...(current[key] ?? emptyFixture()), [field]: value },
+    }));
+  }
+
+  async function saveCodeFixtures(assessment: EmployerAssessment, question: AssessmentQuestion) {
+    const key = assessment.id + ":" + question.number;
+    const fixture = codeFixtures[key] ?? emptyFixture();
+    if (question.language !== "python" && question.language !== "sql") {
+      setError("Coding question must have an explicit Python or SQL runtime.");
+      return;
+    }
+    if (!fixture.sampleExpected.trim() || !fixture.hiddenExpected.trim()) {
+      setError("Provide expected outputs for both sample and hidden test cases.");
+      return;
+    }
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const receipt = await stageEmployerCodeTestBundle(assessment.id, question.number, {
+        language: question.language,
+        cases: [
+          {
+            case_id: "sample_one", visibility: "sample", points: 0,
+            input_data: fixture.sampleInput, expected_output: fixture.sampleExpected,
+          },
+          {
+            case_id: "hidden_one", visibility: "hidden", points: question.marks,
+            input_data: fixture.hiddenInput, expected_output: fixture.hiddenExpected,
+          },
+        ],
+      });
+      setCodeFixtures((current) => {
+        const remaining = { ...current };
+        delete remaining[key];
+        return remaining;
+      });
+      setNotice(
+        "Private fixture saved with version digest " + receipt.bundle_sha256.slice(0, 12)
+        + ". Secure execution and grading are not connected yet.",
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not stage private fixtures.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function invite(id: string) {
     if (busy || !candidateId.trim()) return;
     setBusy(true);
@@ -280,11 +344,11 @@ export default function EmployerAssessmentsPage() {
                 </div>
               )}
               {assessment.status === "review_required" && assessment.questions.some(
-                (question) => question.kind === "multiple_choice"
+                (question) => question.kind === "multiple_choice" || question.kind === "code"
               ) && (
                 <fieldset className="space-y-3 rounded-lg border p-4">
                   <legend className="px-2 text-sm font-semibold">
-                    Confidential MCQ key — authorized authors only
+                    Restricted assessment rubric — authorized authors only
                   </legend>
                   <p className="text-xs opacity-70">
                     Key answers are sent to the restricted server-only rubric table.
@@ -327,9 +391,64 @@ export default function EmployerAssessmentsPage() {
                     onClick={() => void savePrivateKey(assessment)}
                     className="rounded-lg border border-sky-500 px-4 py-2 text-sm disabled:opacity-40"
                   >
-                    Save restricted answer key
+                    Save restricted rubric
                   </button>
                 </fieldset>
+              )}
+              {assessment.status === "review_required" && assessment.questions.some(
+                (question) => question.kind === "code"
+              ) && (
+                <section className="space-y-3 rounded-lg border p-4">
+                  <h4 className="text-sm font-semibold">Confidential coding test bundles</h4>
+                  <p className="text-xs opacity-70">
+                    Save the restricted rubric first, then stage an original sample and hidden
+                    test case for every coding question. Hidden cases remain server-side.
+                    This does not enable Run or automated grading until the isolated runner is certified.
+                  </p>
+                  {assessment.questions.filter((question) => question.kind === "code").map(
+                    (question) => {
+                      const key = assessment.id + ":" + question.number;
+                      const values = codeFixtures[key] ?? emptyFixture();
+                      return (
+                        <fieldset key={key} className="space-y-3 rounded-lg border p-3">
+                          <legend className="px-1 text-sm font-semibold">
+                            Question {question.number} · {question.language?.toUpperCase()}
+                          </legend>
+                          {([
+                            ["sampleInput", "Sample input", values.sampleInput],
+                            ["sampleExpected", "Expected sample output", values.sampleExpected],
+                            ["hiddenInput", "Confidential hidden input", values.hiddenInput],
+                            ["hiddenExpected", "Expected hidden output", values.hiddenExpected],
+                          ] as const).map(([field, label, value]) => (
+                            <label key={field} className="block text-sm">
+                              {label}
+                              <textarea
+                                aria-label={`Question ${question.number} ${label}`}
+                                value={value}
+                                rows={3}
+                                maxLength={20000}
+                                spellCheck={false}
+                                onChange={(event) => editFixture(
+                                  key, field, event.target.value,
+                                )}
+                                className="mt-1 w-full rounded-lg border bg-transparent p-2 font-mono text-xs"
+                              />
+                            </label>
+                          ))}
+                          <button
+                            type="button"
+                            disabled={busy || !values.sampleExpected.trim()
+                              || !values.hiddenExpected.trim()}
+                            onClick={() => void saveCodeFixtures(assessment, question)}
+                            className="rounded-lg border border-sky-500 px-3 py-2 text-sm disabled:opacity-40"
+                          >
+                            Save private sample + hidden cases
+                          </button>
+                        </fieldset>
+                      );
+                    }
+                  )}
+                </section>
               )}
               {assessment.status === "review_required" && (
                 <button
