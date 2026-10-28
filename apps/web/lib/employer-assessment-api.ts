@@ -261,6 +261,36 @@ export function addEmployerMember(
 }
 
 
+export type ConfidentialCodeCase = {
+  case_id: string;
+  visibility: "sample" | "hidden";
+  input_data: string;
+  expected_output: string;
+  points: number;
+};
+
+export type ConfidentialCodeBundleReceipt = {
+  assessment_version_id: string;
+  source_sha256: string;
+  question_number: number;
+  language: "python" | "sql";
+  bundle_sha256: string;
+  sample_count: number;
+  hidden_count: number;
+};
+
+export function stageEmployerCodeTestBundle(
+  assessmentId: string, questionNumber: number,
+  payload: { language: "python" | "sql"; cases: ConfidentialCodeCase[] },
+) {
+  return request<ConfidentialCodeBundleReceipt>(
+    "/api/v1/employer/assessments/" + encodeURIComponent(assessmentId)
+      + "/code-test-bundles/" + encodeURIComponent(questionNumber),
+    "PUT", payload,
+  );
+}
+
+
 export type PrivateAnswerKey = {
   assessment_version_id: string;
   source_sha256: string;
