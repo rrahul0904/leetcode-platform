@@ -94,6 +94,12 @@ def upgrade() -> None:
         ["attempt_id", "question_number", "created_at"],
     )
 
+    op.create_index(
+        "uq_employer_code_final_per_question", "employer_code_executions",
+        ["attempt_id", "question_number"],
+        unique=True, postgresql_where=sa.text("execution_mode='SUBMIT'"),
+    )
+
     op.create_table(
         "employer_code_execution_outbox",
         sa.Column("id", sa.Uuid(), primary_key=True,
@@ -204,6 +210,9 @@ def downgrade() -> None:
         )
         op.execute(f"REVOKE SELECT ON {table} FROM rigor_execution_worker")
     op.drop_table("employer_code_execution_outbox")
+    op.drop_index(
+        "uq_employer_code_final_per_question", table_name="employer_code_executions"
+    )
     op.drop_index("ix_employer_code_attempt", table_name="employer_code_executions")
     op.drop_index("ix_employer_code_reconcile", table_name="employer_code_executions")
     op.drop_table("employer_code_executions")
