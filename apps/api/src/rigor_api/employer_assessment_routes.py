@@ -651,6 +651,21 @@ def submit_employer_human_review(
             raise HTTPException(status_code=403, detail="Self-review is not permitted")
         if row["status"] != "submitted":
             raise HTTPException(status_code=409, detail="Only submitted attempts may be reviewed")
+        pending_final_codes = conn.execute(
+            text(
+                f"""SELECT count(*)
+                    FROM employer_code_executions
+                    WHERE attempt_id=:attempt AND organization_id={_ORG}
+                      AND execution_mode='SUBMIT'
+                      AND status IN ('queued','dispatching','running')"""
+            ),
+            {"attempt": attempt_id},
+        ).scalar_one()
+        if pending_final_codes:
+            raise HTTPException(
+                status_code=409,
+                detail="Final isolated code grading must finish before signing a human review",
+            )
         questions = row["candidate_blueprint"]["questions"]
         allowed = {int(q["number"]): int(q["marks"]) for q in questions}
         given = {score.question_number: score for score in payload.scores}
