@@ -589,6 +589,11 @@ def get_employer_assessment_attempt(
     with principal_transaction(engine, principal) as conn:
         _member(conn, principal, ("owner", "admin", "reviewer", "interviewer"))
         row = _employer_attempt(conn, attempt_id)
+        if row["status"] != "submitted":
+            raise HTTPException(
+                status_code=409,
+                detail="Candidate answers are unavailable until the assessment is submitted",
+            )
         answer_rows = conn.execute(
             text(
                 f"""SELECT question_number, answer_text, updated_at
