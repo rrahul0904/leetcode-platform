@@ -228,6 +228,55 @@ def list_employer_assessments(
         return [_assessment_view(dict(row)) for row in rows]
 
 
+def _verified_code_fixtures(
+    questions: list[dict[str, Any]],
+    source_sha256: str,
+    rubric: dict[str, Any],
+) -> bool:
+    """Fail closed if a runnable coding question lacks immutable, valid private cases."""
+    code_questions = {
+        str(question["number"]): question
+        for question in questions if question["kind"] == "code"
+    }
+    if not code_questions:
+        return True
+    bundles = rubric.get("code_test_bundles")
+    if not isinstance(bundles, dict) or set(bundles) != set(code_questions):
+        return False
+    for number, question in code_questions.items():
+        entry = bundles.get(number)
+        if not isinstance(entry, dict) or entry.get("source_sha256") != source_sha256:
+            return False
+        payload = entry.get("bundle")
+        if not isinstance(payload, dict) or payload.get("language") != question.get("language"):
+            return False
+        cases = payload.get("cases")
+        if not isinstance(cases, list) or len(cases) < 2:
+            return False
+        samples = [case for case in cases if isinstance(case, dict) and case.get("visibility") == "sample"]
+        hidden = [case for case in cases if isinstance(case, dict) and case.get("visibility") == "hidden"]
+        if len(samples) + len(hidden) != len(cases) or not samples or not hidden:
+            return False
+        if any(case.get("points") != 0 for case in samples):
+            return False
+        if any(
+            type(case.get("points")) is not int or case["points"] < 1
+            for case in hidden
+        ):
+            return False
+        if sum(case["points"] for case in hidden) != int(question["marks"]):
+            return False
+        identifiers = [case.get("case_id") for case in cases]
+        if any(not isinstance(name, str) for name in identifiers):
+            return False
+        if len(set(identifiers)) != len(identifiers):
+            return False
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        if hashlib.sha256(canonical.encode()).hexdigest() != entry.get("bundle_sha256"):
+            return False
+    return True
+
+
 @router.post("/employer/assessments/{assessment_id}/publish", response_model=AssessmentView)
 def publish_employer_assessment(
     assessment_id: UUID, payload: PublishInput, engine: DatabaseEngine, principal: Principal,
@@ -244,7 +293,11 @@ def publish_employer_assessment(
             str(item["number"]) for item in row["candidate_blueprint"]["questions"]
             if item["kind"] == "multiple_choice"
         }
-        if mcq_numbers:
+        code_questions = [
+            item for item in row["candidate_blueprint"]["questions"]
+            if item["kind"] == "code"
+        ]
+        if mcq_numbers or code_questions:
             private = conn.execute(
                 text(
                     f"""SELECT private_rubric, source_sha256
@@ -253,13 +306,22 @@ def publish_employer_assessment(
                           AND assessment_version_id=:assessment"""
                 ), {"assessment": assessment_id},
             ).mappings().one_or_none()
-            if (
-                private is None
-                or private["source_sha256"] != row["content_sha256"]
-                or set(private["private_rubric"].get("mcq_answers", {})) != mcq_numbers
-            ):
+            if private is None or private["source_sha256"] != row["content_sha256"]:
+                raise HTTPException(
+                    status_code=409, detail="Approved assessment requires a matching private rubric"
+                )
+            if set(private["private_rubric"].get("mcq_answers", {})) != mcq_numbers:
                 raise HTTPException(
                     status_code=409, detail="Approved assessment requires complete private MCQ key"
+                )
+            if not _verified_code_fixtures(
+                row["candidate_blueprint"]["questions"],
+                row["content_sha256"],
+                private["private_rubric"],
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Coding questions require reviewed, version-bound private test cases",
                 )
         updated = conn.execute(
             text(
