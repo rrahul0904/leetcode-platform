@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
-from rigor_api.employer_assessment_routes import AssessmentQuestion
+from rigor_api.employer_assessment_routes import AssessmentDraftInput, AssessmentQuestion
 
 
 @pytest.mark.parametrize("language", ["python", "sql"])
@@ -58,3 +58,36 @@ def test_legacy_coding_blueprint_remains_readable_without_language() -> None:
     })
     # Never silently attribute an untyped question to a grading runtime.
     assert question.language is None
+
+
+def test_new_coding_draft_must_declare_language() -> None:
+    with pytest.raises(ValidationError, match="New coding assessments must declare"):
+        AssessmentDraftInput.model_validate({
+            "slug": "python-screen",
+            "title": "Python engineer code screening",
+            "duration_minutes": 60,
+            "questions": [{
+                "number": 1,
+                "kind": "code",
+                "prompt": "Implement a stable event deduplication algorithm.",
+                "marks": 100,
+                "options": [],
+            }],
+        })
+
+
+def test_sql_draft_retains_declared_language_in_candidate_blueprint() -> None:
+    draft = AssessmentDraftInput.model_validate({
+        "slug": "sql-screen",
+        "title": "SQL engineer code screening",
+        "duration_minutes": 60,
+        "questions": [{
+            "number": 1,
+            "kind": "code",
+            "language": "sql",
+            "prompt": "Write a SQL query that finds duplicate event identifiers.",
+            "marks": 100,
+            "options": [],
+        }],
+    })
+    assert draft.questions[0].language == "sql"
