@@ -38,6 +38,7 @@ from .candidate_submission_routes import (
 )
 from .employer_ai_interview_routes import router as employer_ai_interview_router
 from .employer_assessment_routes import router as employer_assessment_router
+from .employer_execution_fixture_routes import router as employer_execution_fixture_router
 from .employer_organization_routes import router as employer_organization_router
 from .employer_reporting_routes import router as employer_reporting_router
 from .execution_capability import router as execution_capability_router
@@ -238,6 +239,7 @@ app.add_api_route(
 )
 app.include_router(pr_review_router)
 app.include_router(employer_assessment_router)
+app.include_router(employer_execution_fixture_router)
 app.include_router(employer_organization_router)
 app.include_router(employer_ai_interview_router)
 app.include_router(employer_reporting_router)
