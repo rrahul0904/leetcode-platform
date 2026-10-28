@@ -4,6 +4,7 @@ const authMode = process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE ?? "clerk";
 export type AssessmentQuestion = {
   number: number;
   kind: "code" | "written" | "multiple_choice";
+  language?: "python" | "sql" | null;
   prompt: string;
   marks: number;
   options: string[];
