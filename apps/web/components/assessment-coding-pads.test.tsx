@@ -38,7 +38,7 @@ describe("AssessmentCodingPads", () => {
     expect(onChange).toHaveBeenCalledWith("SELECT 1");
     fireEvent.click(screen.getByRole("button", { name: "Save source response" }));
     expect(onSave).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/Run, sample tests and hidden tests are not connected/)).toBeInTheDocument();
+    expect(screen.getByText(/Python and SQL Run requests use the trusted isolated execution service/)).toBeInTheDocument();
   });
 
   it("reports background autosave without freezing source edits or allowing duplicate submits", () => {
