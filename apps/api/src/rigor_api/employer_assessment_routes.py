@@ -810,7 +810,8 @@ def save_employer_private_key(
                        (assessment_version_id, organization_id, private_rubric, source_sha256)
                     VALUES (:assessment, {_ORG}, CAST(:rubric AS jsonb), :source_sha256)
                     ON CONFLICT (assessment_version_id) DO UPDATE
-                    SET private_rubric=EXCLUDED.private_rubric,
+                    SET private_rubric=employer_assessment_private_keys.private_rubric
+                                           || EXCLUDED.private_rubric,
                         source_sha256=EXCLUDED.source_sha256"""
             ),
             {
