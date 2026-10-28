@@ -63,3 +63,18 @@ output "execution_controller_role_arn" {
   value       = try(aws_iam_role.execution_controller[0].arn, null)
   description = "Pod Identity IAM role for the trusted execution controller."
 }
+
+output "employer_execution_queue_url" {
+  value       = module.employer_execution_queue.queue_url
+  description = "Dedicated employer execution SQS queue URL."
+}
+
+output "employer_execution_dlq_url" {
+  value       = module.employer_execution_queue.dlq_url
+  description = "Dedicated employer execution dead-letter queue URL."
+}
+
+output "employer_execution_queue_kms_key_arn" {
+  value       = module.employer_execution_queue.kms_key_arn
+  description = "Customer-managed KMS key encrypting employer execution messages."
+}
