@@ -871,6 +871,17 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         assert repeat_run.status_code == 202
         assert repeat_run.json()["id"] == first_run.json()["id"]
         assert repeat_run.json()["duplicate"] is True
+        second_run = client.post(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
+            headers={**candidate_auth, "Idempotency-Key": "sql-run-second-check"},
+            json={"question_number": 1, "mode": "RUN"},
+        )
+        assert second_run.status_code == 202, second_run.text
+        assert client.post(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
+            headers={**candidate_auth, "Idempotency-Key": "sql-run-exhausted"},
+            json={"question_number": 1, "mode": "RUN"},
+        ).status_code == 429
         assert client.get(
             f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions/{first_run.json()['id']}",
             headers=other_auth,
@@ -900,7 +911,7 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
             headers=candidate_auth,
         )
         assert queued_receipts.status_code == 200, queued_receipts.text
-        assert len(queued_receipts.json()) == 2
+        assert len(queued_receipts.json()) == 3
         final_receipt = next(
             item for item in queued_receipts.json()
             if item["execution_mode"] == "SUBMIT"
@@ -943,7 +954,7 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
                         WHERE e.attempt_id=:attempt"""),
                 {"attempt": sql_attempt_id},
             ).scalar_one()
-        assert queued_count == 2
+        assert queued_count == 3
         reviewed_sql = client.get(
             f"/api/v1/employer/attempts/{sql_attempt_id}", headers=reviewer_auth,
         )
