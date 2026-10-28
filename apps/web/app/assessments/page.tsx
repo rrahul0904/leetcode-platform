@@ -294,8 +294,9 @@ export default function AssessmentPage() {
       setCodeExecutions((current) => {
         const next = { ...current };
         queued.forEach((result, index) => {
-          if (result.status === "fulfilled") {
-            next["SUBMIT:" + codingQuestions[index].number] = result.value;
+          const question = codingQuestions[index];
+          if (result.status === "fulfilled" && question) {
+            next["SUBMIT:" + question.number] = result.value;
           }
         });
         return next;
