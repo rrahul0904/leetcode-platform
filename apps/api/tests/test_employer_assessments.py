@@ -8,9 +8,75 @@ from uuid import uuid4
 import jwt
 from fastapi.testclient import TestClient
 from rigor_api.auth import LOCAL_IDENTITIES, LocalIdentity, LocalOIDCProvider
+from rigor_api.employer_code_execution_worker import EmployerCodeWorker
+from rigor_api.execution_kubernetes import SandboxHandle, SandboxObservation
+from rigor_api.execution_results import RESULT_PREFIX
+from rigor_api.execution_sqs import SqsReceivedMessage
 from rigor_api.main import app
 from rigor_api.schemas import Role
 from sqlalchemy import Engine, text
+
+
+class _EmployerQueueRecorder:
+    def __init__(self) -> None:
+        self.sent: list[str] = []
+        self.deleted: list[str] = []
+
+    def send_message(self, body: str) -> str:
+        self.sent.append(body)
+        return f"message-{len(self.sent)}"
+
+    def delete_message(self, handle: str) -> None:
+        self.deleted.append(handle)
+
+    def change_message_visibility(self, handle: str, timeout_seconds: int) -> None:
+        pass
+
+
+class _SqlRunnerSimulator:
+    """Mock only the isolated EKS interface, never execute submitted SQL in API."""
+
+    def __init__(self) -> None:
+        self.requests: dict[str, dict[str, object]] = {}
+        self.cleaned: list[str] = []
+
+    def create_sql_execution(
+        self, *, execution_id: object, request_payload: dict[str, object],
+        profile_name: str,
+    ) -> SandboxHandle:
+        assert profile_name == "sql-small"
+        self.requests[str(execution_id)] = request_payload
+        assert all("expected" not in test for test in request_payload["tests"])
+        return SandboxHandle(
+            execution_id=execution_id,
+            namespace="rigor-execution", job_name="isolated-simulated",
+            input_secret_name="isolated-simulated-input",
+        )
+
+    def observe(self, handle: SandboxHandle) -> SandboxObservation:
+        req = self.requests[str(handle.execution_id)]
+        rows = {"sample_one": [[1, 1]], "hidden_one": [[1, 2]]}
+        tests = [
+            {
+                "id": test["id"], "visibility": test["visibility"], "ok": True,
+                "actual": {"columns": ["partition_id", "count"], "rows": rows[test["id"]]},
+                "error_category": None,
+            }
+            for test in req["tests"]
+        ]
+        response = {
+            "schema_version": 1, "execution_id": str(handle.execution_id),
+            "attempt": req["attempt"], "status": "COMPLETED", "runtime_ms": 18,
+            "exit_code": 0, "stdout": "", "stderr": "",
+            "error_category": None, "tests": tests,
+        }
+        return SandboxObservation(
+            state="SUCCEEDED",
+            logs=RESULT_PREFIX + json.dumps(response, separators=(",", ":")),
+        )
+
+    def cleanup(self, handle: SandboxHandle) -> None:
+        self.cleaned.append(str(handle.execution_id))
 
 
 def _headers(provider: LocalOIDCProvider, identity: str, org: str | None = None) -> dict[str, str]:
@@ -955,6 +1021,61 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
                 {"attempt": sql_attempt_id},
             ).scalar_one()
         assert queued_count == 3
+
+        # Fully exercise the durable outbox, trusted job claim, sandbox
+        # protocol, confidential comparator and stored scoring receipt.
+        # _SqlRunnerSimulator supplies runner results; this is NOT live EKS.
+        queue_recorder = _EmployerQueueRecorder()
+        simulated_runner = _SqlRunnerSimulator()
+        worker = EmployerCodeWorker(
+            engine=engine, queue=queue_recorder, sandbox=simulated_runner,
+            worker_id="integration-worker",
+        )
+        assert worker.publish_outbox_once() >= 3
+        queued_sql_messages = [
+            event for event in queue_recorder.sent
+            if json.loads(event)["execution_id"] in {
+                item["id"] for item in queued_receipts.json()
+            }
+        ]
+        assert len(queued_sql_messages) == 3
+        for index, event in enumerate(queued_sql_messages):
+            assert "SELECT partition_id" not in event
+            assert "hidden_one" not in event
+            assert worker.process_message(SqsReceivedMessage(
+                message_id=f"sql-{index}", receipt_handle=f"receipt-{index}",
+                body=event,
+            ))
+        assert len(simulated_runner.cleaned) == 3
+        after_worker = client.get(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
+            headers=candidate_auth,
+        )
+        assert after_worker.status_code == 200, after_worker.text
+        assert all(item["status"] == "completed" for item in after_worker.json())
+        graded_final = next(
+            item for item in after_worker.json() if item["execution_mode"] == "SUBMIT"
+        )
+        assert graded_final["awarded_marks"] == 100
+        assert graded_final["hidden_total"] == 1
+        assert graded_final["hidden_passed"] == 1
+        assert "hidden_one" not in after_worker.text
+        assert "[[1, 2]]" not in after_worker.text
+        assert all(
+            item["hidden_total"] == 0 and item["awarded_marks"] is None
+            for item in after_worker.json() if item["execution_mode"] == "RUN"
+        )
+        reviewer_code = client.get(
+            f"/api/v1/employer/attempts/{sql_attempt_id}/code-executions",
+            headers=reviewer_auth,
+        )
+        assert reviewer_code.status_code == 200, reviewer_code.text
+        assert len(reviewer_code.json()) == 3
+        assert "hidden_one" not in reviewer_code.text
+        assert client.get(
+            f"/api/v1/employer/attempts/{sql_attempt_id}/code-executions",
+            headers=wrong_org_auth,
+        ).status_code == 404
         reviewed_sql = client.get(
             f"/api/v1/employer/attempts/{sql_attempt_id}", headers=reviewer_auth,
         )
