@@ -1,0 +1,114 @@
+# Dedicated employer execution plane. This controller consumes ONLY the
+# employer SQS URL, never the learner execution queue.
+# Deployment automation must replace the image digest sentinel with the image
+# built from services/execution-controller/Dockerfile at the reviewed SHA.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: employer-code-controller
+  namespace: rigor-system
+  labels:
+    app.kubernetes.io/name: rigor-employer-code-controller
+    app.kubernetes.io/component: execution-control-plane
+    app.kubernetes.io/part-of: rigor
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rigor-employer-code-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rigor-employer-code-controller
+        app.kubernetes.io/component: execution-control-plane
+        app.kubernetes.io/part-of: rigor
+    spec:
+      serviceAccountName: execution-controller
+      automountServiceAccountToken: true
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 30
+      nodeSelector:
+        workload: trusted-execution-control
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: trusted-execution-control
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: controller
+          image: rigor-execution-controller.invalid/replace-me@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - -m
+            - rigor_api.employer_code_execution_worker
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: RIGOR_EXECUTOR_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rigor-execution-controller
+                  key: database-url
+            - name: RIGOR_EMPLOYER_EXECUTION_QUEUE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rigor-execution-controller
+                  key: employer-queue-url
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: rigor-execution-controller
+                  key: aws-region
+            - name: RIGOR_PYTHON_RUNNER_IMAGE
+              valueFrom:
+                configMapKeyRef:
+                  name: rigor-execution-controller
+                  key: python-runner-image
+            - name: RIGOR_SQL_RUNNER_IMAGE
+              valueFrom:
+                configMapKeyRef:
+                  name: rigor-execution-controller
+                  key: sql-runner-image
+            - name: RIGOR_SQL_POSTGRES_IMAGE
+              valueFrom:
+                configMapKeyRef:
+                  name: rigor-execution-controller
+                  key: sql-postgres-image
+            - name: RIGOR_EXECUTION_NAMESPACE
+              value: rigor-execution
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 32Mi
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: employer-code-controller
+  namespace: rigor-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rigor-employer-code-controller
