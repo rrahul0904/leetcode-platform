@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import Connection, text
 
+from .employer_code_contract import verified_code_fixtures as _verified_code_fixtures
 from .auth import authenticated_principal
 from .database import DatabaseEngine, principal_transaction
 from .persistence import audit_event
@@ -226,61 +227,6 @@ def list_employer_assessments(
             )
         ).mappings().all()
         return [_assessment_view(dict(row)) for row in rows]
-
-
-def _verified_code_fixtures(
-    questions: list[dict[str, Any]],
-    source_sha256: str,
-    rubric: dict[str, Any],
-) -> bool:
-    """Fail closed if a runnable coding question lacks immutable, valid private cases."""
-    code_questions = {
-        str(question["number"]): question
-        for question in questions if question["kind"] == "code"
-    }
-    if not code_questions:
-        return True
-    bundles = rubric.get("code_test_bundles")
-    if not isinstance(bundles, dict) or set(bundles) != set(code_questions):
-        return False
-    for number, question in code_questions.items():
-        entry = bundles.get(number)
-        if not isinstance(entry, dict) or entry.get("source_sha256") != source_sha256:
-            return False
-        payload = entry.get("bundle")
-        if not isinstance(payload, dict) or payload.get("language") != question.get("language"):
-            return False
-        cases = payload.get("cases")
-        if not isinstance(cases, list) or len(cases) < 2:
-            return False
-        samples = [
-            case for case in cases
-            if isinstance(case, dict) and case.get("visibility") == "sample"
-        ]
-        hidden = [
-            case for case in cases
-            if isinstance(case, dict) and case.get("visibility") == "hidden"
-        ]
-        if len(samples) + len(hidden) != len(cases) or not samples or not hidden:
-            return False
-        if any(case.get("points") != 0 for case in samples):
-            return False
-        if any(
-            type(case.get("points")) is not int or case["points"] < 1
-            for case in hidden
-        ):
-            return False
-        if sum(case["points"] for case in hidden) != int(question["marks"]):
-            return False
-        identifiers = [case.get("case_id") for case in cases]
-        if any(not isinstance(name, str) for name in identifiers):
-            return False
-        if len(set(identifiers)) != len(identifiers):
-            return False
-        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-        if hashlib.sha256(canonical.encode()).hexdigest() != entry.get("bundle_sha256"):
-            return False
-    return True
 
 
 @router.post("/employer/assessments/{assessment_id}/publish", response_model=AssessmentView)
