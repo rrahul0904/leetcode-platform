@@ -314,6 +314,24 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         assert saved.status_code == 200, saved.text
         assert saved.json()["answers"]["1"] == "Diagnose, quarantine, repair, validate"
 
+        # Clearing an earlier answer is a deliberate, persistent operation;
+        # candidates must not be trapped by an unsaved blank draft.
+        cleared = client.put(
+            f"/api/v1/assessment-attempts/{attempt_id}/responses",
+            headers=candidate_auth,
+            json={"question_number": 1, "answer_text": ""},
+        )
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["answers"]["1"] == ""
+        restored_answer = client.put(
+            f"/api/v1/assessment-attempts/{attempt_id}/responses",
+            headers=candidate_auth,
+            json={"question_number": 1, "answer_text":
+                  "Diagnose, quarantine, repair, validate"},
+        )
+        assert restored_answer.status_code == 200, restored_answer.text
+
+
         no_consent = client.get(
             f"/api/v1/assessment-attempts/{attempt_id}/ai-interview",
             headers=candidate_auth,
