@@ -5,6 +5,7 @@ import {
   consentToEmployerAIInterview,
   getEmployerAIInterview,
   eraseEmployerAIInterview,
+  recoverEmployerAIInterview,
   sendEmployerAIInterviewMessage,
   withdrawEmployerAIInterview,
   type EmployerAIInterview,
@@ -65,6 +66,19 @@ export function EmployerAIInterviewPanel({
       setSession(await withdrawEmployerAIInterview(attemptId));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Withdrawal failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function recover() {
+    if (!session || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      setSession(await recoverEmployerAIInterview(attemptId));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not recover interrupted reply");
     } finally {
       setBusy(false);
     }
@@ -142,6 +156,18 @@ export function EmployerAIInterviewPanel({
               disabled={busy} className="rounded-lg border px-4 py-2 disabled:opacity-40">
               Withdraw consent for further model calls
             </button>
+          )}
+          {session.status === "active" && (
+            <div className="space-y-2 rounded-lg border p-3 text-sm">
+              <p>
+                If a model reply was interrupted, you can recover the session
+                after its 90-second safety window. Completed turns remain intact.
+              </p>
+              <button type="button" disabled={busy} onClick={() => void recover()}
+                className="rounded-lg border px-4 py-2 text-sm disabled:opacity-40">
+                Recover interrupted AI reply
+              </button>
+            </div>
           )}
           {session.status !== "erased" ? (
             <button type="button" disabled={busy} onClick={() => void erase()}
