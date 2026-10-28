@@ -76,20 +76,18 @@ export function takePendingCandidateInvitation(
   if (!raw || raw.length > 512) return null;
   try {
     const data = JSON.parse(raw) as Record<string, unknown>;
-    const credentials = {
-      invitationId: data.invitationId,
-      acceptanceSecret: data.acceptanceSecret,
-    };
+    const invitationId = data.invitationId;
+    const acceptanceSecret = data.acceptanceSecret;
     if (
-      typeof credentials.invitationId !== "string"
-      || typeof credentials.acceptanceSecret !== "string"
+      typeof invitationId !== "string"
+      || typeof acceptanceSecret !== "string"
       || typeof data.createdAt !== "number"
       || !Number.isFinite(data.createdAt)
       || now < data.createdAt
       || now - data.createdAt > PENDING_TTL_MS
-      || !validCredentials(credentials)
     ) return null;
-    return credentials;
+    const credentials: CandidateInvitationLink = { invitationId, acceptanceSecret };
+    return validCredentials(credentials) ? credentials : null;
   } catch {
     return null;
   }
