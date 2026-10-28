@@ -213,6 +213,30 @@ def queue_employer_code_execution(
 
 
 @router.get(
+    "/assessment-attempts/{attempt_id}/code-executions",
+    response_model=list[CodeExecutionView],
+)
+def list_candidate_code_executions(
+    attempt_id: UUID,
+    engine: DatabaseEngine,
+    principal: Principal,
+) -> list[CodeExecutionView]:
+    """Recover sample and final code jobs after logout, refresh or network loss."""
+    with principal_transaction(engine, principal) as conn:
+        _candidate_attempt(conn, attempt_id)
+        rows = conn.execute(
+            text(
+                f"""SELECT {_EXECUTION_COLUMNS}
+                    FROM employer_code_executions
+                    WHERE attempt_id=:attempt AND candidate_id={_USER}
+                    ORDER BY created_at DESC, id DESC LIMIT 200"""
+            ),
+            {"attempt": attempt_id},
+        ).mappings().all()
+        return [_view(dict(row)) for row in rows]
+
+
+@router.get(
     "/assessment-attempts/{attempt_id}/code-executions/{execution_id}",
     response_model=CodeExecutionView,
 )
