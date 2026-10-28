@@ -13,12 +13,34 @@ def reviewed() -> tuple[list[dict], str, dict]:
     questions = [{"number": 1, "kind": "code", "language": "sql", "marks": 100}]
     source_sha = "1" * 64
     bundle = {
+        "schema_version": 2,
         "language": "sql",
+        "entrypoint": "solve",
+        "invocation_mode": "auto",
+        "statement_timeout_ms": 3000,
         "cases": [
-            {"case_id": "sample_one", "visibility": "sample",
-             "input_data": "SELECT 1", "expected_output": "1", "points": 0},
-            {"case_id": "hidden_one", "visibility": "hidden",
-             "input_data": "SELECT 2", "expected_output": "2", "points": 100},
+            {
+                "case_id": "sample_one", "visibility": "sample",
+                "input_data": json.dumps({
+                    "schema_sql": "CREATE TABLE events (event_id INT)",
+                    "seed_sql": "INSERT INTO events VALUES (1)",
+                }),
+                "expected_output": json.dumps({
+                    "columns": ["event_id"], "rows": [[1]],
+                }),
+                "points": 0,
+            },
+            {
+                "case_id": "hidden_one", "visibility": "hidden",
+                "input_data": json.dumps({
+                    "schema_sql": "CREATE TABLE events (event_id INT)",
+                    "seed_sql": "INSERT INTO events VALUES (2)",
+                }),
+                "expected_output": json.dumps({
+                    "columns": ["event_id"], "rows": [[2]],
+                }),
+                "points": 100,
+            },
         ],
     }
     digest = hashlib.sha256(
