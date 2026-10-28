@@ -15,14 +15,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
 
+from .auth import authenticated_principal
+from .database import DatabaseEngine, principal_transaction
+from .employer_assessment_routes import _ORG, _USER, _member, _org_assessment
 from .employer_code_contract import (
     PrivateCodeBundle,
     canonical_bundle_digest,
     verified_code_fixtures,
 )
-from .auth import authenticated_principal
-from .database import DatabaseEngine, principal_transaction
-from .employer_assessment_routes import _ORG, _USER, _member, _org_assessment
 from .persistence import audit_event
 from .schemas import AuthenticatedPrincipal
 
