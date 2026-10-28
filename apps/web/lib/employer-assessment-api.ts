@@ -261,6 +261,23 @@ export function addEmployerMember(
 }
 
 
+export type ConfidentialCodeFixtureStatus = {
+  question_number: number;
+  language: "python" | "sql";
+  ready: boolean;
+  sample_count: number;
+  hidden_count: number;
+  bundle_sha256: string | null;
+};
+
+export function listEmployerCodeFixtureReadiness(assessmentId: string) {
+  return request<ConfidentialCodeFixtureStatus[]>(
+    "/api/v1/employer/assessments/" + encodeURIComponent(assessmentId)
+      + "/code-test-bundles",
+  );
+}
+
+
 export type ConfidentialCodeCase = {
   case_id: string;
   visibility: "sample" | "hidden";
