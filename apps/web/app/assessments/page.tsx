@@ -96,23 +96,29 @@ export default function AssessmentPage() {
   const draftAnswer = current ? drafts[String(current.number)] ?? "" : "";
   const dirty = current ? draftAnswer !== storedAnswer : false;
 
-  // Debounced server-backed saving: source drafts are not silently treated as
-  // submitted and never execute in Next.js. Each in-flight snapshot is bound
-  // to the owning attempt and question. Changes typed during a request remain
-  // dirty, and a new save will be queued after the previous one resolves.
+  // Debounced server-backed autosave works across question navigation. Every
+  // changed answer is persisted in turn, not just the currently open question.
+  // In-flight saves cannot overwrite a newer typed draft or another attempt.
   useEffect(() => {
-    if (!attempt || !current || !active || !dirty || !draftAnswer.trim()
-      || working || autoSaving) return;
+    if (!attempt || !active || working || autoSaving) return;
     const attemptId = attempt.id;
-    const questionNumber = current.number;
-    const snapshot = draftAnswer;
-    const revision = JSON.stringify([attemptId, questionNumber, snapshot]);
-    if (lastAutoSaveRef.current === revision) return;
+    const pending = attempt.questions
+      .map((question) => ({
+        number: question.number,
+        source: drafts[String(question.number)] ?? "",
+      }))
+      .find(({ number, source }) =>
+        source.trim().length > 0
+        && source !== (attempt.answers[String(number)] ?? "")
+        && JSON.stringify([attemptId, number, source]) !== lastAutoSaveRef.current
+      );
+    if (!pending) return;
+    const revision = JSON.stringify([attemptId, pending.number, pending.source]);
 
     const timer = window.setTimeout(() => {
       lastAutoSaveRef.current = revision;
       setAutoSaving(true);
-      void saveInterviewAnswer(attemptId, questionNumber, snapshot)
+      void saveInterviewAnswer(attemptId, pending.number, pending.source)
         .then((updated) => {
           setAttempt((previous) => previous?.id === updated.id ? updated : previous);
           setError("");
@@ -122,13 +128,13 @@ export default function AssessmentPage() {
             cause instanceof Error ? "Autosave failed: " + cause.message
               : "Autosave failed. Your unsaved text remains in the editor.",
           );
-          // Don't repeatedly hammer an unavailable backend. Changing text or
-          // explicitly pressing Save re-enables an attempt.
+          // Do not hammer the backend when a save is rejected or unavailable.
+          // A changed draft or explicit Save can trigger the next request.
         })
         .finally(() => setAutoSaving(false));
     }, 1400);
     return () => window.clearTimeout(timer);
-  }, [attempt, current, active, dirty, draftAnswer, working, autoSaving]);
+  }, [attempt, active, drafts, working, autoSaving]);
 
 
   async function acceptInvitation(event: React.FormEvent<HTMLFormElement>) {
