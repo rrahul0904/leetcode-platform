@@ -1021,6 +1021,19 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
                 {"attempt": sql_attempt_id},
             ).scalar_one()
         assert queued_count == 3
+        sql_human_review = {
+            "scores": [
+                {"question_number": 1, "awarded_marks": 100,
+                 "evidence_note": "Source code matches expected grouped aggregation"}
+            ],
+            "overall_notes": "Reviewer confirms the final grading receipt and code quality",
+        }
+        pending_review = client.post(
+            f"/api/v1/employer/attempts/{sql_attempt_id}/reviews",
+            headers=reviewer_auth, json=sql_human_review,
+        )
+        assert pending_review.status_code == 409, pending_review.text
+        assert "must finish" in pending_review.text
 
         # Fully exercise the durable outbox, trusted job claim, sandbox
         # protocol, confidential comparator and stored scoring receipt.
@@ -1072,6 +1085,12 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         assert reviewer_code.status_code == 200, reviewer_code.text
         assert len(reviewer_code.json()) == 3
         assert "hidden_one" not in reviewer_code.text
+        completed_review = client.post(
+            f"/api/v1/employer/attempts/{sql_attempt_id}/reviews",
+            headers=reviewer_auth, json=sql_human_review,
+        )
+        assert completed_review.status_code == 201, completed_review.text
+        assert completed_review.json()["awarded_marks"] == 100
         assert client.get(
             f"/api/v1/employer/attempts/{sql_attempt_id}/code-executions",
             headers=wrong_org_auth,
