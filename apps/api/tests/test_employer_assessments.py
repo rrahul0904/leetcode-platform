@@ -394,6 +394,43 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
             json={"agree_to_ai_processing": True},
         ).status_code == 409
 
+        # Enforce candidate-only transcript deletion in PostgreSQL, not just
+        # through the FastAPI ownership checks. An authorized employer reviewer
+        # is allowed to SELECT transcript evidence but must never DELETE it.
+        with engine.begin() as conn:
+            conn.execute(text("SET LOCAL ROLE rigor_app"))
+            conn.execute(
+                text("SELECT set_config('rigor.user_id', :uid, true)"),
+                {"uid": reviewer_id},
+            )
+            conn.execute(
+                text("SELECT set_config('rigor.organization_id', :org, true)"),
+                {"org": org},
+            )
+            employer_visible = conn.execute(
+                text(
+                    """SELECT count(*) FROM employer_ai_interview_messages
+                       WHERE candidate_id=:candidate"""
+                ),
+                {"candidate": candidate_id},
+            ).scalar_one()
+            assert employer_visible == 2
+            forbidden_delete = conn.execute(
+                text(
+                    """DELETE FROM employer_ai_interview_messages
+                       WHERE candidate_id=:candidate RETURNING id"""
+                ),
+                {"candidate": candidate_id},
+            ).all()
+            assert forbidden_delete == []
+            assert conn.execute(
+                text(
+                    """SELECT count(*) FROM employer_ai_interview_messages
+                       WHERE candidate_id=:candidate"""
+                ),
+                {"candidate": candidate_id},
+            ).scalar_one() == 2
+
         transcript_unreleased = client.get(
             f"/api/v1/employer/attempts/{attempt_id}/ai-interview",
             headers=reviewer_auth,
