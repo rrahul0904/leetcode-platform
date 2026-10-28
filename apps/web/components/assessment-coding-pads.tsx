@@ -111,7 +111,7 @@ export function AssessmentCodingPads({
               </div>
               <button
                 type="button"
-                disabled={!active || working || saving || !dirty || !answer.trim()}
+                disabled={!active || working || saving || !dirty}
                 onClick={onSave}
                 className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-35"
               >
