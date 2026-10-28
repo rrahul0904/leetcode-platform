@@ -80,7 +80,7 @@ jobs:
           jq -e '
             .status == "ready"
             and any(.checks[]; .name == "migration" and .status == "ready"
-              and (.detail | contains("expected=20261027_0024")))
+              and (.detail | contains("expected=20261028_0025")))
           ' /tmp/skillforge-backend-readiness.json > /dev/null
           echo "Backend is ready on the required employer-assessment schema."
 
