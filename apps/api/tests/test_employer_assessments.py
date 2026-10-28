@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from uuid import uuid4
 
 import jwt
@@ -733,12 +734,28 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         private_cases = {
             "language": "sql",
             "cases": [
-                {"case_id": "sample_one", "visibility": "sample",
-                 "input_data": "CREATE TABLE events (event_id INT, partition_id INT);",
-                 "expected_output": "1", "points": 0},
-                {"case_id": "hidden_one", "visibility": "hidden",
-                 "input_data": "INSERT INTO events VALUES (1,1),(1,1),(2,1);",
-                 "expected_output": "2", "points": 100},
+                {
+                    "case_id": "sample_one", "visibility": "sample",
+                    "input_data": json.dumps({
+                        "schema_sql": "CREATE TABLE events (event_id INT, partition_id INT)",
+                        "seed_sql": "INSERT INTO events VALUES (1,1)",
+                    }),
+                    "expected_output": json.dumps({
+                        "columns": ["partition_id", "count"], "rows": [[1, 1]],
+                    }),
+                    "points": 0,
+                },
+                {
+                    "case_id": "hidden_one", "visibility": "hidden",
+                    "input_data": json.dumps({
+                        "schema_sql": "CREATE TABLE events (event_id INT, partition_id INT)",
+                        "seed_sql": "INSERT INTO events VALUES (1,1),(1,1),(2,1)",
+                    }),
+                    "expected_output": json.dumps({
+                        "columns": ["partition_id", "count"], "rows": [[1, 2]],
+                    }),
+                    "points": 100,
+                },
             ],
         }
         wrong_runtime = client.put(
