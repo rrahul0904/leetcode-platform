@@ -407,6 +407,7 @@ export default function EmployerAssessmentsPage() {
                           setQuestions((all) => all.map((q, i) => (
                             i === index ? {
                               ...q, kind,
+                              language: kind === "code" ? "python" : null,
                               options: kind === "multiple_choice" ? ["", "", "", ""] : [],
                             } : q
                           )));
@@ -417,6 +418,22 @@ export default function EmployerAssessmentsPage() {
                         <option value="multiple_choice">Multiple choice</option>
                       </select>
                     </label>
+                    {question.kind === "code" && (
+                      <label className="block text-sm">
+                        Coding language
+                        <select
+                          aria-label={`Question ${question.number} coding language`}
+                          value={question.language ?? "python"}
+                          className="mt-1 w-full rounded-lg border bg-transparent p-2"
+                          onChange={(event) => setQuestions((all) => all.map((q, i) =>
+                            i === index ? { ...q, language: event.target.value as "python" | "sql" } : q
+                          ))}
+                        >
+                          <option value="python">Python</option>
+                          <option value="sql">SQL</option>
+                        </select>
+                      </label>
+                    )}
                     <label className="block text-sm">
                       Points
                       <input
