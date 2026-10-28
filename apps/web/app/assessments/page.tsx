@@ -13,10 +13,13 @@ import { EmployerAIInterviewPanel } from "@/components/employer-ai-interview-pan
 import {
   acceptInterviewInvite,
   getInterviewAttempt,
+  getCandidateCodeExecution,
+  queueCandidateCodeExecution,
   listCandidateAssessmentAttempts,
   saveInterviewAnswer,
   submitInterviewAttempt,
   type AssessmentAttempt,
+  type CandidateCodeExecution,
 } from "@/lib/employer-assessment-api";
 
 const resumeKey = "rigor.assessment.attempt-id";
@@ -41,6 +44,9 @@ export default function AssessmentPage() {
   const [autoSaving, setAutoSaving] = useState(false);
   const lastAutoSaveRef = useRef<string | null>(null);
   const [notice, setNotice] = useState("");
+  const [codeExecutions, setCodeExecutions] = useState<
+    Record<string, CandidateCodeExecution>
+  >({});
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -173,6 +179,62 @@ export default function AssessmentPage() {
   }, [attempt, active, drafts, working, autoSaving]);
 
 
+  // Poll only nonterminal code jobs. The API is authoritative; this page never
+  // executes candidate source and never receives private grading fixtures.
+  useEffect(() => {
+    if (!attempt) return;
+    const pending = Object.entries(codeExecutions).filter(
+      ([, item]) => !["completed", "failed", "timeout"].includes(item.status),
+    );
+    if (!pending.length) return;
+    let cancelled = false;
+    const interval = window.setInterval(() => {
+      for (const [key, execution] of pending) {
+        void getCandidateCodeExecution(execution.attempt_id, execution.id)
+          .then((updated) => {
+            if (!cancelled) {
+              setCodeExecutions((current) => ({ ...current, [key]: updated }));
+            }
+          })
+          .catch(() => {
+            // Outages and authentication errors remain visible when the
+            // candidate initiates a new action. Never fabricate a result.
+          });
+      }
+    }, 4000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [attempt, codeExecutions]);
+
+  async function queueCode(
+    number: number, mode: "RUN" | "SUBMIT", answer: string,
+  ) {
+    if (!attempt || working) return;
+    setWorking(true);
+    setError("");
+    try {
+      if (mode === "RUN") {
+        const saved = await saveInterviewAnswer(attempt.id, number, answer);
+        setAttempt(saved);
+      }
+      const key = mode === "SUBMIT"
+        ? "final-" + attempt.id + "-" + number
+        : "run-" + window.crypto.randomUUID();
+      const result = await queueCandidateCodeExecution(attempt.id, number, mode, key);
+      setCodeExecutions((current) => ({
+        ...current, [mode + ":" + number]: result,
+      }));
+      setNotice(
+        mode === "RUN"
+          ? "Sample execution queued. Results appear when the isolated runner completes."
+          : "Final hidden-test grading queued. The reviewer can evaluate the result.",
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Coding execution could not be queued.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
   async function acceptInvitation(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (working) return;
@@ -219,7 +281,33 @@ export default function AssessmentPage() {
     try {
       const response = await submitInterviewAttempt(attempt.id);
       setAttempt(response);
-      setNotice("Assessment " + response.status + ". Your answers are saved.");
+      const codingQuestions = response.status === "submitted"
+        ? response.questions.filter((question) =>
+          question.kind === "code" && (response.answers[String(question.number)] ?? "").trim()
+        ) : [];
+      const queued = await Promise.allSettled(
+        codingQuestions.map((question) => queueCandidateCodeExecution(
+          response.id, question.number, "SUBMIT",
+          "final-" + response.id + "-" + question.number,
+        )),
+      );
+      setCodeExecutions((current) => {
+        const next = { ...current };
+        queued.forEach((result, index) => {
+          if (result.status === "fulfilled") {
+            next["SUBMIT:" + codingQuestions[index].number] = result.value;
+          }
+        });
+        return next;
+      });
+      const failures = queued.filter((result) => result.status === "rejected").length;
+      setNotice(
+        "Assessment " + response.status + ". "
+        + (codingQuestions.length - failures) + " coding evaluations queued."
+      );
+      if (failures) {
+        setError("Some coding evaluations could not be queued. Use Retry final grade.");
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Assessment could not be submitted.");
     } finally {
@@ -399,6 +487,7 @@ export default function AssessmentPage() {
                       })}
                     </fieldset>
                   ) : current.kind === "code" ? (
+                    <>
                     <AssessmentCodingPads
                       key={attempt.id + ":" + current.number}
                       question={current}
@@ -412,6 +501,65 @@ export default function AssessmentPage() {
                       }))}
                       onSave={() => void save(current.number, draftAnswer)}
                     />
+                    <div className="mt-4 flex flex-wrap items-center gap-3">
+                      {active && (
+                        <button
+                          type="button"
+                          disabled={working || autoSaving || !draftAnswer.trim()}
+                          onClick={() => void queueCode(current.number, "RUN", draftAnswer)}
+                          className="rounded-lg border border-sky-500 px-4 py-2 text-sm disabled:opacity-40"
+                        >
+                          Run sample tests (Python / SQL)
+                        </button>
+                      )}
+                      {attempt.status === "submitted" &&
+                        !codeExecutions["SUBMIT:" + current.number] && (
+                          <button
+                            type="button"
+                            disabled={working}
+                            onClick={() => void queueCode(current.number, "SUBMIT", draftAnswer)}
+                            className="rounded-lg border border-sky-500 px-4 py-2 text-sm disabled:opacity-40"
+                          >
+                            Retry final grade
+                          </button>
+                        )}
+                    </div>
+                    {(["RUN", "SUBMIT"] as const).map((mode) => {
+                      const result = codeExecutions[mode + ":" + current.number];
+                      return result ? (
+                        <section key={mode} className="mt-4 space-y-2 rounded-xl border p-4"
+                          aria-live="polite">
+                          <h3 className="font-semibold">
+                            {mode === "RUN" ? "Sample run" : "Final grading"}
+                          </h3>
+                          <p className="text-sm">Status: {result.status}</p>
+                          {result.runtime_ms !== null && (
+                            <p className="text-xs opacity-65">
+                              Runtime: {result.runtime_ms} ms
+                            </p>
+                          )}
+                          {result.public_results?.map((test) => (
+                            <p key={test.test_id} className="text-sm">
+                              Sample {test.name}: {test.passed ? "passed" : "failed"}
+                            </p>
+                          ))}
+                          {mode === "SUBMIT" && result.status === "completed" && (
+                            <p className="text-sm">
+                              Hidden tests passed: {result.hidden_passed ?? 0} /
+                              {result.hidden_total ?? 0}
+                              {result.awarded_marks !== null
+                                ? " · Code points: " + result.awarded_marks : ""}
+                            </p>
+                          )}
+                          {result.error_category && (
+                            <p className="text-sm" role="status">
+                              Execution status: {result.error_category}
+                            </p>
+                          )}
+                        </section>
+                      ) : null;
+                    })}
+                    </>
                   ) : (
                     <div>
                       <label
