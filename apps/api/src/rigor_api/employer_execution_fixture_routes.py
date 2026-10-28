@@ -7,15 +7,15 @@ enabling objective employer coding scores or candidate Run/Submit.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
 
+from .employer_code_contract import PrivateCodeBundle, canonical_bundle_digest
 from .auth import authenticated_principal
 from .database import DatabaseEngine, principal_transaction
 from .employer_assessment_routes import _ORG, _USER, _member, _org_assessment
@@ -24,38 +24,6 @@ from .schemas import AuthenticatedPrincipal
 
 router = APIRouter(prefix="/api/v1", tags=["employer-private-code-fixtures"])
 Principal = Annotated[AuthenticatedPrincipal, Depends(authenticated_principal)]
-
-
-class PrivateCodeCase(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    case_id: str = Field(pattern=r"^[a-z][a-z0-9_-]{2,49}$")
-    visibility: Literal["sample", "hidden"]
-    input_data: str = Field(max_length=20_000)
-    expected_output: str = Field(max_length=20_000)
-    points: int = Field(ge=0, le=100)
-
-
-class PrivateCodeBundle(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    language: Literal["python", "sql"]
-    cases: list[PrivateCodeCase] = Field(min_length=2, max_length=30)
-
-    @model_validator(mode="after")
-    def check_cases(self) -> PrivateCodeBundle:
-        names = [case.case_id for case in self.cases]
-        if len(names) != len(set(names)):
-            raise ValueError("Test case identifiers must be unique")
-        samples = [case for case in self.cases if case.visibility == "sample"]
-        hidden = [case for case in self.cases if case.visibility == "hidden"]
-        if not samples or not hidden:
-            raise ValueError("Both sample and hidden test cases are required")
-        if any(case.points != 0 for case in samples):
-            raise ValueError("Public sample test cases must have zero marks")
-        if any(case.points < 1 for case in hidden):
-            raise ValueError("Confidential hidden cases must have positive marks")
-        return self
 
 
 class PrivateCodeBundleReceipt(BaseModel):
@@ -117,10 +85,7 @@ def stage_employer_code_bundle(
                 detail="First establish a matching confidential assessment rubric",
             )
 
-        canonical = json.dumps(
-            payload.model_dump(), sort_keys=True, separators=(",", ":"),
-        )
-        digest = hashlib.sha256(canonical.encode()).hexdigest()
+        digest = canonical_bundle_digest(payload)
         entry = json.dumps(
             {str(question_number): {"source_sha256": assessment["content_sha256"],
                                     "bundle_sha256": digest,
