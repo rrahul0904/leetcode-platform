@@ -43,6 +43,7 @@ async function request<T>(
   path: string,
   method = "GET",
   body?: unknown,
+  extraHeaders?: Record<string, string>,
 ): Promise<T> {
   const token = localAccessToken();
   const selectedOrg =
@@ -59,6 +60,7 @@ async function request<T>(
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: "Bearer " + token } : {}),
       ...(selectedOrg ? { "X-Rigor-Organization-ID": selectedOrg } : {}),
+      ...(extraHeaders ?? {}),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     cache: "no-store",
@@ -74,6 +76,51 @@ async function request<T>(
   }
   return (await response.json()) as T;
 }
+
+export type CandidateCodeExecution = {
+  id: string;
+  attempt_id: string;
+  question_number: number;
+  language: "python" | "sql";
+  execution_mode: "RUN" | "SUBMIT";
+  status: "queued" | "dispatching" | "running" | "completed" | "failed" | "timeout";
+  created_at: string;
+  runtime_ms: number | null;
+  public_results: Array<{
+    test_id: string;
+    name: string;
+    passed: boolean;
+    expected: unknown;
+    actual: unknown;
+    error_category: string | null;
+  }> | null;
+  hidden_total: number | null;
+  hidden_passed: number | null;
+  awarded_marks: number | null;
+  error_category: string | null;
+  duplicate: boolean;
+};
+
+export function queueCandidateCodeExecution(
+  attemptId: string,
+  questionNumber: number,
+  mode: "RUN" | "SUBMIT",
+  idempotencyKey: string,
+) {
+  return request<CandidateCodeExecution>(
+    "/api/v1/assessment-attempts/" + encodeURIComponent(attemptId) + "/code-executions",
+    "POST", { question_number: questionNumber, mode },
+    { "Idempotency-Key": idempotencyKey },
+  );
+}
+
+export function getCandidateCodeExecution(attemptId: string, executionId: string) {
+  return request<CandidateCodeExecution>(
+    "/api/v1/assessment-attempts/" + encodeURIComponent(attemptId)
+      + "/code-executions/" + encodeURIComponent(executionId),
+  );
+}
+
 
 export function acceptInterviewInvite(invitationId: string, secret: string) {
   return request<AssessmentAttempt>("/api/v1/assessment-invitations/accept", "POST", {
