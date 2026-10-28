@@ -49,3 +49,60 @@ export function readCandidateInvitationFragment(
   ) return null;
   return { invitationId, acceptanceSecret };
 }
+
+/** Browser-tab-only handoff when the candidate must sign in first. */
+const PENDING_KEY = "rigor.assessment.invitation-pending";
+const PENDING_TTL_MS = 20 * 60 * 1000;
+
+export function stashPendingCandidateInvitation(
+  storage: Pick<Storage, "setItem">,
+  credentials: CandidateInvitationLink,
+  now = Date.now(),
+): void {
+  if (!validCredentials(credentials)) throw new Error("Invalid invitation credentials");
+  storage.setItem(PENDING_KEY, JSON.stringify({ ...credentials, createdAt: now }));
+}
+
+/**
+ * Read once, always delete, and reject stale or malformed credentials. This
+ * intentionally uses sessionStorage, never localStorage or a server cookie.
+ */
+export function takePendingCandidateInvitation(
+  storage: Pick<Storage, "getItem" | "removeItem">,
+  now = Date.now(),
+): CandidateInvitationLink | null {
+  const raw = storage.getItem(PENDING_KEY);
+  storage.removeItem(PENDING_KEY);
+  if (!raw || raw.length > 512) return null;
+  try {
+    const data = JSON.parse(raw) as Record<string, unknown>;
+    const credentials = {
+      invitationId: data.invitationId,
+      acceptanceSecret: data.acceptanceSecret,
+    };
+    if (
+      typeof credentials.invitationId !== "string"
+      || typeof credentials.acceptanceSecret !== "string"
+      || typeof data.createdAt !== "number"
+      || !Number.isFinite(data.createdAt)
+      || now < data.createdAt
+      || now - data.createdAt > PENDING_TTL_MS
+      || !validCredentials(credentials)
+    ) return null;
+    return credentials;
+  } catch {
+    return null;
+  }
+}
+
+/** Login redirects are only allowed to a simple same-origin application path. */
+export function safeSignInReturnPath(value: string | undefined | null): string {
+  if (
+    value
+    && value.startsWith("/")
+    && !value.startsWith("//")
+    && !value.includes("\\")
+    && /^\/[a-zA-Z0-9/_-]*$/.test(value)
+  ) return value;
+  return "/workspace";
+}
