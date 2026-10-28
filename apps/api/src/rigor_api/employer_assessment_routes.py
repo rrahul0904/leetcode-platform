@@ -253,8 +253,14 @@ def _verified_code_fixtures(
         cases = payload.get("cases")
         if not isinstance(cases, list) or len(cases) < 2:
             return False
-        samples = [case for case in cases if isinstance(case, dict) and case.get("visibility") == "sample"]
-        hidden = [case for case in cases if isinstance(case, dict) and case.get("visibility") == "hidden"]
+        samples = [
+            case for case in cases
+            if isinstance(case, dict) and case.get("visibility") == "sample"
+        ]
+        hidden = [
+            case for case in cases
+            if isinstance(case, dict) and case.get("visibility") == "hidden"
+        ]
         if len(samples) + len(hidden) != len(cases) or not samples or not hidden:
             return False
         if any(case.get("points") != 0 for case in samples):
