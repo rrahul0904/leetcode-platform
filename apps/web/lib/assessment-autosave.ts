@@ -11,7 +11,7 @@ export function nextPendingAssessmentResponse(
 ): { number: number; source: string; revision: string } | null {
   for (const number of questionNumbers) {
     const source = drafts[String(number)] ?? "";
-    if (!source.trim() || source === (saved[String(number)] ?? "")) continue;
+    if (source === (saved[String(number)] ?? "")) continue;
     const revision = JSON.stringify([attemptId, number, source]);
     if (revision === lastAttemptedRevision) continue;
     return { number, source, revision };
