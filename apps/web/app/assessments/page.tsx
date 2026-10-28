@@ -157,7 +157,7 @@ export default function AssessmentPage() {
   }
 
   async function save(number: number, value: string) {
-    if (!attempt || !active || !value.trim()) return;
+    if (!attempt || !active) return;
     setWorking(true);
     setError("");
     try {
@@ -399,7 +399,7 @@ export default function AssessmentPage() {
                   {current.kind !== "code" && <div className="mt-6 flex flex-wrap items-center gap-3">
                     <button
                       type="button"
-                      disabled={!active || working || autoSaving || !dirty || !draftAnswer.trim()}
+                      disabled={!active || working || autoSaving || !dirty}
                       onClick={() => void save(current.number, draftAnswer)}
                       className="rounded-lg bg-sky-600 px-5 py-3 font-semibold text-white disabled:opacity-40"
                     >
