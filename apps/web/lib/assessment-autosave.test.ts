@@ -35,7 +35,17 @@ describe("candidate assessment autosave queue", () => {
   it("never queues empty, unchanged, or unassigned question responses", () => {
     expect(nextPendingAssessmentResponse(
       "attempt", [1, 2], { "1": "SELECT 1" },
-      { "1": "SELECT 1", "2": "  ", "99": "DO NOT SAVE" }, null,
+      { "1": "SELECT 1", "2": "", "99": "DO NOT SAVE" }, null,
+    )).toBeNull();
+  });
+
+  it("autosaves a deliberately cleared server-owned answer", () => {
+    const pending = nextPendingAssessmentResponse(
+      "attempt", [1], { "1": "SELECT secret_value" }, { "1": "" }, null,
+    );
+    expect(pending).toMatchObject({ number: 1, source: "" });
+    expect(nextPendingAssessmentResponse(
+      "attempt", [1], { "1": "" }, { "1": "" }, pending?.revision ?? null,
     )).toBeNull();
   });
 
