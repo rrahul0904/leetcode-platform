@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { AssessmentCodingPads } from "@/components/assessment-coding-pads";
+import { nextPendingAssessmentResponse } from "@/lib/assessment-autosave";
 import { EmployerAIInterviewPanel } from "@/components/employer-ai-interview-panel";
 
 import {
@@ -102,18 +103,15 @@ export default function AssessmentPage() {
   useEffect(() => {
     if (!attempt || !active || working || autoSaving) return;
     const attemptId = attempt.id;
-    const pending = attempt.questions
-      .map((question) => ({
-        number: question.number,
-        source: drafts[String(question.number)] ?? "",
-      }))
-      .find(({ number, source }) =>
-        source.trim().length > 0
-        && source !== (attempt.answers[String(number)] ?? "")
-        && JSON.stringify([attemptId, number, source]) !== lastAutoSaveRef.current
-      );
+    const pending = nextPendingAssessmentResponse(
+      attemptId,
+      attempt.questions.map((question) => question.number),
+      attempt.answers,
+      drafts,
+      lastAutoSaveRef.current,
+    );
     if (!pending) return;
-    const revision = JSON.stringify([attemptId, pending.number, pending.source]);
+    const revision = pending.revision;
 
     const timer = window.setTimeout(() => {
       lastAutoSaveRef.current = revision;
