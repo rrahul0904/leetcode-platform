@@ -168,7 +168,11 @@ export default function EmployerReviewWorkspace() {
     }
   }
 
-  const complete = !!detail && detail.questions.every((question) => {
+  const codeGradingPending = codeExecutions.some(
+    (execution) => execution.execution_mode === "SUBMIT"
+      && ["queued", "dispatching", "running"].includes(execution.status),
+  );
+  const complete = !!detail && !codeGradingPending && detail.questions.every((question) => {
     const score = scores[question.number];
     return score !== undefined
       && Number.isInteger(score.awarded_marks)
@@ -425,6 +429,12 @@ export default function EmployerReviewWorkspace() {
                 onChange={(event) => setOverallNotes(event.target.value)}
               />
             </label>
+            {codeGradingPending && (
+              <p role="status" className="text-sm font-medium text-amber-500">
+                Final Python/SQL grading is still running. Refresh code results above
+                before signing this review; the server also enforces this gate.
+              </p>
+            )}
             <p className="text-sm opacity-70">
               Current review score:{" "}
               {Object.values(scores).reduce((total, item) => total + item.awarded_marks, 0)}
