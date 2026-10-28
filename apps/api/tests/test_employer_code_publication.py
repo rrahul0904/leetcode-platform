@@ -35,7 +35,8 @@ def test_code_questions_require_private_cases_for_every_question() -> None:
     questions, source_sha, rubric = reviewed()
     assert _verified_code_fixtures(questions, source_sha, rubric)
     assert not _verified_code_fixtures(questions, source_sha, {})
-    assert not _verified_code_fixtures(questions + [
+    assert not _verified_code_fixtures([
+        *questions,
         {"number": 2, "kind": "code", "language": "python", "marks": 25},
     ], source_sha, rubric)
     assert _verified_code_fixtures(
