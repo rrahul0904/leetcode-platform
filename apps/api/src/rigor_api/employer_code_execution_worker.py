@@ -15,7 +15,6 @@ import socket
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, cast
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -39,6 +38,7 @@ from .execution_results import (
     trusted_compare,
 )
 from .execution_sqs import SqsJsonClient, SqsReceivedMessage
+from .sandbox_jobs import sandbox_job_name
 
 logger = logging.getLogger("rigor.employer-code-worker")
 TERMINAL = {"completed", "failed", "timeout"}
@@ -318,7 +318,17 @@ class EmployerCodeWorker:
             return acknowledged
 
         handle: SandboxHandle | None = None
+        cleanup_permitted = True
         try:
+            # Reclaimed leases must not reuse a stale runner Pod with the same
+            # execution UUID; its old attempt number could otherwise be graded.
+            if work.attempt_count > 1:
+                job = sandbox_job_name(work.id)
+                namespace = os.getenv("RIGOR_EXECUTION_NAMESPACE", "rigor-execution")
+                self.sandbox.cleanup(SandboxHandle(
+                    execution_id=work.id, namespace=namespace,
+                    job_name=job, input_secret_name=f"input-{job}",
+                ))
             bundle = self._bundle(work)
             if work.mode == "RUN":
                 bundle = bundle.model_copy(update={
@@ -397,6 +407,8 @@ class EmployerCodeWorker:
                     raise TrustedResultError("Isolated Kubernetes execution disappeared")
                 if time.monotonic() >= next_renew:
                     if not self._renew(work):
+                        # Another worker owns this lease. Never delete its Pod.
+                        cleanup_permitted = False
                         return False
                     self.queue.change_message_visibility(message.receipt_handle, 90)
                     next_renew = time.monotonic() + 25
@@ -415,7 +427,7 @@ class EmployerCodeWorker:
                 self.queue.delete_message(message.receipt_handle)
             return done
         finally:
-            if handle is not None:
+            if handle is not None and cleanup_permitted:
                 self.sandbox.cleanup(handle)
 
     def run_forever(self) -> None:
