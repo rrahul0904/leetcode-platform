@@ -66,7 +66,11 @@ jobs:
         run: |
           set -euo pipefail
           uv run alembic upgrade head
-          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20261028_0025"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "$(uv run alembic heads | awk 'NR == 1 {print $1}')"
+          for employer_table in employer_code_executions employer_code_execution_outbox; do
+            test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.$employer_table') IS NOT NULL")" = "t"
+            test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='$employer_table'::regclass")" = "t"
+          done
 
       - name: Verify legacy data and new production schema survived
         run: |
