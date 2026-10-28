@@ -20,6 +20,7 @@ from sqlalchemy import Connection, text
 from .auth import authenticated_principal
 from .database import DatabaseEngine, principal_transaction
 from .employer_code_contract import verified_code_fixtures as _verified_code_fixtures
+from .employer_code_queue import enqueue_submitted_code_grades
 from .persistence import audit_event
 from .schemas import AuthenticatedPrincipal
 
@@ -488,7 +489,12 @@ def submit_assessment_attempt(
                        WHERE id=:id"""
                 ), {"status": new_status, "id": attempt_id},
             )
-        return _attempt_view(conn, _candidate_attempt(conn, attempt_id))
+        submitted = _candidate_attempt(conn, attempt_id)
+        # Persist one immutable final execution per saved coding answer in the
+        # SAME transaction as submission. Never rely on the browser to
+        # deliver final grading requests after returning this response.
+        enqueue_submitted_code_grades(conn, attempt=submitted)
+        return _attempt_view(conn, submitted)
 
 
 class EmployerAttemptSummary(StrictModel):
