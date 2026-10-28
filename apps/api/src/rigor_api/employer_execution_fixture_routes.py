@@ -15,7 +15,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
 
-from .employer_code_contract import PrivateCodeBundle, canonical_bundle_digest
+from .employer_code_contract import (
+    PrivateCodeBundle,
+    canonical_bundle_digest,
+    verified_code_fixtures,
+)
 from .auth import authenticated_principal
 from .database import DatabaseEngine, principal_transaction
 from .employer_assessment_routes import _ORG, _USER, _member, _org_assessment
@@ -36,6 +40,71 @@ class PrivateCodeBundleReceipt(BaseModel):
     bundle_sha256: str
     sample_count: int
     hidden_count: int
+
+
+class PrivateCodeFixtureStatus(BaseModel):
+    """Public-review metadata only: never return testcase bodies or expected values."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    question_number: int
+    language: Literal["python", "sql"]
+    ready: bool
+    sample_count: int
+    hidden_count: int
+    bundle_sha256: str | None
+
+
+@router.get(
+    "/employer/assessments/{assessment_id}/code-test-bundles",
+    response_model=list[PrivateCodeFixtureStatus],
+)
+def list_employer_code_fixture_status(
+    assessment_id: UUID,
+    engine: DatabaseEngine,
+    principal: Principal,
+) -> list[PrivateCodeFixtureStatus]:
+    """Only employer owners/admins/reviewers can inspect fixture readiness."""
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "reviewer"))
+        assessment = _org_assessment(conn, assessment_id)
+        private = conn.execute(
+            text(
+                f"""SELECT source_sha256, private_rubric
+                    FROM employer_assessment_private_keys
+                    WHERE assessment_version_id=:assessment AND organization_id={_ORG}"""
+            ),
+            {"assessment": assessment_id},
+        ).mappings().one_or_none()
+        rubric = (
+            private["private_rubric"]
+            if private and private["source_sha256"] == assessment["content_sha256"]
+            else {}
+        )
+        bundles = rubric.get("code_test_bundles", {})
+        if not isinstance(bundles, dict):
+            bundles = {}
+        status: list[PrivateCodeFixtureStatus] = []
+        for question in assessment["candidate_blueprint"]["questions"]:
+            if question["kind"] != "code":
+                continue
+            number = str(question["number"])
+            entry = bundles.get(number)
+            ready = verified_code_fixtures(
+                [question],
+                assessment["content_sha256"],
+                {"code_test_bundles": {number: entry}},
+            )
+            cases = entry["bundle"]["cases"] if ready else []
+            status.append(PrivateCodeFixtureStatus(
+                question_number=int(number),
+                language=question["language"],
+                ready=ready,
+                sample_count=sum(case["visibility"] == "sample" for case in cases),
+                hidden_count=sum(case["visibility"] == "hidden" for case in cases),
+                bundle_sha256=entry["bundle_sha256"] if ready else None,
+            ))
+        return status
 
 
 @router.put(
