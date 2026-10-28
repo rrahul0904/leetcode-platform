@@ -394,6 +394,67 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
                   "request_id": request_id},
         )
         assert mismatched_turn.status_code == 409
+        # Simulate a crash after persisting the candidate turn but before the
+        # AI provider returned. The candidate cannot steal a live reservation;
+        # after the timeout the orphan is removed and completed turns survive.
+        interrupted_id = "interrupted-" + uuid4().hex
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """INSERT INTO employer_ai_interview_messages
+                       (session_id, organization_id, candidate_id,
+                        sequence_number, role, content, request_id)
+                       VALUES (:session, :org, :candidate, 2, 'candidate',
+                               'Orphaned request must not remain', :request)"""
+                ),
+                {
+                    "session": consent.json()["id"], "org": org,
+                    "candidate": candidate_id, "request": interrupted_id,
+                },
+            )
+            conn.execute(
+                text(
+                    """UPDATE employer_ai_interview_sessions
+                       SET pending_request_id=:request,
+                           pending_at=CURRENT_TIMESTAMP
+                       WHERE id=:session"""
+                ),
+                {"request": interrupted_id, "session": consent.json()["id"]},
+            )
+        pending_recovery = client.post(
+            f"/api/v1/assessment-attempts/{attempt_id}/ai-interview/recover",
+            headers=candidate_auth,
+        )
+        assert pending_recovery.status_code == 409
+        assert client.post(
+            f"/api/v1/assessment-attempts/{attempt_id}/ai-interview/recover",
+            headers=other_auth,
+        ).status_code == 404
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """UPDATE employer_ai_interview_sessions
+                       SET pending_at=CURRENT_TIMESTAMP - INTERVAL '100 seconds'
+                       WHERE id=:session"""
+                ),
+                {"session": consent.json()["id"]},
+            )
+        recovered = client.post(
+            f"/api/v1/assessment-attempts/{attempt_id}/ai-interview/recover",
+            headers=candidate_auth,
+        )
+        assert recovered.status_code == 200, recovered.text
+        assert recovered.json()["turn_count"] == 1
+        assert len(recovered.json()["messages"]) == 2
+        assert all(
+            turn["request_id"] != interrupted_id
+            for turn in recovered.json()["messages"]
+        )
+        assert client.post(
+            f"/api/v1/assessment-attempts/{attempt_id}/ai-interview/recover",
+            headers=candidate_auth,
+        ).status_code == 200
+
         withdrawn = client.post(
             f"/api/v1/assessment-attempts/{attempt_id}/ai-interview/withdraw",
             headers=candidate_auth,
