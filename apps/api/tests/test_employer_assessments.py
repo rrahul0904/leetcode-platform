@@ -711,6 +711,17 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         assert sql_draft.status_code == 201, sql_draft.text
         sql_assessment_id = sql_draft.json()["id"]
         assert sql_draft.json()["questions"][0]["language"] == "sql"
+        unready = client.get(
+            f"/api/v1/employer/assessments/{sql_assessment_id}/code-test-bundles",
+            headers=reviewer_auth,
+        )
+        assert unready.status_code == 200, unready.text
+        assert unready.json()[0]["ready"] is False
+        assert unready.json()[0]["bundle_sha256"] is None
+        assert client.get(
+            f"/api/v1/employer/assessments/{sql_assessment_id}/code-test-bundles",
+            headers=candidate_auth,
+        ).status_code == 403
         # Wave 2: original confidential SQL fixture metadata is validated,
         # stored under private RLS, and absent from candidate-visible blueprints.
         base_key = client.put(
@@ -771,6 +782,16 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         assert staged.status_code == 200, staged.text
         assert staged.json()["hidden_count"] == 1
         assert "hidden_one" not in staged.text
+        reviewer_status = client.get(
+            f"/api/v1/employer/assessments/{sql_assessment_id}/code-test-bundles",
+            headers=reviewer_auth,
+        )
+        assert reviewer_status.status_code == 200, reviewer_status.text
+        assert reviewer_status.json()[0]["ready"] is True
+        assert reviewer_status.json()[0]["hidden_count"] == 1
+        assert reviewer_status.json()[0]["bundle_sha256"] == staged.json()["bundle_sha256"]
+        assert "hidden_one" not in reviewer_status.text
+        assert "INSERT INTO events" not in reviewer_status.text
         assert client.put(
             f"/api/v1/employer/assessments/{sql_assessment_id}/code-test-bundles/1",
             headers=candidate_auth, json=private_cases,
