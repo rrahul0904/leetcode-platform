@@ -710,6 +710,59 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         assert sql_draft.status_code == 201, sql_draft.text
         sql_assessment_id = sql_draft.json()["id"]
         assert sql_draft.json()["questions"][0]["language"] == "sql"
+        # Wave 2: original confidential SQL fixture metadata is validated,
+        # stored under private RLS, and absent from candidate-visible blueprints.
+        base_key = client.put(
+            f"/api/v1/employer/assessments/{sql_assessment_id}/private-key",
+            headers=admin_auth,
+            json={"mcq_answers": {},
+                  "reviewer_guidance": "Independent SQL evaluation requires human review"},
+        )
+        assert base_key.status_code == 200, base_key.text
+        private_cases = {
+            "language": "sql",
+            "cases": [
+                {"case_id": "sample_one", "visibility": "sample",
+                 "input_data": "CREATE TABLE events (event_id INT, partition_id INT);",
+                 "expected_output": "1", "points": 0},
+                {"case_id": "hidden_one", "visibility": "hidden",
+                 "input_data": "INSERT INTO events VALUES (1,1),(1,1),(2,1);",
+                 "expected_output": "2", "points": 100},
+            ],
+        }
+        wrong_runtime = client.put(
+            f"/api/v1/employer/assessments/{sql_assessment_id}/code-test-bundles/1",
+            headers=admin_auth,
+            json={**private_cases, "language": "python"},
+        )
+        assert wrong_runtime.status_code == 422
+        staged = client.put(
+            f"/api/v1/employer/assessments/{sql_assessment_id}/code-test-bundles/1",
+            headers=admin_auth, json=private_cases,
+        )
+        assert staged.status_code == 200, staged.text
+        assert staged.json()["hidden_count"] == 1
+        assert "hidden_one" not in staged.text
+        assert client.put(
+            f"/api/v1/employer/assessments/{sql_assessment_id}/code-test-bundles/1",
+            headers=candidate_auth, json=private_cases,
+        ).status_code == 403
+        # Updating the regular MCQ rubric must preserve privately staged cases.
+        assert client.put(
+            f"/api/v1/employer/assessments/{sql_assessment_id}/private-key",
+            headers=admin_auth,
+            json={"mcq_answers": {},
+                  "reviewer_guidance": "Reviewed confidential SQL grading test data"},
+        ).status_code == 200
+        with engine.connect() as connection:
+            stored_private = connection.execute(
+                text("""SELECT private_rubric FROM employer_assessment_private_keys
+                          WHERE assessment_version_id=:assessment"""),
+                {"assessment": sql_assessment_id},
+            ).scalar_one()
+        assert stored_private["code_test_bundles"]["1"]["bundle"]["cases"][1][
+            "case_id"
+        ] == "hidden_one"
         published_sql = client.post(
             f"/api/v1/employer/assessments/{sql_assessment_id}/publish",
             headers=reviewer_auth,
@@ -720,6 +773,10 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
             },
         )
         assert published_sql.status_code == 200, published_sql.text
+        assert client.put(
+            f"/api/v1/employer/assessments/{sql_assessment_id}/code-test-bundles/1",
+            headers=admin_auth, json=private_cases,
+        ).status_code == 409
         sql_invite = client.post(
             f"/api/v1/employer/assessments/{sql_assessment_id}/invitations",
             headers=admin_auth,
@@ -736,6 +793,7 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         )
         assert sql_session.status_code == 200, sql_session.text
         assert sql_session.json()["questions"][0]["language"] == "sql"
+        assert "hidden_one" not in sql_session.text
         sql_attempt_id = sql_session.json()["id"]
         candidate_sql = "SELECT partition_id, COUNT(DISTINCT event_id) FROM events GROUP BY 1"
         saved_sql = client.put(
