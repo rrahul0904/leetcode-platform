@@ -150,6 +150,16 @@ def test_python_fixture_rejects_non_json_and_nan_inputs() -> None:
         PrivateCodeBundle.model_validate(invalid)
 
 
+def test_fixture_json_disallows_duplicate_keys_and_float_overflow() -> None:
+    invalid = python_bundle().model_dump()
+    invalid["cases"][0]["input_data"] = '{"x":1,"x":2}'
+    with pytest.raises(ValidationError, match="unique keys"):
+        PrivateCodeBundle.model_validate(invalid)
+    invalid["cases"][0]["input_data"] = "1e99999"
+    with pytest.raises(ValidationError, match="finite JSON"):
+        PrivateCodeBundle.model_validate(invalid)
+
+
 def test_sql_fixture_requires_replayable_schema_and_structured_rows() -> None:
     invalid = sql_bundle().model_dump()
     invalid["cases"][1]["input_data"] = '"DROP TABLE sensitive"'
