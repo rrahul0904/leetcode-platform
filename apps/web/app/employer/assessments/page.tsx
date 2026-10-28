@@ -199,8 +199,20 @@ export default function EmployerAssessmentsPage() {
       setError("Coding question must have an explicit Python or SQL runtime.");
       return;
     }
-    if (!fixture.sampleExpected.trim() || !fixture.hiddenExpected.trim()) {
-      setError("Provide expected outputs for both sample and hidden test cases.");
+    if (!fixture.sampleInput.trim() || !fixture.hiddenInput.trim()
+      || !fixture.sampleExpected.trim() || !fixture.hiddenExpected.trim()) {
+      setError("Provide JSON input and expected output for both sample and hidden cases.");
+      return;
+    }
+    try {
+      for (const value of [
+        fixture.sampleInput, fixture.hiddenInput,
+        fixture.sampleExpected, fixture.hiddenExpected,
+      ]) {
+        JSON.parse(value);
+      }
+    } catch {
+      setError("Fixture inputs and expected outputs must be valid JSON.");
       return;
     }
     if (busy) return;
@@ -401,8 +413,11 @@ export default function EmployerAssessmentsPage() {
                 <section className="space-y-3 rounded-lg border p-4">
                   <h4 className="text-sm font-semibold">Confidential coding test bundles</h4>
                   <p className="text-xs opacity-70">
-                    Save the restricted rubric first, then stage an original sample and hidden
-                    test case for every coding question. Hidden cases remain server-side.
+                    Save the restricted rubric first, then stage original sample and hidden
+                    test cases for every coding question. All four fields use valid JSON.
+                    Python inputs and expected values may be JSON scalars, arrays or objects.
+                    SQL inputs use a JSON object with schema_sql and seed_sql; SQL outputs
+                    use a JSON object with columns and rows. Hidden cases remain server-side.
                     This does not enable Run or automated grading until the isolated runner is certified.
                   </p>
                   {assessment.questions.filter((question) => question.kind === "code").map(
@@ -424,6 +439,13 @@ export default function EmployerAssessmentsPage() {
                               {label}
                               <textarea
                                 aria-label={`Question ${question.number} ${label}`}
+                                placeholder={
+                                  question.language === "sql"
+                                    ? field.endsWith("Input")
+                                      ? '{"schema_sql":"CREATE TABLE x (id INT)","seed_sql":"INSERT INTO x VALUES (1)"}'
+                                      : '{"columns":["id"],"rows":[[1]]}'
+                                    : field.endsWith("Input") ? "[1, 2]" : "3"
+                                }
                                 value={value}
                                 rows={3}
                                 maxLength={20000}
@@ -437,7 +459,9 @@ export default function EmployerAssessmentsPage() {
                           ))}
                           <button
                             type="button"
-                            disabled={busy || !values.sampleExpected.trim()
+                            disabled={busy || !values.sampleInput.trim()
+                              || !values.hiddenInput.trim()
+                              || !values.sampleExpected.trim()
                               || !values.hiddenExpected.trim()}
                             onClick={() => void saveCodeFixtures(assessment, question)}
                             className="rounded-lg border border-sky-500 px-3 py-2 text-sm disabled:opacity-40"
