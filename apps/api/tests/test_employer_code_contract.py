@@ -11,7 +11,6 @@ from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
-
 from rigor_api.employer_code_contract import (
     PrivateCodeBundle,
     canonical_bundle_digest,
