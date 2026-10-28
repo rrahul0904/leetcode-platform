@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildCandidateInvitationLink,
   readCandidateInvitationFragment,
+  safeSignInReturnPath,
+  stashPendingCandidateInvitation,
+  takePendingCandidateInvitation,
 } from "./assessment-invitation-link";
 
 const credentials = {
@@ -42,5 +45,46 @@ describe("single-use employer assessment invitation links", () => {
         ...credentials, invitationId: "invalid",
       }),
     ).toThrow("Invalid invitation");
+  });
+});
+
+describe("candidate invitation sign-in handoff", () => {
+  function tabStorage() {
+    const data = new Map<string, string>();
+    return {
+      data,
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => { data.set(key, value); },
+      removeItem: (key: string) => { data.delete(key); },
+    };
+  }
+
+  it("is tab scoped, consumed once, and never retained after login", () => {
+    const storage = tabStorage();
+    stashPendingCandidateInvitation(storage, credentials, 1000);
+    expect(storage.data.size).toBe(1);
+    expect(takePendingCandidateInvitation(storage, 5000)).toEqual(credentials);
+    expect(storage.data.size).toBe(0);
+    expect(takePendingCandidateInvitation(storage, 5000)).toBeNull();
+  });
+
+  it("expires pending credentials, rejects corruption and removes expired storage", () => {
+    const storage = tabStorage();
+    stashPendingCandidateInvitation(storage, credentials, 1000);
+    expect(takePendingCandidateInvitation(storage, 1000 + 21 * 60 * 1000)).toBeNull();
+    expect(storage.data.size).toBe(0);
+    stashPendingCandidateInvitation(storage, credentials, 1000);
+    expect(takePendingCandidateInvitation(storage, 900)).toBeNull();
+  });
+
+  it("never redirects candidate login to an external origin or token-bearing URL", () => {
+    expect(safeSignInReturnPath("/assessments")).toBe("/assessments");
+    for (const input of [
+      "https://evil.example", "//evil.example", "/\\evil.example",
+      "/assessments?access=SECRET", "/assessments#invitation=SECRET",
+      "/%2F%2Fevil.example",
+    ]) {
+      expect(safeSignInReturnPath(input)).toBe("/workspace");
+    }
   });
 });
