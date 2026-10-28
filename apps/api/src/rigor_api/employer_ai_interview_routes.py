@@ -63,7 +63,7 @@ def _session(conn: Connection, attempt_id: UUID, *, lock: bool = False) -> dict[
     row = conn.execute(
         text(
             f"""SELECT id, attempt_id, candidate_id, organization_id, status,
-                       consent_at, consent_version, pending_request_id, turn_count
+                       consent_at, consent_version, pending_request_id, pending_at, turn_count
                 FROM employer_ai_interview_sessions
                 WHERE attempt_id=:attempt AND candidate_id={_USER}
                 {"FOR UPDATE" if lock else ""}"""
@@ -308,6 +308,74 @@ def send_employer_ai_interview_message(
         )
         return _view(conn, _session(conn, attempt_id))
 
+
+
+@router.post("/{attempt_id}/ai-interview/recover", response_model=InterviewSessionView)
+def recover_interrupted_ai_interview(
+    attempt_id: UUID, engine: DatabaseEngine, principal: Principal,
+) -> InterviewSessionView:
+    """Recover a crashed or timed-out AI turn without losing already completed turns.
+
+    The configured model client has a 12-second timeout. The 90-second stale
+    lease leaves ample time for network retries and always fences a late reply:
+    the original request ID no longer matches the pending state when it returns.
+    Only the candidate can clear their own interrupted turn.
+    """
+    with principal_transaction(engine, principal) as conn:
+        _candidate_attempt(conn, attempt_id)
+        row = _session(conn, attempt_id, lock=True)
+        request_id = row["pending_request_id"]
+        if request_id is None:
+            return _view(conn, row)
+        stale = conn.execute(
+            text(
+                """SELECT COALESCE(
+                    pending_at <= CURRENT_TIMESTAMP - INTERVAL '90 seconds',
+                    FALSE
+                ) FROM employer_ai_interview_sessions
+                WHERE id=:session AND candidate_id="""
+                + _USER
+            ),
+            {"session": row["id"]},
+        ).scalar_one_or_none()
+        if not stale:
+            raise HTTPException(
+                status_code=409,
+                detail="The technical interview response is still in progress",
+            )
+        # The pending reservation may have written the candidate message before
+        # the application crashed. Remove only that incomplete pair; completed
+        # turns and consent history remain unchanged.
+        conn.execute(
+            text(
+                f"""DELETE FROM employer_ai_interview_messages
+                    WHERE session_id=:session AND candidate_id={_USER}
+                      AND request_id=:request AND role='candidate'
+                      AND NOT EXISTS (
+                        SELECT 1 FROM employer_ai_interview_messages reply
+                        WHERE reply.session_id=:session
+                          AND reply.request_id=:request AND reply.role='interviewer'
+                      )"""
+            ),
+            {"session": row["id"], "request": request_id},
+        )
+        conn.execute(
+            text(
+                f"""UPDATE employer_ai_interview_sessions
+                    SET pending_request_id=NULL, pending_at=NULL,
+                        updated_at=CURRENT_TIMESTAMP
+                    WHERE id=:session AND candidate_id={_USER}
+                      AND pending_request_id=:request"""
+            ),
+            {"session": row["id"], "request": request_id},
+        )
+        actor = conn.execute(text(f"SELECT {_USER}")).scalar_one()
+        audit_event(
+            conn, principal, actor, action="employer.ai_interview_recover",
+            resource_type="employer_interview", resource_id=str(row["id"]),
+            details={"recovered": True},
+        )
+        return _view(conn, _session(conn, attempt_id))
 
 
 @router.post("/{attempt_id}/ai-interview/erase", response_model=InterviewSessionView)
