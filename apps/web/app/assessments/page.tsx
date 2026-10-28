@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from "react";
 
 import { AssessmentCodingPads } from "@/components/assessment-coding-pads";
 import { nextPendingAssessmentResponse } from "@/lib/assessment-autosave";
-import { readCandidateInvitationFragment } from "@/lib/assessment-invitation-link";
+import {
+  readCandidateInvitationFragment,
+  takePendingCandidateInvitation,
+} from "@/lib/assessment-invitation-link";
 import { EmployerAIInterviewPanel } from "@/components/employer-ai-interview-panel";
 
 import {
@@ -44,13 +47,25 @@ export default function AssessmentPage() {
     // Link secrets are consumed from a URL fragment, never from query params.
     // Remove from history immediately, before any background API requests.
     const fragment = window.location.hash;
-    if (!fragment.startsWith("#invitation=")) return;
-    const credentials = readCandidateInvitationFragment(fragment);
-    window.history.replaceState(
-      window.history.state, "", window.location.pathname + window.location.search,
-    );
+    const direct = fragment.startsWith("#invitation=");
+    const credentials = direct
+      ? readCandidateInvitationFragment(fragment)
+      : (() => {
+          try {
+            return takePendingCandidateInvitation(window.sessionStorage);
+          } catch {
+            return null;
+          }
+        })();
+    if (direct) {
+      window.history.replaceState(
+        window.history.state, "", window.location.pathname + window.location.search,
+      );
+    }
     if (!credentials) {
-      setError("This invitation link is invalid. Request a new one-use link.");
+      if (direct) {
+        setError("This invitation link is invalid. Request a new one-use link.");
+      }
       return;
     }
     setInvitationId(credentials.invitationId);
