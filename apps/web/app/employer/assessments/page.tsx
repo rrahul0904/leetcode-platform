@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { buildCandidateInvitationLink } from "@/lib/assessment-invitation-link";
+
 import {
   createEmployerAssessment,
   inviteEmployerCandidate,
@@ -178,7 +180,7 @@ export default function EmployerAssessmentsPage() {
     try {
       const response = await inviteEmployerCandidate(id, candidateId.trim(), 24);
       setInvitation(response);
-      setNotice("Invitation created. Copy the secret once; it is not retained in this page.");
+      setNotice("One-use invitation created. Share its secure link privately; it will not be available again after leaving this page.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Cannot invite candidate.");
     } finally {
@@ -547,6 +549,30 @@ export default function EmployerAssessmentsPage() {
                 <p className="break-all font-mono text-xs">{invitation.id}</p>
                 <p className="text-xs">One-time secret (not stored by this page)</p>
                 <p className="break-all font-mono text-xs">{invitation.acceptance_secret}</p>
+                <button
+                  type="button"
+                  className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  onClick={() => {
+                    try {
+                      const link = buildCandidateInvitationLink(window.location.origin, {
+                        invitationId: invitation.id,
+                        acceptanceSecret: invitation.acceptance_secret,
+                      });
+                      void navigator.clipboard.writeText(link).then(
+                        () => setNotice("One-use HTTPS invitation link copied. Share only with the intended registered candidate."),
+                        () => setError("Clipboard permission denied. Copy the ID and secret privately instead."),
+                      );
+                    } catch {
+                      setError("The application is not on an approved HTTPS origin. Copy the ID and secret privately instead.");
+                    }
+                  }}
+                >
+                  Copy secure invitation link
+                </button>
+                <p className="text-xs opacity-70">
+                  The credential stays in the URL fragment, not in the web request.
+                  Do not paste this link in public messages or analytics tools.
+                </p>
                 <p className="text-xs opacity-70">Expires {invitation.expires_at}</p>
               </div>
             )}
