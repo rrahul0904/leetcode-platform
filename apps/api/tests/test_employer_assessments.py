@@ -314,6 +314,18 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         assert saved.status_code == 200, saved.text
         assert saved.json()["answers"]["1"] == "Diagnose, quarantine, repair, validate"
 
+        # The reviewer may see attempt status before submission, but not read
+        # the candidate's draft responses or silently pre-grade a live test.
+        premature_review = client.get(
+            f"/api/v1/employer/attempts/{attempt_id}", headers=reviewer_auth,
+        )
+        assert premature_review.status_code == 409
+        assert "Diagnose, quarantine" not in premature_review.text
+        assert client.get(
+            f"/api/v1/employer/attempts/{attempt_id}",
+            headers=reviewer_second_org,
+        ).status_code == 404
+
         # Clearing an earlier answer is a deliberate, persistent operation;
         # candidates must not be trapped by an unsaved blank draft.
         cleared = client.put(
