@@ -9,7 +9,6 @@ import json
 from uuid import uuid4
 
 import pytest
-
 from rigor_api.employer_code_execution_worker import parse_employer_event
 
 
