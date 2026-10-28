@@ -10,6 +10,7 @@ type Props = {
   answer: string;
   active: boolean;
   working: boolean;
+  saving?: boolean;
   dirty: boolean;
   onChange: (source: string) => void;
   onSave: () => void;
@@ -24,7 +25,7 @@ type Props = {
  * and an auditable provider integration are available.
  */
 export function AssessmentCodingPads({
-  question, answer, active, working, dirty, onChange, onSave,
+  question, answer, active, working, saving = false, dirty, onChange, onSave,
 }: Props) {
   const [tab, setTab] = useState<Pad>(question.language === "sql" ? "sql" : "python");
   const configured = question.language ?? null;
@@ -80,7 +81,7 @@ export function AssessmentCodingPads({
           <div className="space-y-0">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-4 py-3 text-xs text-slate-400">
               <span>{editorLabel} / answer.{tab === "sql" ? "sql" : "py"}</span>
-              <span>{active ? (dirty ? "Unsaved edits" : "Saved to server") : "Read-only session"}</span>
+              <span>{!active ? "Read-only session" : saving ? "Autosaving…" : dirty ? "Unsaved edits" : "Saved to server"}</span>
             </div>
             <div className="grid min-h-[310px] grid-cols-[42px_minmax(0,1fr)]">
               <div aria-hidden="true" className="select-none border-r border-slate-800 bg-slate-900 px-2 pt-4 text-right font-mono text-xs leading-6 text-slate-500">
@@ -110,11 +111,11 @@ export function AssessmentCodingPads({
               </div>
               <button
                 type="button"
-                disabled={!active || working || !dirty || !answer.trim()}
+                disabled={!active || working || saving || !dirty || !answer.trim()}
                 onClick={onSave}
                 className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-35"
               >
-                {working ? "Saving…" : "Save source response"}
+                {working || saving ? "Saving…" : "Save source response"}
               </button>
             </footer>
           </div>
