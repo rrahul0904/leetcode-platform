@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { AssessmentCodingPads } from "@/components/assessment-coding-pads";
 import { EmployerAIInterviewPanel } from "@/components/employer-ai-interview-panel";
@@ -33,6 +33,8 @@ export default function AssessmentPage() {
   const [selected, setSelected] = useState(1);
   const [now, setNow] = useState(0);
   const [working, setWorking] = useState(false);
+  const [autoSaving, setAutoSaving] = useState(false);
+  const lastAutoSaveRef = useRef<string | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
@@ -93,6 +95,41 @@ export default function AssessmentPage() {
   const storedAnswer = current ? attempt?.answers[String(current.number)] ?? "" : "";
   const draftAnswer = current ? drafts[String(current.number)] ?? "" : "";
   const dirty = current ? draftAnswer !== storedAnswer : false;
+
+  // Debounced server-backed saving: source drafts are not silently treated as
+  // submitted and never execute in Next.js. Each in-flight snapshot is bound
+  // to the owning attempt and question. Changes typed during a request remain
+  // dirty, and a new save will be queued after the previous one resolves.
+  useEffect(() => {
+    if (!attempt || !current || !active || !dirty || !draftAnswer.trim()
+      || working || autoSaving) return;
+    const attemptId = attempt.id;
+    const questionNumber = current.number;
+    const snapshot = draftAnswer;
+    const revision = JSON.stringify([attemptId, questionNumber, snapshot]);
+    if (lastAutoSaveRef.current === revision) return;
+
+    const timer = window.setTimeout(() => {
+      lastAutoSaveRef.current = revision;
+      setAutoSaving(true);
+      void saveInterviewAnswer(attemptId, questionNumber, snapshot)
+        .then((updated) => {
+          setAttempt((previous) => previous?.id === updated.id ? updated : previous);
+          setError("");
+        })
+        .catch((cause) => {
+          setError(
+            cause instanceof Error ? "Autosave failed: " + cause.message
+              : "Autosave failed. Your unsaved text remains in the editor.",
+          );
+          // Don't repeatedly hammer an unavailable backend. Changing text or
+          // explicitly pressing Save re-enables an attempt.
+        })
+        .finally(() => setAutoSaving(false));
+    }, 1400);
+    return () => window.clearTimeout(timer);
+  }, [attempt, current, active, dirty, draftAnswer, working, autoSaving]);
+
 
   async function acceptInvitation(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -326,6 +363,7 @@ export default function AssessmentPage() {
                       answer={draftAnswer}
                       active={active}
                       working={working}
+                      saving={autoSaving}
                       dirty={dirty}
                       onChange={(source) => setDrafts((previous) => ({
                         ...previous, [String(current.number)]: source,
@@ -357,14 +395,14 @@ export default function AssessmentPage() {
                   {current.kind !== "code" && <div className="mt-6 flex flex-wrap items-center gap-3">
                     <button
                       type="button"
-                      disabled={!active || working || !dirty || !draftAnswer.trim()}
+                      disabled={!active || working || autoSaving || !dirty || !draftAnswer.trim()}
                       onClick={() => void save(current.number, draftAnswer)}
                       className="rounded-lg bg-sky-600 px-5 py-3 font-semibold text-white disabled:opacity-40"
                     >
-                      {working ? "Saving…" : "Save response"}
+                      {working || autoSaving ? "Saving…" : "Save response"}
                     </button>
                     <span className="text-sm opacity-65">
-                      {dirty ? "Unsaved changes" : "Saved to server"}
+                      {autoSaving ? "Autosaving…" : dirty ? "Unsaved changes" : "Saved to server"}
                     </span>
                   </div>}
                 </>
@@ -380,7 +418,7 @@ export default function AssessmentPage() {
             </p>
             <button
               type="button"
-              disabled={!active || working || Object.keys(drafts).some(
+              disabled={!active || working || autoSaving || Object.keys(drafts).some(
                 (key) => drafts[key] !== (attempt.answers[key] ?? ""),
               )}
               onClick={() => void submit()}
