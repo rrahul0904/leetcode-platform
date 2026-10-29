@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import type { AssessmentQuestion } from "@/lib/employer-assessment-api";
 
 type Pad = "python" | "sql" | "ai";
@@ -28,10 +28,33 @@ export function AssessmentCodingPads({
   question, answer, active, working, saving = false, dirty, onChange, onSave,
 }: Props) {
   const [tab, setTab] = useState<Pad>(question.language === "sql" ? "sql" : "python");
+  const [indentWithTab, setIndentWithTab] = useState(false);
   const configured = question.language ?? null;
   const editorEnabled = tab !== "ai" && (configured === null || configured === tab);
   const editorLabel = tab === "sql" ? "SQL Pad" : "Python Pad";
   const numberOfLines = Math.min(120, Math.max(10, answer.split("\n").length + 3));
+
+  function handleEditorKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      if (active && !working && !saving && dirty) onSave();
+      return;
+    }
+    if (!indentWithTab || event.key !== "Tab" || event.shiftKey
+        || event.ctrlKey || event.metaKey || event.altKey || !active || working) return;
+    event.preventDefault();
+    const editor = event.currentTarget;
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const updated = answer.slice(0, start) + "    " + answer.slice(end);
+    if (updated.length > 100_000) return;
+    onChange(updated);
+    window.requestAnimationFrame(() => {
+      if (document.activeElement === editor) {
+        editor.setSelectionRange(start + 4, start + 4);
+      }
+    });
+  }
 
   return (
     <section className="overflow-hidden rounded-xl border border-slate-700 bg-slate-950 text-slate-100"
@@ -81,7 +104,14 @@ export function AssessmentCodingPads({
           <div className="space-y-0">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-4 py-3 text-xs text-slate-400">
               <span>{editorLabel} / answer.{tab === "sql" ? "sql" : "py"}</span>
-              <span>{!active ? "Read-only session" : saving ? "Autosaving…" : dirty ? "Unsaved edits" : "Saved to server"}</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <button type="button" aria-pressed={indentWithTab} disabled={!active}
+                  onClick={() => setIndentWithTab((current) => !current)}
+                  className="rounded-md border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800 disabled:opacity-40">
+                  Tab indent: {indentWithTab ? "on" : "off"}
+                </button>
+                <span>{!active ? "Read-only session" : saving ? "Autosaving…" : dirty ? "Unsaved edits" : "Saved to server"}</span>
+              </div>
             </div>
             <div className="grid min-h-[310px] grid-cols-[42px_minmax(0,1fr)]">
               <div aria-hidden="true" className="select-none border-r border-slate-800 bg-slate-900 px-2 pt-4 text-right font-mono text-xs leading-6 text-slate-500">
@@ -93,6 +123,7 @@ export function AssessmentCodingPads({
                   aria-label={`${editorLabel} source response for question ${question.number}`}
                   value={answer}
                   onChange={(event) => onChange(event.target.value)}
+                  onKeyDown={handleEditorKeyDown}
                   disabled={!active || working}
                   rows={Math.max(12, numberOfLines)}
                   maxLength={100_000}
@@ -108,7 +139,7 @@ export function AssessmentCodingPads({
               <div className="max-w-xl text-xs leading-5 text-slate-400">
                 Python and SQL Run requests use the trusted isolated execution service.
                 Save the source before testing. Hidden tests run only after final submission;
-                your code never executes in this page.
+                your code never executes in this page. Ctrl/Cmd+S saves changes; enable Tab indent when editing code.
               </div>
               <button
                 type="button"
