@@ -157,6 +157,9 @@ export default function EmployerWorkspacePage() {
           ))}
           {chosen && (
             <div className="flex flex-wrap gap-3 pt-3">
+              <a href="/employer/dashboard" className="rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white">
+                Open command center
+              </a>
               <a href="/employer/assessments" className="rounded-lg bg-sky-600 px-4 py-3 text-sm font-semibold text-white">
                 Build assessments
               </a>
