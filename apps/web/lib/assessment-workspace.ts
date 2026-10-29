@@ -36,7 +36,12 @@ export function assessmentProgress(
       state,
     };
   });
-  const answered = statuses.filter((question) => question.state !== "unanswered").length;
+  // A deleted answer is still unsaved but not answered. Track those two
+  // dimensions independently, especially during the final review.
+  const answered = questions.filter((question) => {
+    const key = String(question.number);
+    return (drafts[key] ?? savedAnswers[key] ?? "").trim().length > 0;
+  }).length;
   const saved = statuses.filter((question) => question.state === "saved").length;
   const unsaved = statuses.filter((question) => question.state === "unsaved").length;
   return {
