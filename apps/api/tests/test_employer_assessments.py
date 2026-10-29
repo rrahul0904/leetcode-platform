@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from uuid import uuid4
 
 import jwt
+import pytest
 from fastapi.testclient import TestClient
 from rigor_api.auth import LOCAL_IDENTITIES, LocalIdentity, LocalOIDCProvider
 from rigor_api.employer_code_execution_worker import EmployerCodeWorker
@@ -15,6 +17,7 @@ from rigor_api.execution_sqs import SqsReceivedMessage
 from rigor_api.main import app
 from rigor_api.schemas import Role
 from sqlalchemy import Engine, text
+from sqlalchemy.exc import DBAPIError
 
 
 class _EmployerQueueRecorder:
@@ -39,6 +42,11 @@ class _SqlRunnerSimulator:
     def __init__(self) -> None:
         self.requests: dict[str, dict[str, object]] = {}
         self.cleaned: list[str] = []
+        # Synthetic protocol test only; never a live image or release receipt.
+        self.config = SimpleNamespace(
+            sql_runner_image="test.invalid/sql@sha256:" + "b" * 64,
+            sql_postgres_image="test.invalid/postgres@sha256:" + "c" * 64,
+        )
 
     def create_sql_execution(
         self, *, execution_id: object, request_payload: dict[str, object],
@@ -1072,6 +1080,30 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         assert graded_final["awarded_marks"] == 100
         assert graded_final["hidden_total"] == 1
         assert graded_final["hidden_passed"] == 1
+        with engine.connect() as connection:
+            proof = connection.execute(
+                text("""SELECT fixture_sha256, runtime_image_sha256,
+                               sql_postgres_image_sha256,
+                               result_sha256, source_sha256
+                        FROM employer_code_executions WHERE id=:id"""),
+                {"id": graded_final["id"]},
+            ).mappings().one()
+        assert proof["fixture_sha256"] == staged.json()["bundle_sha256"]
+        assert proof["runtime_image_sha256"] == "b" * 64
+        assert proof["sql_postgres_image_sha256"] == "c" * 64
+        assert len(proof["result_sha256"]) == 64
+        assert len(proof["source_sha256"]) == 64
+        assert "fixture_sha256" not in after_worker.text
+        assert "result_sha256" not in after_worker.text
+        with (
+            pytest.raises(DBAPIError, match="terminal employer code execution is immutable"),
+            engine.begin() as connection,
+        ):
+            connection.execute(
+                text("""UPDATE employer_code_executions SET awarded_marks=0
+                        WHERE id=:id"""),
+                {"id": graded_final["id"]},
+            )
         assert "hidden_one" not in after_worker.text
         assert "[[1, 2]]" not in after_worker.text
         assert all(

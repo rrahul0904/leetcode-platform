@@ -23,6 +23,11 @@ def baseline() -> dict:
 def certified() -> dict:
     state = baseline()
     state["release_sha"] = SHA
+    state["release_image_sha256"] = "a" * 64
+    state["production_approval"] = {
+        "decision": "approved", "owner": "synthetic-independent-owner",
+        "evidence_url": "https://github.com/rrahul0904/leetcode-platform/issues/73",
+    }
     for wave in state["waves"]:
         wave["status"] = "verified"
     for gate in state["gates"]:
@@ -36,7 +41,7 @@ def certified() -> dict:
                 "actions/runs/40630606777"
             ),
             "observed_at": (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
-            "environment": "synthetic-test-only-not-production",
+            "environment": "aws-staging",
             "negative_case": "synthetic forbidden cross-tenant test",
             "artifact_sha256": "a" * 64,
         }]
@@ -77,7 +82,7 @@ def test_wrong_production_target_or_wave_assignment_fails() -> None:
 def test_unproven_verified_status_is_rejected() -> None:
     state = baseline()
     state["gates"][0]["status"] = "verified"
-    with pytest.raises(GateError, match="requires pinned SHA and evidence"):
+    with pytest.raises(GateError, match="requires pinned SHA, image and evidence"):
         validate(state)
 
 
@@ -105,13 +110,33 @@ def test_fake_link_digest_and_future_receipt_are_rejected() -> None:
     with pytest.raises(GateError, match="HTTPS"):
         validate(state)
     receipt["evidence_url"] = "https://example.org/fake"
+    with pytest.raises(GateError, match="HTTPS"):
+        validate(state)
+    receipt["evidence_url"] = "https://github.com/rrahul0904/leetcode-platform/issues/73"
     receipt["artifact_sha256"] = "invalid"
     with pytest.raises(GateError, match="SHA-256"):
         validate(state)
-    receipt["artifact_sha256"] = "b" * 64
+    receipt["artifact_sha256"] = "a" * 64
     receipt["observed_at"] = (datetime.now(UTC) + timedelta(days=2)).isoformat()
     with pytest.raises(GateError, match="not future"):
         validate(state)
+
+
+def test_mismatched_image_missing_approval_and_stale_proof_fail_closed() -> None:
+    state = certified()
+    state["gates"][0]["evidence"][0]["artifact_sha256"] = "b" * 64
+    with pytest.raises(GateError, match="image digest differs"):
+        validate(state, ready=True)
+    state = certified()
+    del state["production_approval"]
+    with pytest.raises(GateError, match="production approval"):
+        validate(state, ready=True)
+    state = certified()
+    state["gates"][0]["evidence"][0]["observed_at"] = (
+        datetime.now(UTC) - timedelta(days=31)
+    ).isoformat()
+    with pytest.raises(GateError, match="stale"):
+        validate(state, ready=True)
 
 
 def test_four_wave_approval_is_required_for_entire_product() -> None:

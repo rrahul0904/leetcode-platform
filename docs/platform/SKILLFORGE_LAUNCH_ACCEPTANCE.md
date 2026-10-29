@@ -1,13 +1,13 @@
 # SkillForge launch acceptance — implementation evidence ledger
 
-**Last inspected:** 2026-10-28 · Repository: `rrahul0904/leetcode-platform` · Candidate PR #70.
+**Last inspected:** 2026-10-29 · Repository: `rrahul0904/leetcode-platform` · Candidate PR #70 at baseline `c35aee9b27d35aa2060aa93568c47f3eb29c541f`.
 **Release verdict:** **NO-GO** until every P0 item below has a signed, exact-SHA production evidence receipt.
 The CI passing is a code-level certification, **not** proof of a deployed and safe production SaaS.
 
 ## What is implemented and independently verified in code
 
 - Authenticated employer tenant and candidate HTTP assessment workflow, invitation acceptance, deadlines, server-side drafts, submit lock and human-only rubric scoring.
-- Dedicated Python and SQL response pads, explicit question languages and an opt-in, separately consented AI technical interviewer.
+- Dedicated Python and SQL response pads, explicit question languages, draft-branch candidate Run/Submit APIs and a local simulated-sandbox integration test; plus an opt-in, separately consented AI technical interviewer. No live isolated employer execution is certified.
 - Candidate transcript erasure protected at the PostgreSQL restrictive RLS boundary.
 - Human-reviewed reports, tenant-scoped CSV and no autonomous hiring decisions.
 - One-use HTTPS candidate invitation links encoded in URL **fragments** and scrubbed from candidate browser history after reading; manual credential entry remains available.
@@ -19,7 +19,7 @@ The CI passing is a code-level certification, **not** proof of a deployed and sa
 
 | ID | Required product proof | Current verified evidence | Gate |
 |---|---|---|---|
-| L01 | Employer Python and SQL code **Run / Submit** with secret hidden cases, trusted comparator and immutable score receipt | Learner execution engine exists; employer pads persist text but have **no** employer sandbox Run/Submit integration | NO-GO |
+| L01 | Employer Python and SQL code **Run / Submit** with secret hidden cases, trusted comparator and immutable score receipt | Draft branch has typed fixtures, candidate Run/Submit, trusted comparator and local simulated worker tests; a migration now binds terminal rows to fixture, runner image and result digests. No real cloud isolated run or independent security review | NO-GO |
 | L02 | Real SQS → trusted controller → EKS/gVisor Python and SQL execution: escape, network, metadata, timeout, concurrency, crash and result-fencing abuse tests | Source and unit/integration contracts; **no observed production execution-plane run** | NO-GO |
 | L03 | Production tenant data, OIDC/Clerk live key, HTTPS domains, secrets, monitored queues, remote Terraform state and protected AWS credentials | Terraform and container CI only; production AWS state and runtime not observed | NO-GO |
 | L04 | All publicly served assessment content legally distributable and independently technical/editorial approved, with versioned confidential keys, test cases and calibrated rubrics | 252 candidate-facing items privately staged; **not approved for publication** | NO-GO |
@@ -46,7 +46,7 @@ Do not use Vercel, Railway or Render for product production deployment.
 
 ## Next implementation order
 
-1. **Real employer coding evaluation vertical slice:** immutably bind approved Python/SQL questions and private tests to the secure execution controller, with rubric and hidden-result redaction.
+1. **Real employer coding evaluation vertical slice:** complete availability fencing and independently prove the draft implementation on actual AWS SQS/EKS/gVisor for Python and SQL, with hostile-code and cross-tenant negatives.
 2. Provision representative **isolated AWS staging**, run complete worker and hostile code execution tests, then secure tenant UAT.
 3. Wire real invitations, verified AI model, accessibility and human integrity review; complete content approval.
 4. Execute backup/restore, rollback, load, independent audit and owner-controlled launch.

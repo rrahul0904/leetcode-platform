@@ -11,6 +11,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import socket
 import time
 from dataclasses import dataclass
@@ -44,6 +45,17 @@ logger = logging.getLogger("rigor.employer-code-worker")
 TERMINAL = {"completed", "failed", "timeout"}
 LEASE_SECONDS = 120
 MAX_ATTEMPTS = 3
+IMAGE_DIGEST = re.compile(r"@sha256:([0-9a-f]{64})$")
+
+
+def employer_image_digest(sandbox: SandboxExecutor, image_field: str) -> str:
+    """Bind a score to digest-pinned runtime images, never mutable tags."""
+    config = getattr(sandbox, "config", None)
+    image = getattr(config, image_field, None)
+    match = IMAGE_DIGEST.search(image) if isinstance(image, str) else None
+    if match is None:
+        raise TrustedResultError(f"Employer {image_field} must be pinned by SHA-256 digest")
+    return match.group(1)
 
 
 @dataclass(frozen=True)
@@ -194,7 +206,7 @@ class EmployerCodeWorker:
                 attempt_count=attempt,
             ), False
 
-    def _bundle(self, work: EmployerCodeWork) -> PrivateCodeBundle:
+    def _bundle(self, work: EmployerCodeWork) -> tuple[PrivateCodeBundle, str]:
         with self.engine.begin() as conn:
             row = conn.execute(
                 text(
@@ -226,7 +238,7 @@ class EmployerCodeWorker:
             raise TrustedResultError("Private grading bundle integrity mismatch")
         if hashlib.sha256(work.source.encode("utf-8")).hexdigest() != work.source_sha256:
             raise TrustedResultError("Candidate code snapshot integrity mismatch")
-        return payload
+        return payload, canonical_bundle_digest(payload)
 
     def _renew(self, work: EmployerCodeWork) -> bool:
         with self.engine.begin() as conn:
@@ -258,6 +270,10 @@ class EmployerCodeWorker:
         hidden_passed: int = 0,
         awarded_marks: int | None = None,
         error: str | None = None,
+        fixture_sha256: str | None = None,
+        runtime_image_sha256: str | None = None,
+        sql_postgres_image_sha256: str | None = None,
+        result_sha256: str | None = None,
     ) -> bool:
         with self.engine.begin() as conn:
             row = conn.execute(
@@ -267,6 +283,10 @@ class EmployerCodeWorker:
                            public_results=CAST(:public AS jsonb),
                            hidden_total=:total, hidden_passed=:passed,
                            awarded_marks=:awarded, error_category=:error,
+                           fixture_sha256=:fixture_hash,
+                           runtime_image_sha256=:image_hash,
+                           sql_postgres_image_sha256=:postgres_image_hash,
+                           result_sha256=:result_hash,
                            lease_owner=NULL, lease_expires_at=NULL,
                            updated_at=CURRENT_TIMESTAMP
                        WHERE id=:id AND lease_owner=:worker AND attempt_count=:attempt
@@ -281,6 +301,10 @@ class EmployerCodeWorker:
                     "public": json.dumps(public_results or [], separators=(",", ":")),
                     "total": hidden_total, "passed": hidden_passed,
                     "awarded": awarded_marks, "error": error,
+                    "fixture_hash": fixture_sha256,
+                    "image_hash": runtime_image_sha256,
+                    "postgres_image_hash": sql_postgres_image_sha256,
+                    "result_hash": result_sha256,
                 },
             ).scalar_one_or_none()
         return row is not None
@@ -329,7 +353,15 @@ class EmployerCodeWorker:
                     execution_id=work.id, namespace=namespace,
                     job_name=job, input_secret_name=f"input-{job}",
                 ))
-            bundle = self._bundle(work)
+            bundle, fixture_sha256 = self._bundle(work)
+            runtime_image_sha256 = employer_image_digest(
+                self.sandbox,
+                "runner_image" if work.language == "python" else "sql_runner_image",
+            )
+            sql_postgres_image_sha256 = (
+                employer_image_digest(self.sandbox, "sql_postgres_image")
+                if work.language == "sql" else None
+            )
             if work.mode == "RUN":
                 bundle = bundle.model_copy(update={
                     "cases": [c for c in bundle.cases if c.visibility == "sample"],
@@ -379,6 +411,19 @@ class EmployerCodeWorker:
                         expected_attempt=work.attempt_count,
                     )
                     projection = trusted_compare(runner, expected)
+                    result_sha256 = hashlib.sha256(
+                        json.dumps({
+                            "execution_id": str(work.id),
+                            "attempt": work.attempt_count,
+                            "source_sha256": work.source_sha256,
+                            "fixture_sha256": fixture_sha256,
+                            "runtime_image_sha256": runtime_image_sha256,
+                            "sql_postgres_image_sha256": sql_postgres_image_sha256,
+                            "status": runner.status,
+                            "tests": runner.tests,
+                            "runtime_ms": runner.runtime_ms,
+                        }, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+                    ).hexdigest()
                     score = None
                     if work.mode == "SUBMIT" and runner.status == "COMPLETED":
                         points = {c.case_id: c.points for c in bundle.cases}
@@ -399,6 +444,10 @@ class EmployerCodeWorker:
                         hidden_passed=projection.hidden_passed,
                         awarded_marks=score,
                         error=projection.error_category,
+                        fixture_sha256=fixture_sha256,
+                        runtime_image_sha256=runtime_image_sha256,
+                        sql_postgres_image_sha256=sql_postgres_image_sha256,
+                        result_sha256=result_sha256,
                     )
                     if done:
                         self.queue.delete_message(message.receipt_handle)

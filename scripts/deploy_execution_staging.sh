@@ -5,6 +5,7 @@ required=(
   AWS_REGION
   RIGOR_STAGING_EKS_CLUSTER
   RIGOR_EXECUTION_QUEUE_URL
+  RIGOR_EMPLOYER_EXECUTION_QUEUE_URL
   RIGOR_STAGING_DATABASE_EXECUTOR_SECRET_ID
   RIGOR_EXECUTION_CONTROLLER_IMAGE
   RIGOR_PYTHON_RUNNER_IMAGE
@@ -40,11 +41,13 @@ if [[ "${namespace}" != "rigor-execution" ]]; then
 fi
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 controller_source="${repo_root}/infra/kubernetes/execution-controller.yaml"
+employer_controller_source="${repo_root}/infra/kubernetes/employer-code-controller.yaml"
 boundary_source="${repo_root}/infra/kubernetes/execution-boundary.yaml"
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "${tmpdir}"' EXIT
 rendered_controller="${tmpdir}/execution-controller.yaml"
+rendered_employer_controller="${tmpdir}/employer-code-controller.yaml"
 
 aws eks update-kubeconfig \
   --region "${AWS_REGION}" \
@@ -84,6 +87,7 @@ unset executor_secret_json
 
 kubectl --context "${context}" -n rigor-system create configmap rigor-execution-controller \
   --from-literal="queue-url=${RIGOR_EXECUTION_QUEUE_URL}" \
+  --from-literal="employer-queue-url=${RIGOR_EMPLOYER_EXECUTION_QUEUE_URL}" \
   --from-literal="aws-region=${AWS_REGION}" \
   --from-literal="python-runner-image=${RIGOR_PYTHON_RUNNER_IMAGE}" \
   --from-literal="sql-runner-image=${RIGOR_SQL_RUNNER_IMAGE}" \
@@ -115,14 +119,35 @@ if "@sha256:" not in image:
 destination.write_text(source.replace(sentinel, image), encoding="utf-8")
 PY
 
+python3 - "${employer_controller_source}" "${rendered_employer_controller}" "${RIGOR_EXECUTION_CONTROLLER_IMAGE}" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+sentinel = (
+    "rigor-execution-controller.invalid/replace-me@sha256:"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+)
+if source.count(sentinel) != 1:
+    raise SystemExit("employer controller image sentinel must occur exactly once")
+Path(sys.argv[2]).write_text(source.replace(sentinel, sys.argv[3]), encoding="utf-8")
+PY
+
 if grep -q 'replace-me' "${rendered_controller}"; then
   echo "controller manifest still contains replacement sentinel" >&2
   exit 3
 fi
+if grep -q 'replace-me' "${rendered_employer_controller}"; then
+  echo "employer controller manifest still contains replacement sentinel" >&2
+  exit 3
+fi
 
 kubectl --context "${context}" apply -f "${rendered_controller}"
+kubectl --context "${context}" apply -f "${rendered_employer_controller}"
 kubectl --context "${context}" -n rigor-system rollout status \
   deployment/execution-controller --timeout=180s
+kubectl --context "${context}" -n rigor-system rollout status \
+  deployment/employer-code-controller --timeout=180s
 
 python3 - "${context}" <<'PY'
 import json
@@ -140,7 +165,17 @@ raw = subprocess.check_output(
 pods = json.loads(raw).get("items", [])
 if len(pods) < 2:
     raise SystemExit("expected at least two execution-controller pods")
-for pod in pods:
+employer_raw = subprocess.check_output(
+    [
+        "kubectl", "--context", context, "-n", "rigor-system", "get", "pods",
+        "-l", "app.kubernetes.io/name=rigor-employer-code-controller", "-o", "json",
+    ],
+    text=True,
+)
+employer_pods = json.loads(employer_raw).get("items", [])
+if len(employer_pods) < 2:
+    raise SystemExit("expected at least two employer-code-controller pods")
+for pod in pods + employer_pods:
     node_name = pod.get("spec", {}).get("nodeName")
     if not node_name:
         raise SystemExit("execution-controller pod has no node")

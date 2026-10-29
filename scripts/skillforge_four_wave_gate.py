@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -39,10 +39,20 @@ def _safe_url(value: object) -> bool:
     if not _nonblank(value):
         return False
     parsed = urlparse(str(value))
-    return parsed.scheme == "https" and bool(parsed.netloc) and not parsed.username
+    hostname = (parsed.hostname or "").lower()
+    trusted = hostname == "github.com" or hostname.endswith(".amazonaws.com")
+    try:
+        return (
+            parsed.scheme == "https" and trusted and parsed.port in {None, 443}
+            and not parsed.username and not parsed.password and not parsed.fragment
+        )
+    except ValueError:
+        return False
 
 
-def _verify_receipt(receipt: Any, release_sha: str, builder: str, gate_id: str) -> None:
+def _verify_receipt(
+    receipt: Any, release_sha: str, image_sha256: str, builder: str, gate_id: str,
+) -> None:
     if not isinstance(receipt, dict):
         raise GateError(f"{gate_id}: receipt must be an object")
     if receipt.get("release_sha") != release_sha:
@@ -54,18 +64,24 @@ def _verify_receipt(receipt: Any, release_sha: str, builder: str, gate_id: str) 
         raise GateError(f"{gate_id}: HTTPS evidence URL required")
     if not _nonblank(receipt.get("environment")):
         raise GateError(f"{gate_id}: observed test environment required")
+    if receipt["environment"] not in {"aws-staging", "aws-production"}:
+        raise GateError(f"{gate_id}: evidence must come from AWS staging or production")
     if not _nonblank(receipt.get("negative_case")):
         raise GateError(f"{gate_id}: reproducible negative-control receipt required")
     if not isinstance(receipt.get("artifact_sha256"), str) or not DIGEST.fullmatch(
         receipt["artifact_sha256"]
     ):
         raise GateError(f"{gate_id}: artifact SHA-256 digest required")
+    if receipt["artifact_sha256"] != image_sha256:
+        raise GateError(f"{gate_id}: receipt image digest differs from release image")
     try:
         observed = datetime.fromisoformat(str(receipt["observed_at"]).replace("Z", "+00:00"))
     except (KeyError, TypeError, ValueError) as exc:
         raise GateError(f"{gate_id}: invalid observed_at timestamp") from exc
     if observed.tzinfo is None or observed > datetime.now(UTC):
         raise GateError(f"{gate_id}: observed_at must be timezone-aware and not future")
+    if observed < datetime.now(UTC) - timedelta(days=30):
+        raise GateError(f"{gate_id}: production evidence is stale")
 
 
 def validate(
@@ -101,6 +117,11 @@ def validate(
         raise GateError("release SHA must be a full immutable 40-character Git commit")
     if release_sha is not None and ledger.get("release_sha") != release_sha:
         raise GateError("requested release SHA differs from ledger release SHA")
+    image_sha256 = ledger.get("release_image_sha256")
+    if image_sha256 is not None and (
+        not isinstance(image_sha256, str) or not DIGEST.fullmatch(image_sha256)
+    ):
+        raise GateError("release image digest must be SHA-256")
     verified = 0
     for gate in gates:
         gate_id = gate["id"]
@@ -116,16 +137,26 @@ def validate(
             if receipts:
                 raise GateError(f"{gate_id}: do not attach passing receipts to a blocked gate")
         else:
-            if not expected_sha or not receipts:
-                raise GateError(f"{gate_id}: verified gate requires pinned SHA and evidence")
+            if not expected_sha or not image_sha256 or not receipts:
+                raise GateError(f"{gate_id}: verified gate requires pinned SHA, image and evidence")
             for receipt in receipts:
-                _verify_receipt(receipt, expected_sha, str(builder), gate_id)
+                _verify_receipt(receipt, expected_sha, image_sha256, str(builder), gate_id)
             verified += 1
     if ready and (
         verified != len(REQUIRED_GATES)
         or any(w["status"] != "verified" for w in waves)
     ):
         raise GateError("NO-GO: all ten gates and all four waves must be verified before launch")
+    if ready:
+        approval = ledger.get("production_approval")
+        if not isinstance(approval, dict) or approval.get("decision") != "approved":
+            raise GateError("NO-GO: explicit human production approval required")
+        if (
+            not _nonblank(approval.get("owner"))
+            or str(approval["owner"]).casefold() == str(builder).casefold()
+            or not _safe_url(approval.get("evidence_url"))
+        ):
+            raise GateError("NO-GO: independent owner approval evidence required")
     return {
         "verdict": (
             "RECEIPTS_VALIDATION_PASSED_REQUIRES_INDEPENDENT_REVIEW"

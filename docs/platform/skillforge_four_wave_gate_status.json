@@ -4,11 +4,15 @@
   "repository": "rrahul0904/leetcode-platform",
   "production_target": "AWS",
   "release_sha": null,
+  "release_image_sha256": null,
+  "production_approval": null,
   "builder": "implementation-team",
-  "last_baselined": "2026-10-28",
+  "last_baselined": "2026-10-29",
   "source_issue_ids": [
     55,
-    71
+    71,
+    73,
+    74
   ],
   "source_pr": 70,
   "waves": [
@@ -20,7 +24,7 @@
     {
       "id": "W2",
       "name": "Trusted Python and SQL assessments",
-      "status": "blocked"
+      "status": "building"
     },
     {
       "id": "W3",
@@ -39,7 +43,7 @@
       "wave": "W2",
       "title": "Employer Python/SQL Run/Submit with private hidden tests",
       "status": "blocked",
-      "reason": "Editor currently saves text; employer isolated execution missing",
+      "reason": "Draft branch has typed fixture adapters, Run/Submit and simulated worker tests; no live EKS/gVisor run or independent immutable scoring certification",
       "evidence": []
     },
     {
