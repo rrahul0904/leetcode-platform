@@ -498,6 +498,7 @@ export default function AssessmentPage() {
                     <>
                     <AssessmentCodingPads
                       key={attempt.id + ":" + current.number}
+                      attemptId={attempt.id}
                       question={current}
                       answer={draftAnswer}
                       active={active}
@@ -601,9 +602,16 @@ export default function AssessmentPage() {
               )}
             </article>
           </div>
-          <section id="assessment-ai-interview" aria-label="Optional AI technical interview">
-            <EmployerAIInterviewPanel key={attempt.id} attemptId={attempt.id} active={active} />
-          </section>
+          {attempt.questions.some((question) => question.kind === "code") ? (
+            <p className="text-sm text-slate-600">
+              Optional, consent-based AI interviewing is available under the AI interview
+              tab of each coding question. It never changes your scored answers.
+            </p>
+          ) : (
+            <section id="assessment-ai-interview" aria-label="Optional AI technical interview">
+              <EmployerAIInterviewPanel key={attempt.id} attemptId={attempt.id} active={active} />
+            </section>
+          )}
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Assessment submission">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
