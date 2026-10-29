@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 
 import { AssessmentCodingPads } from "@/components/assessment-coding-pads";
+import { AssessmentExecutionReceipt } from "@/components/assessment-execution-receipt";
+import { AssessmentQuestionNavigator } from "@/components/assessment-question-navigator";
+import { assessmentClockTone, assessmentProgress } from "@/lib/assessment-workspace";
 import { nextPendingAssessmentResponse } from "@/lib/assessment-autosave";
 import {
   readCandidateInvitationFragment,
@@ -53,6 +56,7 @@ export default function AssessmentPage() {
   const [history, setHistory] = useState<AssessmentAttempt[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState(1);
+  const [showReview, setShowReview] = useState(false);
   const [now, setNow] = useState(0);
   const [working, setWorking] = useState(false);
   const [autoSaving, setAutoSaving] = useState(false);
@@ -170,6 +174,9 @@ export default function AssessmentPage() {
   const storedAnswer = current ? attempt?.answers[String(current.number)] ?? "" : "";
   const draftAnswer = current ? drafts[String(current.number)] ?? "" : "";
   const dirty = current ? draftAnswer !== storedAnswer : false;
+  const progress = attempt ? assessmentProgress(attempt.questions, attempt.answers, drafts) : null;
+  const clockTone = assessmentClockTone(secondsLeft);
+  const submitReady = active && !working && !autoSaving && progress?.unsaved === 0;
 
   // Debounced server-backed autosave works across question navigation. Every
   // changed answer is persisted in turn, not just the currently open question.
@@ -303,14 +310,12 @@ export default function AssessmentPage() {
 
   async function submit() {
     if (!attempt || working) return;
-    if (!window.confirm("Submit this assessment? You cannot edit answers afterwards.")) {
-      return;
-    }
     setWorking(true);
     setError("");
     try {
       const response = await submitInterviewAttempt(attempt.id);
       setAttempt(response);
+      setShowReview(false);
       setNotice(
         response.status === "submitted"
           ? "Assessment submitted. Final code grading was queued atomically by the server."
@@ -336,12 +341,12 @@ export default function AssessmentPage() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl space-y-8 px-4 py-10">
+    <main className="mx-auto max-w-[1440px] space-y-7 px-4 py-8 sm:px-6 lg:px-8">
       <header className="space-y-2">
         <p className="text-sm font-semibold uppercase tracking-widest text-sky-500">
           SkillForge / Rigor
         </p>
-        <h1 className="text-3xl font-semibold tracking-tight">Technical Assessment</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Your coding workspace</h1>
         <p className="max-w-3xl text-sm opacity-70">
           Secure candidate workspace. The employer sets the assessment and deadline.
           Interviewer-only solutions and scoring criteria are not visible here.
@@ -436,52 +441,35 @@ export default function AssessmentPage() {
           >
             Switch assessment
           </button>
-          <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-5">
+          <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-950 p-5 text-white shadow-lg">
             <div>
-              <p className="text-sm opacity-60">Candidate assessment session</p>
-              <p className="font-mono text-xs">{attempt.id}</p>
-              <p className="mt-2 text-sm">Status: <strong>{attempt.status}</strong></p>
+              <p className="text-sm font-semibold text-sky-300">Live candidate session</p>
+              <p className="mt-1 break-all font-mono text-xs text-slate-400">Session {attempt.id}</p>
+              <p className="mt-2 text-sm text-slate-300">Status: <strong className="text-white">{attempt.status}</strong>{progress ? " · " + progress.saved + " saved responses" : ""}</p>
             </div>
             <div className="text-right">
               <p className="text-xs uppercase tracking-widest opacity-60">Remaining time</p>
               <p
-                className="font-mono text-3xl font-semibold tabular-nums"
+                className={"font-mono text-3xl font-bold tabular-nums " + (clockTone === "critical" ? "text-rose-400" : clockTone === "warning" ? "text-amber-300" : "text-white")}
                 aria-live="off"
               >
                 {secondsLeft === null ? "--:--:--" : formatClock(secondsLeft)}
               </p>
-              <p className="text-xs opacity-60">Server deadline is authoritative</p>
+              <p className="text-xs text-slate-400">Server deadline is authoritative</p>
             </div>
           </section>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-            <nav aria-label="Assessment questions" className="rounded-2xl border p-4">
-              <h2 className="mb-4 font-semibold">Questions</h2>
-              <div className="grid grid-cols-4 gap-2 lg:grid-cols-2">
-                {attempt.questions.map((question) => (
-                  <button
-                    key={question.number}
-                    type="button"
-                    onClick={() => setSelected(question.number)}
-                    aria-current={question.number === selected ? "step" : undefined}
-                    className={
-                      "rounded-lg border p-3 text-sm " +
-                      (question.number === selected ? "border-sky-500 font-semibold" : "")
-                    }
-                  >
-                    Q{question.number}
-                    {attempt.answers[String(question.number)] ? " ✓" : ""}
-                  </button>
-                ))}
-              </div>
-            </nav>
+          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+            {progress && (
+              <AssessmentQuestionNavigator progress={progress} selected={selected} onSelect={setSelected} />
+            )}
 
-            <article className="min-h-[440px] rounded-2xl border p-6">
+            <article className="min-h-[440px] rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
               {current && (
                 <>
-                  <div className="mb-4 flex flex-wrap justify-between gap-3 text-sm opacity-70">
-                    <span>Question {current.number} of {attempt.questions.length}</span>
-                    <span>{current.marks} marks · {current.kind.replace("_", " ")}</span>
+                  <div className="mb-4 flex flex-wrap justify-between gap-3 text-sm text-slate-600">
+                    <span className="font-semibold text-sky-700">Question {current.number} of {attempt.questions.length}</span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">{current.marks} points · {current.kind === "code" ? current.language?.toUpperCase() + " coding" : current.kind.replace("_", " ")}</span>
                   </div>
                   <h2 className="mb-6 whitespace-pre-wrap text-xl font-medium">
                     {current.prompt}
@@ -556,36 +544,9 @@ export default function AssessmentPage() {
                     {(["RUN", "SUBMIT"] as const).map((mode) => {
                       const result = codeExecutions[mode + ":" + current.number];
                       return result ? (
-                        <section key={mode} className="mt-4 space-y-2 rounded-xl border p-4"
-                          aria-live="polite">
-                          <h3 className="font-semibold">
-                            {mode === "RUN" ? "Sample run" : "Final grading"}
-                          </h3>
-                          <p className="text-sm">Status: {result.status}</p>
-                          {result.runtime_ms !== null && (
-                            <p className="text-xs opacity-65">
-                              Runtime: {result.runtime_ms} ms
-                            </p>
-                          )}
-                          {result.public_results?.map((test) => (
-                            <p key={test.test_id} className="text-sm">
-                              Sample {test.name}: {test.passed ? "passed" : "failed"}
-                            </p>
-                          ))}
-                          {mode === "SUBMIT" && result.status === "completed" && (
-                            <p className="text-sm">
-                              Hidden tests passed: {result.hidden_passed ?? 0} /
-                              {result.hidden_total ?? 0}
-                              {result.awarded_marks !== null
-                                ? " · Code points: " + result.awarded_marks : ""}
-                            </p>
-                          )}
-                          {result.error_category && (
-                            <p className="text-sm" role="status">
-                              Execution status: {result.error_category}
-                            </p>
-                          )}
-                        </section>
+                        <AssessmentExecutionReceipt
+                          key={mode} mode={mode} receipt={result}
+                        />
                       ) : null;
                     })}
                     </>
@@ -624,6 +585,18 @@ export default function AssessmentPage() {
                       {autoSaving ? "Autosaving…" : dirty ? "Unsaved changes" : "Saved to server"}
                     </span>
                   </div>}
+                  <div className="mt-8 flex items-center justify-between gap-3 border-t border-slate-100 pt-5">
+                    <button type="button" disabled={selected <= 1}
+                      onClick={() => setSelected((value) => Math.max(1, value - 1))}
+                      className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-35">
+                      Previous question
+                    </button>
+                    <button type="button" disabled={selected >= attempt.questions.length}
+                      onClick={() => setSelected((value) => Math.min(attempt.questions.length, value + 1))}
+                      className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-35">
+                      Next question
+                    </button>
+                  </div>
                 </>
               )}
             </article>
@@ -631,20 +604,57 @@ export default function AssessmentPage() {
           <section id="assessment-ai-interview" aria-label="Optional AI technical interview">
             <EmployerAIInterviewPanel key={attempt.id} attemptId={attempt.id} active={active} />
           </section>
-          <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border p-5">
-            <p className="text-sm opacity-70">
-              Submit only after saving each response. The server rejects changes after submission.
-            </p>
-            <button
-              type="button"
-              disabled={!active || working || autoSaving || Object.keys(drafts).some(
-                (key) => drafts[key] !== (attempt.answers[key] ?? ""),
-              )}
-              onClick={() => void submit()}
-              className="rounded-lg border border-sky-500 px-5 py-3 font-semibold disabled:opacity-40"
-            >
-              Submit assessment
-            </button>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Assessment submission">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Review your work</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  {progress?.answered ?? 0} of {progress?.total ?? 0} questions answered.
+                  {progress?.unsaved ? " " + progress.unsaved + " response(s) still unsaved." : " All edits are saved."}
+                </p>
+              </div>
+              <button type="button" disabled={!submitReady || attempt.status !== "in_progress"}
+                onClick={() => setShowReview((current) => !current)}
+                aria-expanded={showReview} aria-controls="assessment-submit-review"
+                className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-bold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40">
+                {showReview ? "Close review" : "Review & submit"}
+              </button>
+            </div>
+            {showReview && progress && (
+              <div id="assessment-submit-review" className="mt-5 space-y-4 border-t border-slate-100 pt-5">
+                <h3 className="font-semibold text-slate-900">Confirm final submission</h3>
+                <p className="text-sm text-slate-600">
+                  After submission answers are locked. Coding questions with saved source
+                  are queued for server-side private grading. An employer reviewer scores
+                  the remaining responses; no automatic hiring decision is made.
+                </p>
+                <ul className="grid gap-2 sm:grid-cols-2">
+                  {progress.questions.map((question) => (
+                    <li key={question.number} className="flex items-center justify-between rounded-lg border border-slate-200 p-3 text-sm">
+                      <span>Question {question.number}</span>
+                      <span className={question.state === "saved" ? "font-semibold text-emerald-700" : "font-semibold text-amber-700"}>
+                        {question.state === "saved" ? "Saved" : question.state === "unsaved" ? "Unsaved" : "Unanswered"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {progress.unanswered > 0 && (
+                  <p role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+                    {progress.unanswered} question(s) have no response. You may still submit, but unanswered questions cannot earn points.
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-3">
+                  <button type="button" disabled={!submitReady} onClick={() => void submit()}
+                    className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-40">
+                    Confirm & submit assessment
+                  </button>
+                  <button type="button" onClick={() => setShowReview(false)}
+                    className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-800">
+                    Keep editing
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
         </>
       )}
