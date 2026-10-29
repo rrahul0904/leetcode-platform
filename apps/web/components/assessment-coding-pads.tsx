@@ -2,10 +2,12 @@
 
 import { useState, type KeyboardEvent } from "react";
 import type { AssessmentQuestion } from "@/lib/employer-assessment-api";
+import { EmployerAIInterviewPanel } from "@/components/employer-ai-interview-panel";
 
 type Pad = "python" | "sql" | "ai";
 
 type Props = {
+  attemptId: string;
   question: AssessmentQuestion;
   answer: string;
   active: boolean;
@@ -25,7 +27,7 @@ type Props = {
  * and an auditable provider integration are available.
  */
 export function AssessmentCodingPads({
-  question, answer, active, working, saving = false, dirty, onChange, onSave,
+  attemptId, question, answer, active, working, saving = false, dirty, onChange, onSave,
 }: Props) {
   const [tab, setTab] = useState<Pad>(question.language === "sql" ? "sql" : "python");
   const [indentWithTab, setIndentWithTab] = useState(false);
@@ -78,7 +80,7 @@ export function AssessmentCodingPads({
                   (tab === pad ? "bg-sky-500 text-slate-950" : "bg-slate-800 text-slate-300 hover:bg-slate-700")
                 }
               >
-                {pad === "ai" ? "✦ AI Pad" : pad === "python" ? "Python Pad" : "SQL Pad"}
+                {pad === "ai" ? "✦ AI interview" : pad === "python" ? "Python Pad" : "SQL Pad"}
               </button>
             );
           })}
@@ -90,15 +92,16 @@ export function AssessmentCodingPads({
 
       <div id="assessment-pad-panel" role="tabpanel" aria-labelledby={`assessment-tab-${tab}`}>
         {tab === "ai" ? (
-          <div className="space-y-3 p-6">
-            <h3 className="text-lg font-semibold">AI Pad · assessment policy</h3>
-            <p className="max-w-2xl text-sm leading-6 text-slate-300">
-              AI code hints and answer generation are not enabled in scored employer assessments.
-              A consent-based technical interview is available separately below the coding workspace,
-              when its provider is configured. It does not supply solutions or grade candidates.
-            </p>
-            <a className="inline-flex rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-600"
-              href="#assessment-ai-interview">Open optional AI technical interview</a>
+          <div className="space-y-4 bg-slate-900 p-4 sm:p-6" id="assessment-ai-interview">
+            <div className="space-y-2">
+              <h3 className="text-lg font-bold">AI Pad · optional technical interview</h3>
+              <p className="max-w-2xl text-sm leading-6 text-slate-300">
+                This is an independent, consent-controlled interview—not a code generator.
+                The model cannot edit your scored Python/SQL answers or make hiring decisions.
+                Interview availability depends on employer-approved provider configuration.
+              </p>
+            </div>
+            <EmployerAIInterviewPanel attemptId={attemptId} active={active} />
           </div>
         ) : editorEnabled ? (
           <div className="space-y-0">
