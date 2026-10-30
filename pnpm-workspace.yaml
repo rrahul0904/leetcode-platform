@@ -15,6 +15,7 @@ onlyBuiltDependencies:
   - "unrs-resolver"
 
 overrides:
+  "decode-uri-component@<0.5.1": 0.5.1
   "nanoid@<3.3.18": 3.3.19
   "brace-expansion@1.1.16": 1.1.20
   "brace-expansion@2.1.2": 2.1.6

@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from typing import NoReturn, cast
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from rigor_api import submissions
 from rigor_api.auth import LOCAL_IDENTITIES, ROLE_PERMISSIONS, LocalIdentity, LocalOIDCProvider
-from rigor_api.database import principal_transaction
+from rigor_api.database import set_principal_context
 from rigor_api.main import app
 from rigor_api.schemas import AuthenticatedPrincipal, Role
 from sqlalchemy import Engine, create_engine, text
@@ -462,7 +463,7 @@ def test_cross_candidate_execution_is_hidden_by_app_role_rls(monkeypatch) -> Non
         assert session.status_code == 201
         submission = client.post(
             f"/api/v1/questions/{slug}/submissions",
-            headers={**auth_a, "Idempotency-Key": "rls-submit-proof-0001"},
+            headers={**auth_a, "Idempotency-Key": f"rls-submit-proof-{uuid4()}"},
             json={
                 "session_id": session.json()["id"],
                 "source_code": "def solve(value): return value",
@@ -471,7 +472,6 @@ def test_cross_candidate_execution_is_hidden_by_app_role_rls(monkeypatch) -> Non
         )
         assert submission.status_code == 202
         execution_id = submission.json()["execution_id"]
-        submission_id = submission.json()["submission_id"]
 
         with fixture_engine.begin() as admin:
             admin.execute(
@@ -495,8 +495,13 @@ def test_cross_candidate_execution_is_hidden_by_app_role_rls(monkeypatch) -> Non
         )
         app_role_engine = create_engine(app_role_url, pool_pre_ping=True)
         principal_b = _principal(identity_b, "rls-direct-candidate-b")
+        assert client.get("/api/v1/me", headers=auth_b).status_code == 200
+        with fixture_engine.connect() as admin:
+            user_b = admin.execute(
+                text("SELECT id FROM users WHERE identity_subject=:subject"),
+                {"subject": identity_b.subject_id},
+            ).scalar_one()
         try:
-            app.state.database_engine = app_role_engine
             forbidden_get = client.get(
                 f"/api/v1/executions/{execution_id}",
                 headers=auth_b,
@@ -508,7 +513,8 @@ def test_cross_candidate_execution_is_hidden_by_app_role_rls(monkeypatch) -> Non
             assert forbidden_get.status_code == 404
             assert forbidden_cancel.status_code == 404
 
-            with principal_transaction(app_role_engine, principal_b) as connection:
+            with app_role_engine.begin() as connection:
+                set_principal_context(connection, principal_b, user_b)
                 counts = {
                     "execution": connection.execute(
                         text("SELECT count(*) FROM execution_requests WHERE id=:id"),
@@ -539,21 +545,18 @@ def test_cross_candidate_execution_is_hidden_by_app_role_rls(monkeypatch) -> Non
                         ),
                         {"id": execution_id},
                     ).scalar_one(),
-                    "submission": connection.execute(
-                        text("SELECT count(*) FROM submissions WHERE id=:id"),
-                        {"id": submission_id},
-                    ).scalar_one(),
                 }
+                assert connection.execute(
+                    text("SELECT has_table_privilege(current_user, 'submissions', 'SELECT')")
+                ).scalar_one() is False
             assert counts == {
                 "execution": 0,
                 "payload": 0,
                 "events": 0,
                 "outbox": 0,
                 "result": 0,
-                "submission": 0,
             }
         finally:
-            app.state.database_engine = fixture_engine
             app_role_engine.dispose()
 
         assert identity_a.subject_id != identity_b.subject_id

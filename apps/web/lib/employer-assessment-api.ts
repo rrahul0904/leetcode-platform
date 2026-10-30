@@ -1,5 +1,6 @@
 const apiUrl = process.env.NEXT_PUBLIC_RIGOR_API_URL ?? "/api/backend";
 const authMode = process.env.NEXT_PUBLIC_RIGOR_AUTH_MODE ?? "clerk";
+let selectedOrganizationId: string | null = null;
 
 export type AssessmentQuestion = {
   number: number;
@@ -50,7 +51,7 @@ async function request<T>(
     typeof window !== "undefined" &&
     path.startsWith("/api/v1/employer/") &&
     path !== "/api/v1/employer/organizations"
-      ? window.localStorage.getItem("rigor.employer.organization-id")
+      ? selectedOrganizationId
       : null;
   const response = await fetch(apiUrl + path, {
     method,
@@ -100,6 +101,18 @@ export type CandidateCodeExecution = {
   error_category: string | null;
   duplicate: boolean;
 };
+
+export type CandidateCodeExecutionCapability = {
+  available: boolean;
+  reason: string | null;
+};
+
+export function getCandidateCodeExecutionCapability(attemptId: string) {
+  return request<CandidateCodeExecutionCapability>(
+    "/api/v1/assessment-attempts/" + encodeURIComponent(attemptId)
+      + "/code-execution-capability",
+  );
+}
 
 export function queueCandidateCodeExecution(
   attemptId: string,
@@ -283,14 +296,14 @@ export type EmployerMember = {
 };
 
 export function selectedEmployerOrganization() {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem("rigor.employer.organization-id");
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem("rigor.employer.organization-id");
+  }
+  return selectedOrganizationId;
 }
 
 export function selectEmployerOrganization(organizationId: string) {
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem("rigor.employer.organization-id", organizationId);
-  }
+  selectedOrganizationId = organizationId;
 }
 
 export function listEmployerOrganizations() {

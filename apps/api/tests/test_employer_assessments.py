@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import jwt
 import pytest
+import rigor_api.employer_code_execution_routes as employer_code_routes
 from fastapi.testclient import TestClient
 from rigor_api.auth import LOCAL_IDENTITIES, LocalIdentity, LocalOIDCProvider
 from rigor_api.employer_code_execution_worker import EmployerCodeWorker
@@ -926,7 +927,21 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         )
         assert saved_sql.status_code == 200, saved_sql.text
         assert saved_sql.json()["answers"]["1"] == candidate_sql
-        run_headers = {**candidate_auth, "Idempotency-Key": "sql-run-first-check"}
+        run_headers = {**candidate_auth, "Idempotency-Key": f"sql-run-first-{sql_attempt_id}"}
+        capability_path = (
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/code-execution-capability"
+        )
+        unavailable = client.get(capability_path, headers=candidate_auth)
+        assert unavailable.status_code == 200
+        assert unavailable.json()["available"] is False
+        assert client.get(capability_path, headers=other_auth).status_code == 404
+        assert client.post(
+            f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
+            headers=run_headers,
+            json={"question_number": 1, "mode": "RUN"},
+        ).status_code == 503
+        monkeypatch.setattr(employer_code_routes, "employer_execution_enabled", lambda: True)
+        assert client.get(capability_path, headers=candidate_auth).json()["available"] is True
         first_run = client.post(
             f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
             headers=run_headers,
@@ -947,13 +962,13 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         assert repeat_run.json()["duplicate"] is True
         second_run = client.post(
             f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
-            headers={**candidate_auth, "Idempotency-Key": "sql-run-second-check"},
+            headers={**candidate_auth, "Idempotency-Key": f"sql-run-second-{sql_attempt_id}"},
             json={"question_number": 1, "mode": "RUN"},
         )
         assert second_run.status_code == 202, second_run.text
         assert client.post(
             f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
-            headers={**candidate_auth, "Idempotency-Key": "sql-run-exhausted"},
+            headers={**candidate_auth, "Idempotency-Key": f"sql-run-exhausted-{sql_attempt_id}"},
             json={"question_number": 1, "mode": "RUN"},
         ).status_code == 429
         assert client.get(
@@ -966,7 +981,7 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         ).status_code == 200
         assert client.post(
             f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
-            headers={**candidate_auth, "Idempotency-Key": "sql-submit-too-early"},
+            headers={**candidate_auth, "Idempotency-Key": f"sql-submit-too-early-{sql_attempt_id}"},
             json={"question_number": 1, "mode": "SUBMIT"},
         ).status_code == 409
         assert client.get(
@@ -1013,12 +1028,12 @@ def test_employer_assessment_end_to_end_and_cross_tenant_negative(monkeypatch) -
         ).status_code == 200
         assert client.post(
             f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
-            headers={**candidate_auth, "Idempotency-Key": "sql-hidden-repeat-grade"},
+            headers={**candidate_auth, "Idempotency-Key": f"sql-hidden-repeat-{sql_attempt_id}"},
             json={"question_number": 1, "mode": "SUBMIT"},
         ).status_code == 409
         assert client.post(
             f"/api/v1/assessment-attempts/{sql_attempt_id}/code-executions",
-            headers={**candidate_auth, "Idempotency-Key": "sql-run-after-final"},
+            headers={**candidate_auth, "Idempotency-Key": f"sql-run-after-{sql_attempt_id}"},
             json={"question_number": 1, "mode": "RUN"},
         ).status_code == 409
         with engine.connect() as connection:

@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
 
 from .auth import authenticated_principal
+from .config import get_settings
 from .database import DatabaseEngine, principal_transaction
 from .employer_assessment_routes import (
     _ORG,
@@ -36,6 +37,43 @@ class CodeExecutionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     question_number: int = Field(ge=1, le=100)
     mode: Literal["RUN", "SUBMIT"]
+
+
+class CodeExecutionCapability(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    available: bool
+    reason: str | None = None
+
+
+def employer_execution_enabled() -> bool:
+    settings = get_settings()
+    if not settings.employer_code_execution_enabled:
+        return False
+    if settings.environment.strip().lower() in {"staging", "production"}:
+        return (
+            settings.execution_adapter.strip().upper() == "KUBERNETES_JOB"
+            and bool(settings.employer_execution_queue_url)
+        )
+    return True
+
+
+@router.get(
+    "/assessment-attempts/{attempt_id}/code-execution-capability",
+    response_model=CodeExecutionCapability,
+)
+def candidate_code_execution_capability(
+    attempt_id: UUID, engine: DatabaseEngine, principal: Principal,
+) -> CodeExecutionCapability:
+    with principal_transaction(engine, principal) as conn:
+        _candidate_attempt(conn, attempt_id)
+    available = employer_execution_enabled()
+    return CodeExecutionCapability(
+        available=available,
+        reason=(
+            None if available
+            else "Isolated coding execution is not available for this assessment"
+        ),
+    )
 
 
 class CodeExecutionView(BaseModel):
@@ -96,6 +134,10 @@ def queue_employer_code_execution(
 ) -> CodeExecutionView:
     with principal_transaction(engine, principal) as conn:
         attempt = _candidate_attempt(conn, attempt_id, lock=True)
+        if not employer_execution_enabled():
+            raise HTTPException(
+                status_code=503, detail="Isolated coding execution is not available",
+            )
         questions = attempt["candidate_blueprint"]["questions"]
         question = next(
             (q for q in questions if q["number"] == request.question_number), None,

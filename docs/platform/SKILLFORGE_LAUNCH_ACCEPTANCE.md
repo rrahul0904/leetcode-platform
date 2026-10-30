@@ -19,7 +19,7 @@ The CI passing is a code-level certification, **not** proof of a deployed and sa
 
 | ID | Required product proof | Current verified evidence | Gate |
 |---|---|---|---|
-| L01 | Employer Python and SQL code **Run / Submit** with secret hidden cases, trusted comparator and immutable score receipt | Draft branch has typed fixtures, candidate Run/Submit, trusted comparator and local simulated worker tests; a migration now binds terminal rows to fixture, runner image and result digests. No real cloud isolated run or independent security review | NO-GO |
+| L01 | Employer Python and SQL code **Run / Submit** with secret hidden cases, trusted comparator and immutable score receipt | Draft branch has typed fixtures, candidate Run/Submit, default-off availability fencing, trusted comparator and local simulated worker tests; a migration binds terminal rows to fixture, runtime image and result digests. No real cloud isolated run or independent security review | NO-GO |
 | L02 | Real SQS → trusted controller → EKS/gVisor Python and SQL execution: escape, network, metadata, timeout, concurrency, crash and result-fencing abuse tests | Source and unit/integration contracts; **no observed production execution-plane run** | NO-GO |
 | L03 | Production tenant data, OIDC/Clerk live key, HTTPS domains, secrets, monitored queues, remote Terraform state and protected AWS credentials | Terraform and container CI only; production AWS state and runtime not observed | NO-GO |
 | L04 | All publicly served assessment content legally distributable and independently technical/editorial approved, with versioned confidential keys, test cases and calibrated rubrics | 252 candidate-facing items privately staged; **not approved for publication** | NO-GO |

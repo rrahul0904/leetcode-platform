@@ -76,6 +76,8 @@ class Settings(BaseSettings):
             "RIGOR_SQS_EXECUTION_QUEUE_URL", "SQS_EXECUTION_QUEUE_URL"
         ),
     )
+    employer_code_execution_enabled: bool = False
+    employer_execution_queue_url: str | None = None
     s3_upload_bucket: str | None = Field(
         default=None,
         validation_alias=AliasChoices("RIGOR_S3_UPLOAD_BUCKET", "S3_UPLOAD_BUCKET"),

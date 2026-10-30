@@ -14,6 +14,7 @@ import {
   acceptInterviewInvite,
   getInterviewAttempt,
   getCandidateCodeExecution,
+  getCandidateCodeExecutionCapability,
   listCandidateCodeExecutionResults,
   queueCandidateCodeExecution,
   listCandidateAssessmentAttempts,
@@ -21,6 +22,7 @@ import {
   submitInterviewAttempt,
   type AssessmentAttempt,
   type CandidateCodeExecution,
+  type CandidateCodeExecutionCapability,
 } from "@/lib/employer-assessment-api";
 
 const resumeKey = "rigor.assessment.attempt-id";
@@ -61,6 +63,7 @@ export default function AssessmentPage() {
   const [codeExecutions, setCodeExecutions] = useState<
     Record<string, CandidateCodeExecution>
   >({});
+  const [codeCapability, setCodeCapability] = useState<CandidateCodeExecutionCapability | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -130,6 +133,16 @@ export default function AssessmentPage() {
     if (!attemptId) return;
     let cancelled = false;
     queueMicrotask(() => setCodeExecutions({}));
+    queueMicrotask(() => setCodeCapability(null));
+    void getCandidateCodeExecutionCapability(attemptId)
+      .then((capability) => {
+        if (!cancelled) setCodeCapability(capability);
+      })
+      .catch(() => {
+        if (!cancelled) setCodeCapability({
+          available: false, reason: "Coding execution availability could not be verified",
+        });
+      });
     void listCandidateCodeExecutionResults(attemptId)
       .then((receipts) => {
         if (!cancelled) setCodeExecutions(latestCodeReceipts(receipts));
@@ -238,7 +251,7 @@ export default function AssessmentPage() {
   async function queueCode(
     number: number, mode: "RUN" | "SUBMIT", answer: string,
   ) {
-    if (!attempt || working) return;
+    if (!attempt || working || codeCapability?.available !== true) return;
     setWorking(true);
     setError("");
     try {
@@ -313,7 +326,10 @@ export default function AssessmentPage() {
       setAttempt(response);
       setNotice(
         response.status === "submitted"
-          ? "Assessment submitted. Final code grading was queued atomically by the server."
+          ? codeCapability?.available === true
+            ? "Assessment submitted. Final code grading was queued atomically by the server."
+            : "Assessment submitted and answers locked. Coding grades are pending "
+              + "isolated execution availability."
           : "Assessment " + response.status
             + ". Saved answers are retained; final grading was not queued."
       );
@@ -323,8 +339,8 @@ export default function AssessmentPage() {
       } catch {
         setNotice(
           response.status === "submitted"
-            ? "Assessment submitted. Final grading was queued by the server; "
-              + "refresh to retrieve its execution status."
+            ? "Assessment submitted and answers locked. Refresh to retrieve the "
+              + "coding status when isolated execution is available."
             : "Assessment " + response.status + ". Saved answers are retained."
         );
       }
@@ -525,12 +541,18 @@ export default function AssessmentPage() {
                       {active && (
                         <button
                           type="button"
-                          disabled={working || autoSaving || !draftAnswer.trim()}
+                          disabled={working || autoSaving || !draftAnswer.trim() ||
+                            codeCapability?.available !== true}
                           onClick={() => void queueCode(current.number, "RUN", draftAnswer)}
                           className="rounded-lg border border-sky-500 px-4 py-2 text-sm disabled:opacity-40"
                         >
                           Run sample tests (Python / SQL)
                         </button>
+                      )}
+                      {active && codeCapability?.available !== true && (
+                        <p className="text-sm text-amber-300" role="status">
+                          {codeCapability?.reason ?? "Checking isolated coding execution availability…"}
+                        </p>
                       )}
                       {attempt.status === "submitted" &&
                         !codeExecutions["SUBMIT:" + current.number] && (
