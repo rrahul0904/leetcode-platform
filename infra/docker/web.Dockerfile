@@ -2,6 +2,8 @@
 
 ARG NODE_IMAGE=node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d
 
+ARG RUNTIME_IMAGE=gcr.io/distroless/nodejs24-debian13:nonroot@sha256:cb606325b7ec4af55462cb0b424a53b452a5b4a894ffe841fcf1048d216fb9f8
+
 FROM ${NODE_IMAGE} AS builder
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
@@ -19,10 +21,16 @@ RUN --mount=type=cache,target=/pnpm/store \
 COPY apps/web apps/web
 COPY packages/api-client packages/api-client
 ARG NEXT_PUBLIC_RIGOR_AUTH_MODE=clerk
-ENV NEXT_PUBLIC_RIGOR_AUTH_MODE=${NEXT_PUBLIC_RIGOR_AUTH_MODE}
+ARG NEXT_PUBLIC_RIGOR_API_URL=/api/backend
+ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+ARG RIGOR_CLERK_ISSUER
+ENV NEXT_PUBLIC_RIGOR_AUTH_MODE=${NEXT_PUBLIC_RIGOR_AUTH_MODE} \
+    NEXT_PUBLIC_RIGOR_API_URL=${NEXT_PUBLIC_RIGOR_API_URL} \
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} \
+    RIGOR_CLERK_ISSUER=${RIGOR_CLERK_ISSUER}
 RUN pnpm --filter @rigor/web build
 
-FROM ${NODE_IMAGE} AS runtime
+FROM ${RUNTIME_IMAGE} AS runtime
 LABEL org.opencontainers.image.title="Rigor Web" \
       org.opencontainers.image.description="Rigor Next.js web application" \
       org.opencontainers.image.version="0.1.0-local"
@@ -33,12 +41,12 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0
 WORKDIR /app
 
-COPY --from=builder --chown=node:node /app/apps/web/.next/standalone ./
-COPY --from=builder --chown=node:node /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=65532:65532 /app/apps/web/.next/standalone ./
+COPY --from=builder --chown=65532:65532 /app/apps/web/.next/static ./apps/web/.next/static
 
-USER node
+USER 65532:65532
 EXPOSE 3001
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=5 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:3001/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+  CMD ["/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:3001/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
 
-CMD ["node", "apps/web/server.js"]
+CMD ["apps/web/server.js"]

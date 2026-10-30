@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials
@@ -169,6 +170,40 @@ async def database_authoritative_principal(
     if credentials is None or credentials.scheme.casefold() != "bearer":
         raise AuthenticationError("authentication_required", "A bearer token is required")
     claims = validator.validate(credentials.credentials)
-    if validator.local_provider is not None:
-        return _local_principal(request, claims)
-    return _database_principal(request, engine, claims)
+    principal = (
+        _local_principal(request, claims)
+        if validator.local_provider is not None
+        else _database_principal(request, engine, claims)
+    )
+    requested = request.headers.get("X-Rigor-Organization-ID")
+    if not requested:
+        return principal
+
+    # Organization choice is not an authorization claim. It is checked against
+    # *live* database membership on every request, including controlled local OIDC.
+    # This allows new companies to onboard without minting a bespoke provider JWT.
+    try:
+        organization_id = str(UUID(requested))
+    except ValueError as exc:
+        raise AuthenticationError(
+            "organization_selection_invalid", "Organization ID must be a UUID."
+        ) from exc
+    with engine.connect() as connection:
+        membership = connection.execute(
+            text(
+                """
+                SELECT m.organization_id::text FROM organization_memberships m
+                JOIN users u ON u.id=m.user_id
+                WHERE u.identity_subject=:subject
+                  AND m.organization_id=:organization_id
+                  AND m.status='active'
+                """
+            ),
+            {"subject": principal.subject_id, "organization_id": organization_id},
+        ).scalar_one_or_none()
+    if membership is None:
+        raise AuthenticationError(
+            "organization_access_denied",
+            "The authenticated user is not an active member of this organization.",
+        )
+    return principal.model_copy(update={"organization_id":str(membership)})

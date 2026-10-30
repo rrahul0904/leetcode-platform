@@ -1,0 +1,994 @@
+"""Employer assessment authoring and candidate timed-session API.
+
+No private rubric is returned in candidate responses. This is intentionally
+independent of the personal mock-interview and practice-history APIs.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import secrets
+from datetime import datetime
+from typing import Annotated, Any, Literal
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from sqlalchemy import Connection, text
+
+from .auth import authenticated_principal
+from .database import DatabaseEngine, principal_transaction
+from .employer_code_contract import verified_code_fixtures as _verified_code_fixtures
+from .employer_code_queue import enqueue_submitted_code_grades
+from .persistence import audit_event
+from .schemas import AuthenticatedPrincipal
+
+router = APIRouter(prefix="/api/v1", tags=["employer-assessments"])
+Principal = Annotated[AuthenticatedPrincipal, Depends(authenticated_principal)]
+_USER = "NULLIF(current_setting('rigor.user_id',true),'')::uuid"
+_ORG = "NULLIF(current_setting('rigor.organization_id',true),'')::uuid"
+
+
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class AssessmentQuestion(StrictModel):
+    number: int = Field(ge=1, le=100)
+    kind: Literal["code", "written", "multiple_choice"]
+    prompt: str = Field(min_length=10, max_length=20_000)
+    marks: int = Field(ge=1, le=100)
+    options: list[str] = Field(default_factory=list, max_length=6)
+    # Explicit language travels in the candidate blueprint; never guess SQL
+    # from natural language question text or change it after publication.
+    language: Literal["python", "sql"] | None = None
+
+    @model_validator(mode="after")
+    def check_options(self) -> AssessmentQuestion:
+        if self.kind == "multiple_choice":
+            if len(self.options) != 4 or any(not v.strip() for v in self.options):
+                raise ValueError("Single-answer MCQs require four nonempty public options")
+        elif self.options:
+            raise ValueError("Written and code problems do not have options")
+        if self.kind != "code" and self.language is not None:
+            raise ValueError("Only coding questions may specify an execution language")
+        return self
+
+
+class AssessmentDraftInput(StrictModel):
+    slug: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{2,99}$")
+    title: str = Field(min_length=5, max_length=160)
+    duration_minutes: int = Field(ge=5, le=360)
+    questions: list[AssessmentQuestion] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def unique_numbers(self) -> AssessmentDraftInput:
+        if [q.number for q in self.questions] != list(range(1, len(self.questions) + 1)):
+            raise ValueError("Questions must be sequential, unique, starting with 1")
+        if any(q.kind == "code" and q.language is None for q in self.questions):
+            raise ValueError("New coding assessments must declare Python or SQL explicitly")
+        if sum(q.marks for q in self.questions) > 1_000:
+            raise ValueError("Total assessment marks cannot exceed 1000")
+        return self
+
+
+class AssessmentView(StrictModel):
+    id: UUID
+    slug: str
+    version: int
+    title: str
+    duration_minutes: int
+    maximum_marks: int
+    status: str
+    content_sha256: str
+    questions: list[AssessmentQuestion]
+
+
+class PublishInput(StrictModel):
+    rights_evidence: str = Field(min_length=10, max_length=500)
+    technical_evidence: str = Field(min_length=10, max_length=500)
+    editorial_evidence: str = Field(min_length=10, max_length=500)
+
+
+class InviteInput(StrictModel):
+    candidate_id: UUID
+    expires_in_hours: int = Field(ge=1, le=168)
+
+
+class InvitationCreated(StrictModel):
+    id: UUID
+    candidate_id: UUID
+    expires_at: datetime
+    acceptance_secret: str
+
+
+class InvitationAccept(StrictModel):
+    invitation_id: UUID
+    acceptance_secret: str = Field(min_length=32, max_length=256)
+
+
+class ResponseSave(StrictModel):
+    question_number: int = Field(ge=1, le=100)
+    answer_text: str = Field(max_length=100_000)
+
+
+class AttemptView(StrictModel):
+    id: UUID
+    assessment_version_id: UUID
+    status: str
+    started_at: datetime | None
+    deadline_at: datetime | None
+    submitted_at: datetime | None
+    duration_minutes: int
+    questions: list[AssessmentQuestion]
+    answers: dict[str, str]
+
+
+def _member(conn: Connection, principal: AuthenticatedPrincipal, roles: tuple[str, ...]) -> None:
+    if principal.organization_id is None:
+        raise HTTPException(status_code=403, detail="Select an authorized employer organization")
+    role = conn.execute(
+        text(
+            f"""SELECT role_slug FROM organization_memberships
+                WHERE organization_id={_ORG} AND user_id={_USER}
+                  AND status='active'"""
+        )
+    ).scalar_one_or_none()
+    if role not in roles:
+        raise HTTPException(status_code=403, detail="Employer organization permission required")
+
+
+def _org_assessment(conn: Connection, assessment_id: UUID, *, lock: bool = False) -> dict[str, Any]:
+    row = conn.execute(
+        text(
+            f"""SELECT id, slug, version, status, duration_minutes, maximum_marks,
+                       candidate_blueprint, content_sha256, created_by
+                FROM employer_assessment_versions
+                WHERE id=:id AND organization_id={_ORG}
+                {"FOR UPDATE" if lock else ""}"""
+        ),
+        {"id": assessment_id},
+    ).mappings().one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    return dict(row)
+
+
+def _assessment_view(row: dict[str, Any]) -> AssessmentView:
+    data = row["candidate_blueprint"]
+    return AssessmentView(
+        id=row["id"],
+        slug=row["slug"],
+        version=row["version"],
+        title=data["title"],
+        duration_minutes=row["duration_minutes"],
+        maximum_marks=row["maximum_marks"],
+        status=row["status"],
+        content_sha256=row["content_sha256"],
+        questions=[AssessmentQuestion.model_validate(q) for q in data["questions"]],
+    )
+
+
+@router.post("/employer/assessments", response_model=AssessmentView, status_code=201)
+def create_employer_assessment(
+    payload: AssessmentDraftInput, engine: DatabaseEngine, principal: Principal,
+) -> AssessmentView:
+    blueprint = payload.model_dump(include={"title", "questions"})
+    raw = json.dumps(blueprint, sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(raw.encode()).hexdigest()
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin"))
+        existing = conn.execute(
+            text(
+                f"""SELECT COALESCE(MAX(version), 0) FROM employer_assessment_versions
+                    WHERE organization_id={_ORG} AND slug=:slug"""
+            ),
+            {"slug": payload.slug},
+        ).scalar_one()
+        row = conn.execute(
+            text(
+                f"""INSERT INTO employer_assessment_versions
+                       (organization_id, slug, version, status, duration_minutes,
+                        maximum_marks, candidate_blueprint, content_sha256, created_by)
+                    VALUES ({_ORG}, :slug, :version, 'review_required', :minutes,
+                            :marks, CAST(:blueprint AS jsonb), :digest, {_USER})
+                    RETURNING id, slug, version, status, duration_minutes, maximum_marks,
+                              candidate_blueprint, content_sha256, created_by"""
+            ),
+            {
+                "slug": payload.slug,
+                "version": int(existing) + 1,
+                "minutes": payload.duration_minutes,
+                "marks": sum(q.marks for q in payload.questions),
+                "blueprint": raw,
+                "digest": digest,
+            },
+        ).mappings().one()
+        audit_event(
+            conn, principal, row["created_by"], action="assessment.draft",
+            resource_type="employer_assessment", resource_id=str(row["id"]),
+            details={"hash": digest},
+        )
+        return _assessment_view(dict(row))
+
+
+@router.get("/employer/assessments", response_model=list[AssessmentView])
+def list_employer_assessments(
+    engine: DatabaseEngine, principal: Principal,
+) -> list[AssessmentView]:
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "recruiter", "interviewer", "reviewer"))
+        rows = conn.execute(
+            text(
+                f"""SELECT id, slug, version, status, duration_minutes, maximum_marks,
+                           candidate_blueprint, content_sha256
+                    FROM employer_assessment_versions
+                    WHERE organization_id={_ORG} ORDER BY created_at DESC LIMIT 100"""
+            )
+        ).mappings().all()
+        return [_assessment_view(dict(row)) for row in rows]
+
+
+@router.post("/employer/assessments/{assessment_id}/publish", response_model=AssessmentView)
+def publish_employer_assessment(
+    assessment_id: UUID, payload: PublishInput, engine: DatabaseEngine, principal: Principal,
+) -> AssessmentView:
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("reviewer", "admin"))
+        row = _org_assessment(conn, assessment_id, lock=True)
+        reviewer = conn.execute(text(f"SELECT {_USER}")).scalar_one()
+        if row["created_by"] == reviewer:
+            raise HTTPException(status_code=409, detail="An independent reviewer is required")
+        if row["status"] != "review_required":
+            raise HTTPException(status_code=409, detail="Assessment is not awaiting review")
+        mcq_numbers = {
+            str(item["number"]) for item in row["candidate_blueprint"]["questions"]
+            if item["kind"] == "multiple_choice"
+        }
+        code_questions = [
+            item for item in row["candidate_blueprint"]["questions"]
+            if item["kind"] == "code"
+        ]
+        if mcq_numbers or code_questions:
+            private = conn.execute(
+                text(
+                    f"""SELECT private_rubric, source_sha256
+                        FROM employer_assessment_private_keys
+                        WHERE organization_id={_ORG}
+                          AND assessment_version_id=:assessment"""
+                ), {"assessment": assessment_id},
+            ).mappings().one_or_none()
+            if private is None or private["source_sha256"] != row["content_sha256"]:
+                raise HTTPException(
+                    status_code=409, detail="Approved assessment requires a matching private rubric"
+                )
+            if set(private["private_rubric"].get("mcq_answers", {})) != mcq_numbers:
+                raise HTTPException(
+                    status_code=409, detail="Approved assessment requires complete private MCQ key"
+                )
+            if not _verified_code_fixtures(
+                row["candidate_blueprint"]["questions"],
+                row["content_sha256"],
+                private["private_rubric"],
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Coding questions require reviewed, version-bound private test cases",
+                )
+        updated = conn.execute(
+            text(
+                f"""UPDATE employer_assessment_versions
+                    SET status='published', approved_at=CURRENT_TIMESTAMP
+                    WHERE id=:id AND organization_id={_ORG}
+                    RETURNING id, slug, version, status, duration_minutes,
+                              maximum_marks, candidate_blueprint, content_sha256"""
+            ), {"id": assessment_id},
+        ).mappings().one()
+        audit_event(
+            conn, principal, reviewer, action="assessment.publish",
+            resource_type="employer_assessment", resource_id=str(assessment_id),
+            details=payload.model_dump(),
+        )
+        return _assessment_view(dict(updated))
+
+
+@router.post(
+    "/employer/assessments/{assessment_id}/invitations",
+    response_model=InvitationCreated, status_code=201,
+)
+def create_employer_invitation(
+    assessment_id: UUID, payload: InviteInput, engine: DatabaseEngine, principal: Principal,
+) -> InvitationCreated:
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "recruiter"))
+        assessment = _org_assessment(conn, assessment_id)
+        if assessment["status"] != "published":
+            raise HTTPException(status_code=409, detail="Assessment has not been published")
+        secret = secrets.token_urlsafe(48)
+        digest = hashlib.sha256(secret.encode()).hexdigest()
+        candidate = conn.execute(
+            text("SELECT id FROM users WHERE id=:candidate AND status='active'"),
+            {"candidate": payload.candidate_id},
+        ).scalar_one_or_none()
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="Candidate not registered")
+        row = conn.execute(
+            text(
+                f"""INSERT INTO employer_assessment_invitations
+                       (organization_id, assessment_version_id, candidate_id,
+                        invited_by, token_digest, expires_at)
+                    VALUES ({_ORG}, :assessment, :candidate, {_USER}, :digest,
+                            CURRENT_TIMESTAMP + make_interval(hours => :hours))
+                    RETURNING id, candidate_id, expires_at"""
+            ), {
+                "assessment": assessment_id, "candidate": payload.candidate_id,
+                "digest": digest, "hours": payload.expires_in_hours,
+            },
+        ).mappings().one()
+        actor = conn.execute(text(f"SELECT {_USER}")).scalar_one()
+        audit_event(
+            conn, principal, actor, action="assessment.invite",
+            resource_type="employer_invitation", resource_id=str(row["id"]),
+            details={"candidate_id": str(payload.candidate_id)},
+        )
+        return InvitationCreated(
+            id=row["id"], candidate_id=row["candidate_id"],
+            expires_at=row["expires_at"], acceptance_secret=secret,
+        )
+
+
+def _candidate_attempt(conn: Connection, attempt_id: UUID, *, lock: bool = False) -> dict[str, Any]:
+    row = conn.execute(
+        text(
+            f"""SELECT a.id, a.status, a.started_at, a.deadline_at, a.submitted_at,
+                       a.candidate_id, i.assessment_version_id,
+                       v.candidate_blueprint, v.duration_minutes
+                FROM employer_assessment_attempts a
+                JOIN employer_assessment_invitations i ON i.id=a.invitation_id
+                JOIN employer_assessment_versions v ON v.id=i.assessment_version_id
+                WHERE a.id=:attempt AND a.candidate_id={_USER}
+                {"FOR UPDATE OF a" if lock else ""}"""
+        ), {"attempt": attempt_id},
+    ).mappings().one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Assessment attempt not found")
+    return dict(row)
+
+
+def _attempt_view(conn: Connection, row: dict[str, Any]) -> AttemptView:
+    answers = conn.execute(
+        text(
+            f"""SELECT question_number, answer_text FROM employer_assessment_responses
+                WHERE attempt_id=:attempt AND candidate_id={_USER}"""
+        ), {"attempt": row["id"]},
+    ).all()
+    return AttemptView(
+        id=row["id"], assessment_version_id=row["assessment_version_id"],
+        status=row["status"], started_at=row["started_at"],
+        deadline_at=row["deadline_at"], submitted_at=row["submitted_at"],
+        duration_minutes=row["duration_minutes"],
+        questions=[
+            AssessmentQuestion.model_validate(q)
+            for q in row["candidate_blueprint"]["questions"]
+        ],
+        answers={str(number): text_value for number, text_value in answers},
+    )
+
+
+@router.post("/assessment-invitations/accept", response_model=AttemptView)
+def accept_assessment_invitation(
+    payload: InvitationAccept, engine: DatabaseEngine, principal: Principal,
+) -> AttemptView:
+    digest = hashlib.sha256(payload.acceptance_secret.encode()).hexdigest()
+    with principal_transaction(engine, principal) as conn:
+        row = conn.execute(
+            text(
+                f"""SELECT i.id, i.organization_id, i.assessment_version_id,
+                           i.state, i.expires_at
+                    FROM employer_assessment_invitations i
+                    WHERE i.id=:id AND i.candidate_id={_USER} AND i.token_digest=:digest
+                    FOR UPDATE OF i"""
+            ), {"id": payload.invitation_id, "digest": digest},
+        ).mappings().one_or_none()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Valid invitation not found")
+        if row["state"] != "pending":
+            raise HTTPException(status_code=409, detail="Invitation already used or revoked")
+        if row["expires_at"] <= conn.execute(text("SELECT CURRENT_TIMESTAMP")).scalar_one():
+            raise HTTPException(status_code=410, detail="Invitation has expired")
+        conn.execute(
+            text(
+                "UPDATE employer_assessment_invitations "
+                "SET state='accepted', consumed_at=CURRENT_TIMESTAMP WHERE id=:id"
+            ), {"id": row["id"]},
+        )
+        version = conn.execute(
+            text(
+                """SELECT duration_minutes, status
+                   FROM employer_assessment_versions WHERE id=:assessment"""
+            ),
+            {"assessment": row["assessment_version_id"]},
+        ).mappings().one_or_none()
+        if version is None or version["status"] != "published":
+            raise HTTPException(status_code=409, detail="Assessment is no longer available")
+        attempt = conn.execute(
+            text(
+                f"""INSERT INTO employer_assessment_attempts
+                       (organization_id, invitation_id, candidate_id, status,
+                        started_at, deadline_at)
+                    VALUES (:org, :invitation, {_USER}, 'in_progress',
+                            CURRENT_TIMESTAMP,
+                            CURRENT_TIMESTAMP + make_interval(mins => :minutes))
+                    RETURNING id"""
+            ), {
+                "org": row["organization_id"], "invitation": row["id"],
+                "minutes": version["duration_minutes"],
+            },
+        ).scalar_one()
+        return _attempt_view(conn, _candidate_attempt(conn, attempt))
+
+
+@router.get("/assessment-attempts/{attempt_id}", response_model=AttemptView)
+def get_assessment_attempt(
+    attempt_id: UUID, engine: DatabaseEngine, principal: Principal,
+) -> AttemptView:
+    with principal_transaction(engine, principal) as conn:
+        return _attempt_view(conn, _candidate_attempt(conn, attempt_id))
+
+
+@router.put("/assessment-attempts/{attempt_id}/responses", response_model=AttemptView)
+def save_assessment_response(
+    attempt_id: UUID, payload: ResponseSave, engine: DatabaseEngine, principal: Principal,
+) -> AttemptView:
+    with principal_transaction(engine, principal) as conn:
+        row = _candidate_attempt(conn, attempt_id, lock=True)
+        now = conn.execute(text("SELECT CURRENT_TIMESTAMP")).scalar_one()
+        if row["status"] != "in_progress" or row["deadline_at"] <= now:
+            raise HTTPException(status_code=409, detail="Attempt is no longer accepting responses")
+        if payload.question_number > len(row["candidate_blueprint"]["questions"]):
+            raise HTTPException(status_code=422, detail="Unknown assessment question")
+        conn.execute(
+            text(
+                f"""INSERT INTO employer_assessment_responses
+                       (organization_id, attempt_id, candidate_id, question_number,
+                        answer_text, answer_sha256)
+                    VALUES ((SELECT organization_id FROM employer_assessment_attempts
+                             WHERE id=:attempt), :attempt, {_USER}, :number, :answer, :digest)
+                    ON CONFLICT (attempt_id, question_number)
+                    DO UPDATE SET answer_text=EXCLUDED.answer_text,
+                                  answer_sha256=EXCLUDED.answer_sha256,
+                                  updated_at=CURRENT_TIMESTAMP"""
+            ), {
+                "attempt": attempt_id, "number": payload.question_number,
+                "answer": payload.answer_text,
+                "digest": hashlib.sha256(payload.answer_text.encode()).hexdigest(),
+            },
+        )
+        return _attempt_view(conn, row)
+
+
+@router.post("/assessment-attempts/{attempt_id}/submit", response_model=AttemptView)
+def submit_assessment_attempt(
+    attempt_id: UUID, engine: DatabaseEngine, principal: Principal,
+) -> AttemptView:
+    with principal_transaction(engine, principal) as conn:
+        row = _candidate_attempt(conn, attempt_id, lock=True)
+        if row["status"] not in {"in_progress", "expired", "submitted"}:
+            raise HTTPException(status_code=409, detail="Invalid attempt state")
+        if row["status"] == "in_progress":
+            new_status = (
+                "expired"
+                if row["deadline_at"] <= conn.execute(text("SELECT CURRENT_TIMESTAMP")).scalar_one()
+                else "submitted"
+            )
+            conn.execute(
+                text(
+                    """UPDATE employer_assessment_attempts
+                       SET status=:status, submitted_at=CURRENT_TIMESTAMP
+                       WHERE id=:id"""
+                ), {"status": new_status, "id": attempt_id},
+            )
+        submitted = _candidate_attempt(conn, attempt_id)
+        # Persist one immutable final execution per saved coding answer in the
+        # SAME transaction as submission. Never rely on the browser to
+        # deliver final grading requests after returning this response.
+        enqueue_submitted_code_grades(conn, attempt=submitted)
+        return _attempt_view(conn, submitted)
+
+
+class EmployerAttemptSummary(StrictModel):
+    id: UUID
+    assessment_version_id: UUID
+    candidate_id: UUID
+    status: str
+    started_at: datetime | None
+    deadline_at: datetime | None
+    submitted_at: datetime | None
+
+
+class AnswerSummary(StrictModel):
+    question_number: int
+    answer_text: str
+    updated_at: datetime
+
+
+class EmployerAttemptDetail(StrictModel):
+    attempt: EmployerAttemptSummary
+    questions: list[AssessmentQuestion]
+    answers: list[AnswerSummary]
+    maximum_marks: int
+    content_sha256: str
+
+
+class QuestionHumanScore(StrictModel):
+    question_number: int = Field(ge=1, le=100)
+    awarded_marks: int = Field(ge=0, le=100)
+    evidence_note: str = Field(min_length=10, max_length=2_000)
+
+
+class SubmitHumanReview(StrictModel):
+    scores: list[QuestionHumanScore] = Field(min_length=1, max_length=100)
+    overall_notes: str = Field(min_length=15, max_length=4_000)
+
+    @model_validator(mode="after")
+    def unique_review_items(self) -> SubmitHumanReview:
+        numbers = [score.question_number for score in self.scores]
+        if len(numbers) != len(set(numbers)):
+            raise ValueError("Each question may be scored once")
+        return self
+
+
+class SubmittedHumanReview(StrictModel):
+    review_id: UUID
+    attempt_id: UUID
+    reviewer_id: UUID
+    status: Literal["submitted"]
+    awarded_marks: int
+    maximum_marks: int
+    hiring_decision: None = None
+
+
+def _employer_attempt(conn: Connection, attempt_id: UUID) -> dict[str, Any]:
+    row = conn.execute(
+        text(
+            f"""SELECT a.id, a.status, a.candidate_id, a.started_at,
+                       a.deadline_at, a.submitted_at, v.candidate_blueprint,
+                       v.content_sha256, v.maximum_marks, i.assessment_version_id
+                FROM employer_assessment_attempts a
+                JOIN employer_assessment_invitations i
+                  ON i.id=a.invitation_id AND i.organization_id=a.organization_id
+                JOIN employer_assessment_versions v
+                  ON v.id=i.assessment_version_id
+                 AND v.organization_id=i.organization_id
+                WHERE a.id=:attempt AND a.organization_id={_ORG}"""
+        ), {"attempt": attempt_id},
+    ).mappings().one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Employer assessment attempt not found")
+    return dict(row)
+
+
+def _employer_attempt_summary(row: dict[str, Any]) -> EmployerAttemptSummary:
+    return EmployerAttemptSummary(
+        id=row["id"], assessment_version_id=row["assessment_version_id"],
+        candidate_id=row["candidate_id"], status=row["status"],
+        started_at=row["started_at"], deadline_at=row["deadline_at"],
+        submitted_at=row["submitted_at"],
+    )
+
+
+@router.get(
+    "/employer/assessments/{assessment_id}/attempts",
+    response_model=list[EmployerAttemptSummary],
+)
+def list_employer_assessment_attempts(
+    assessment_id: UUID, engine: DatabaseEngine, principal: Principal,
+) -> list[EmployerAttemptSummary]:
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "recruiter", "reviewer", "interviewer"))
+        _org_assessment(conn, assessment_id)
+        rows = conn.execute(
+            text(
+                f"""SELECT a.id, a.status, a.candidate_id, a.started_at,
+                           a.deadline_at, a.submitted_at, i.assessment_version_id
+                    FROM employer_assessment_attempts a
+                    JOIN employer_assessment_invitations i ON i.id=a.invitation_id
+                    WHERE a.organization_id={_ORG}
+                      AND i.assessment_version_id=:assessment
+                    ORDER BY a.created_at DESC LIMIT 200"""
+            ), {"assessment": assessment_id},
+        ).mappings().all()
+        return [_employer_attempt_summary(dict(row)) for row in rows]
+
+
+@router.get("/employer/attempts/{attempt_id}", response_model=EmployerAttemptDetail)
+def get_employer_assessment_attempt(
+    attempt_id: UUID, engine: DatabaseEngine, principal: Principal,
+) -> EmployerAttemptDetail:
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "reviewer", "interviewer"))
+        row = _employer_attempt(conn, attempt_id)
+        if row["status"] != "submitted":
+            raise HTTPException(
+                status_code=409,
+                detail="Candidate answers are unavailable until the assessment is submitted",
+            )
+        answer_rows = conn.execute(
+            text(
+                f"""SELECT question_number, answer_text, updated_at
+                    FROM employer_assessment_responses
+                    WHERE attempt_id=:attempt AND organization_id={_ORG}
+                    ORDER BY question_number"""
+            ), {"attempt": attempt_id},
+        ).mappings().all()
+        return EmployerAttemptDetail(
+            attempt=_employer_attempt_summary(row),
+            questions=[
+                AssessmentQuestion.model_validate(q)
+                for q in row["candidate_blueprint"]["questions"]
+            ],
+            answers=[AnswerSummary.model_validate(dict(a)) for a in answer_rows],
+            maximum_marks=row["maximum_marks"],
+            content_sha256=row["content_sha256"],
+        )
+
+
+@router.post(
+    "/employer/attempts/{attempt_id}/reviews",
+    response_model=SubmittedHumanReview,
+    status_code=201,
+)
+def submit_employer_human_review(
+    attempt_id: UUID, payload: SubmitHumanReview,
+    engine: DatabaseEngine, principal: Principal,
+) -> SubmittedHumanReview:
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "reviewer"))
+        row = _employer_attempt(conn, attempt_id)
+        reviewer = conn.execute(text(f"SELECT {_USER}")).scalar_one()
+        if reviewer == row["candidate_id"]:
+            raise HTTPException(status_code=403, detail="Self-review is not permitted")
+        if row["status"] != "submitted":
+            raise HTTPException(status_code=409, detail="Only submitted attempts may be reviewed")
+        pending_final_codes = conn.execute(
+            text(
+                f"""SELECT count(*)
+                    FROM employer_code_executions
+                    WHERE attempt_id=:attempt AND organization_id={_ORG}
+                      AND execution_mode='SUBMIT'
+                      AND status IN ('queued','dispatching','running')"""
+            ),
+            {"attempt": attempt_id},
+        ).scalar_one()
+        if pending_final_codes:
+            raise HTTPException(
+                status_code=409,
+                detail="Final isolated code grading must finish before signing a human review",
+            )
+        questions = row["candidate_blueprint"]["questions"]
+        allowed = {int(q["number"]): int(q["marks"]) for q in questions}
+        given = {score.question_number: score for score in payload.scores}
+        if set(given) != set(allowed):
+            raise HTTPException(status_code=422, detail="A score is required for every question")
+        if any(
+            score.awarded_marks > allowed[score.question_number]
+            for score in payload.scores
+        ):
+            raise HTTPException(status_code=422, detail="Score exceeds question maximum")
+        total = sum(item.awarded_marks for item in payload.scores)
+        evidence = {
+            "source_content_sha256": row["content_sha256"],
+            "scorer": "human-reviewer-v1",
+            "scores": [item.model_dump() for item in payload.scores],
+            "overall_notes": payload.overall_notes,
+            "awarded_marks": total,
+            "maximum_marks": row["maximum_marks"],
+            "hiring_decision": None,
+        }
+        record = conn.execute(
+            text(
+                f"""INSERT INTO employer_assessment_reviews
+                       (organization_id, attempt_id, candidate_id, reviewer_id,
+                        status, evidence)
+                    VALUES ({_ORG}, :attempt, :candidate, {_USER}, 'submitted',
+                            CAST(:evidence AS jsonb))
+                    ON CONFLICT (attempt_id, reviewer_id) DO NOTHING
+                    RETURNING id"""
+            ), {
+                "attempt": attempt_id, "candidate": row["candidate_id"],
+                "evidence": json.dumps(evidence, separators=(",", ":")),
+            },
+        ).scalar_one_or_none()
+        if record is None:
+            raise HTTPException(status_code=409, detail="Reviewer already submitted evidence")
+        audit_event(
+            conn, principal, reviewer, action="assessment.human_review",
+            resource_type="employer_assessment_review", resource_id=str(record),
+            details={
+                "attempt_id": str(attempt_id),
+                "source_hash": row["content_sha256"],
+                "total_awarded": total,
+            },
+        )
+        return SubmittedHumanReview(
+            review_id=record, attempt_id=attempt_id, reviewer_id=reviewer,
+            status="submitted", awarded_marks=total,
+            maximum_marks=row["maximum_marks"],
+        )
+
+
+
+class EmployerInvitationView(StrictModel):
+    id: UUID
+    assessment_version_id: UUID
+    candidate_id: UUID
+    state: str
+    expires_at: datetime
+    consumed_at: datetime | None
+    created_at: datetime
+
+
+@router.get(
+    "/employer/assessments/{assessment_id}/invitations",
+    response_model=list[EmployerInvitationView],
+)
+def list_employer_invitations(
+    assessment_id: UUID, engine: DatabaseEngine, principal: Principal,
+) -> list[EmployerInvitationView]:
+    """Show invitation status without ever returning token digests or secrets."""
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "recruiter"))
+        _org_assessment(conn, assessment_id)
+        rows = conn.execute(
+            text(
+                f"""SELECT id, assessment_version_id, candidate_id,
+                           state, expires_at, consumed_at, created_at
+                    FROM employer_assessment_invitations
+                    WHERE organization_id={_ORG}
+                      AND assessment_version_id=:assessment
+                    ORDER BY created_at DESC LIMIT 200"""
+            ),
+            {"assessment": assessment_id},
+        ).mappings().all()
+        return [EmployerInvitationView.model_validate(dict(row)) for row in rows]
+
+
+@router.post(
+    "/employer/invitations/{invitation_id}/revoke",
+    response_model=EmployerInvitationView,
+)
+def revoke_employer_invitation(
+    invitation_id: UUID, engine: DatabaseEngine, principal: Principal,
+) -> EmployerInvitationView:
+    """Revoke a pending invitation atomically; never invalidate active work."""
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "recruiter"))
+        existing = conn.execute(
+            text(
+                f"""SELECT state FROM employer_assessment_invitations
+                    WHERE id=:id AND organization_id={_ORG} FOR UPDATE"""
+            ),
+            {"id": invitation_id},
+        ).scalar_one_or_none()
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Invitation not found")
+        if existing != "pending":
+            raise HTTPException(
+                status_code=409,
+                detail="Only pending invitations can be revoked",
+            )
+        row = conn.execute(
+            text(
+                f"""UPDATE employer_assessment_invitations
+                    SET state='revoked'
+                    WHERE id=:id AND organization_id={_ORG} AND state='pending'
+                    RETURNING id, assessment_version_id, candidate_id, state,
+                              expires_at, consumed_at, created_at"""
+            ),
+            {"id": invitation_id},
+        ).mappings().one()
+        actor = conn.execute(text(f"SELECT {_USER}")).scalar_one()
+        audit_event(
+            conn, principal, actor, action="assessment.invitation_revoke",
+            resource_type="employer_invitation", resource_id=str(invitation_id),
+            details={"candidate_id": str(row["candidate_id"])},
+        )
+        return EmployerInvitationView.model_validate(dict(row))
+
+
+
+class PrivateAssessmentKeyInput(StrictModel):
+    """Confidential rubric; never serialize in a candidate view or event audit."""
+    mcq_answers: dict[int, Literal["A", "B", "C", "D"]]
+    reviewer_guidance: str = Field(min_length=10, max_length=20_000)
+
+
+class PrivateAssessmentKeyView(StrictModel):
+    assessment_version_id: UUID
+    source_sha256: str
+    mcq_answers: dict[int, Literal["A", "B", "C", "D"]]
+    reviewer_guidance: str
+
+
+@router.put(
+    "/employer/assessments/{assessment_id}/private-key",
+    response_model=PrivateAssessmentKeyView,
+)
+def save_employer_private_key(
+    assessment_id: UUID,
+    payload: PrivateAssessmentKeyInput,
+    engine: DatabaseEngine,
+    principal: Principal,
+) -> PrivateAssessmentKeyView:
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin"))
+        assessment = _org_assessment(conn, assessment_id, lock=True)
+        if assessment["status"] != "review_required":
+            raise HTTPException(status_code=409, detail="Cannot change a published rubric")
+        expected = {
+            int(q["number"]) for q in assessment["candidate_blueprint"]["questions"]
+            if q["kind"] == "multiple_choice"
+        }
+        if set(payload.mcq_answers) != expected:
+            raise HTTPException(
+                status_code=422,
+                detail="Answer key must cover exactly the assessment's MCQ questions",
+            )
+        private_rubric = {
+            "mcq_answers": {str(k): v for k, v in payload.mcq_answers.items()},
+            "reviewer_guidance": payload.reviewer_guidance,
+        }
+        conn.execute(
+            text(
+                f"""INSERT INTO employer_assessment_private_keys
+                       (assessment_version_id, organization_id, private_rubric, source_sha256)
+                    VALUES (:assessment, {_ORG}, CAST(:rubric AS jsonb), :source_sha256)
+                    ON CONFLICT (assessment_version_id) DO UPDATE
+                    SET private_rubric=employer_assessment_private_keys.private_rubric
+                                           || EXCLUDED.private_rubric,
+                        source_sha256=EXCLUDED.source_sha256"""
+            ),
+            {
+                "assessment": assessment_id,
+                "rubric": json.dumps(private_rubric, separators=(",", ":")),
+                "source_sha256": assessment["content_sha256"],
+            },
+        )
+        actor = conn.execute(text(f"SELECT {_USER}")).scalar_one()
+        audit_event(
+            conn, principal, actor, action="assessment.private_key_save",
+            resource_type="employer_assessment", resource_id=str(assessment_id),
+            details={
+                "source_sha256": assessment["content_sha256"],
+                "question_count": len(expected),
+            },
+        )
+        return PrivateAssessmentKeyView(
+            assessment_version_id=assessment_id,
+            source_sha256=assessment["content_sha256"],
+            mcq_answers=payload.mcq_answers,
+            reviewer_guidance=payload.reviewer_guidance,
+        )
+
+
+@router.get(
+    "/employer/assessments/{assessment_id}/private-key",
+    response_model=PrivateAssessmentKeyView,
+)
+def review_employer_private_key(
+    assessment_id: UUID, engine: DatabaseEngine, principal: Principal,
+) -> PrivateAssessmentKeyView:
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "reviewer"))
+        assessment = _org_assessment(conn, assessment_id)
+        row = conn.execute(
+            text(
+                f"""SELECT private_rubric, source_sha256
+                    FROM employer_assessment_private_keys
+                    WHERE assessment_version_id=:assessment AND organization_id={_ORG}"""
+            ), {"assessment": assessment_id},
+        ).mappings().one_or_none()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Private assessment key unavailable")
+        if row["source_sha256"] != assessment["content_sha256"]:
+            raise HTTPException(
+                status_code=409, detail="Confidential key does not match this version"
+            )
+        return PrivateAssessmentKeyView(
+            assessment_version_id=assessment_id,
+            source_sha256=row["source_sha256"],
+            mcq_answers={int(k): v for k, v in row["private_rubric"]["mcq_answers"].items()},
+            reviewer_guidance=row["private_rubric"]["reviewer_guidance"],
+        )
+
+
+class ProvisionalMCQScore(StrictModel):
+    assessment_attempt_id: UUID
+    source_sha256: str
+    mcq_awarded_marks: int = Field(ge=0)
+    mcq_maximum_marks: int = Field(ge=0)
+    human_review_pending_marks: int = Field(ge=0)
+    scoring_status: Literal["provisional_mcq_only"] = "provisional_mcq_only"
+    hiring_decision: None = None
+
+
+@router.get(
+    "/employer/attempts/{attempt_id}/provisional-mcq-score",
+    response_model=ProvisionalMCQScore,
+)
+def employer_provisional_mcq_score(
+    attempt_id: UUID, engine: DatabaseEngine, principal: Principal,
+) -> ProvisionalMCQScore:
+    """Only authorized reviewers receive provisional objective scoring.
+
+    The score never constitutes a final hiring decision. Written, code and human
+    interview tasks remain unrated until independently reviewed.
+    """
+    with principal_transaction(engine, principal) as conn:
+        _member(conn, principal, ("owner", "admin", "reviewer"))
+        attempt = _employer_attempt(conn, attempt_id)
+        if attempt["status"] != "submitted":
+            raise HTTPException(status_code=409, detail="Candidate has not submitted")
+        rubric = conn.execute(
+            text(
+                f"""SELECT private_rubric, source_sha256
+                    FROM employer_assessment_private_keys
+                    WHERE organization_id={_ORG} AND assessment_version_id=:assessment"""
+            ),
+            {"assessment": attempt["assessment_version_id"]},
+        ).mappings().one_or_none()
+        if rubric is None or rubric["source_sha256"] != attempt["content_sha256"]:
+            raise HTTPException(status_code=409, detail="Approved private key unavailable")
+        expected = rubric["private_rubric"]["mcq_answers"]
+        mcq_questions = [
+            item for item in attempt["candidate_blueprint"]["questions"]
+            if item["kind"] == "multiple_choice"
+        ]
+        if {str(q["number"]) for q in mcq_questions} != set(expected):
+            raise HTTPException(status_code=409, detail="Private MCQ key coverage invalid")
+        answer_rows = conn.execute(
+            text(
+                f"""SELECT question_number, answer_text
+                    FROM employer_assessment_responses
+                    WHERE attempt_id=:attempt AND organization_id={_ORG}"""
+            ),
+            {"attempt": attempt_id},
+        ).mappings().all()
+        answers: dict[int, str] = {
+            int(record["question_number"]): str(record["answer_text"])
+            for record in answer_rows
+        }
+        mcq_max = sum(int(q["marks"]) for q in mcq_questions)
+        earned = sum(
+            int(q["marks"]) for q in mcq_questions
+            if str(answers.get(int(q["number"]), "")).strip().upper()
+            == expected[str(q["number"])]
+        )
+        return ProvisionalMCQScore(
+            assessment_attempt_id=attempt_id,
+            source_sha256=attempt["content_sha256"],
+            mcq_awarded_marks=earned,
+            mcq_maximum_marks=mcq_max,
+            human_review_pending_marks=attempt["maximum_marks"] - mcq_max,
+        )
+
+
+
+@router.get("/assessment-attempts", response_model=list[AttemptView])
+def list_candidate_assessment_attempts(
+    engine: DatabaseEngine, principal: Principal,
+) -> list[AttemptView]:
+    """Recover candidate-owned sessions on another device without replaying tokens."""
+    with principal_transaction(engine, principal) as conn:
+        rows = conn.execute(
+            text(
+                f"""SELECT id FROM employer_assessment_attempts
+                    WHERE candidate_id={_USER}
+                    ORDER BY created_at DESC LIMIT 30"""
+            )
+        ).scalars().all()
+        return [
+            _attempt_view(conn, _candidate_attempt(conn, UUID(str(attempt_id))))
+            for attempt_id in rows
+        ]

@@ -45,3 +45,15 @@ variable "clerk_jwks_url" {
 variable "jwt_audience" {
   type = string
 }
+
+variable "web_domain" {
+  type = string
+}
+
+variable "web_image" {
+  type = string
+}
+
+variable "clerk_publishable_key" {
+  type = string
+}

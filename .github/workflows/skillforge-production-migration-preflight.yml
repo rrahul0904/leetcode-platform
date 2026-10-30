@@ -66,7 +66,11 @@ jobs:
         run: |
           set -euo pipefail
           uv run alembic upgrade head
-          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260918_0021"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "$(uv run alembic heads | awk 'NR == 1 {print $1}')"
+          for employer_table in employer_code_executions employer_code_execution_outbox; do
+            test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.$employer_table') IS NOT NULL")" = "t"
+            test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='$employer_table'::regclass")" = "t"
+          done
 
       - name: Verify legacy data and new production schema survived
         run: |
@@ -99,6 +103,11 @@ jobs:
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='ai_arena_generations'::regclass")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='ai_arena_results'::regclass")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='ai_arena_rate_limits'::regclass")" = "t"
+          # Employer interview schema is additive and must preserve forced RLS.
+          for table in employer_assessment_versions employer_assessment_private_keys employer_assessment_invitations employer_assessment_attempts employer_assessment_responses employer_assessment_reviews employer_ai_interview_sessions employer_ai_interview_messages; do
+            test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.$table') IS NOT NULL")" = "t"
+            test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='$table'::regclass")" = "t"
+          done
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT status::text FROM users WHERE identity_subject='production-migration-canary'")" = "active"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT auth_provider FROM users WHERE identity_subject='production-migration-canary'")" = "local-oidc"
 

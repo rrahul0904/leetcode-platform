@@ -48,9 +48,8 @@ export default function InterviewsScreen() {
       .then(([templateItems, sessions]) => {
         setTemplates(templateItems);
         setHistory(sessions);
-        if (templateItems.length > 0) {
-          setSelectedFocus(templateItems[0].slug);
-        }
+        const firstTemplate = templateItems[0];
+        if (firstTemplate) setSelectedFocus(firstTemplate.slug);
       })
       .catch((cause) => {
         if (!controller.signal.aborted) {

@@ -5,6 +5,7 @@ on:
     paths:
       - "apps/web/**"
       - "scripts/verify-launch-browser.mjs"
+      - "scripts/launch-browser-api-stub.mjs"
       - ".github/workflows/launch-browser-uat.yml"
   push:
     branches:
@@ -47,9 +48,12 @@ jobs:
         env:
           NEXT_PUBLIC_RIGOR_AUTH_MODE: local
           NEXT_PUBLIC_RIGOR_API_URL: /api/backend
+          RIGOR_BACKEND_ORIGIN: http://127.0.0.1:8765
         shell: bash
         run: |
           set -euo pipefail
+          node scripts/launch-browser-api-stub.mjs >/tmp/launch-api-stub.log 2>&1 &
+          echo "$!" > /tmp/launch-api-stub.pid
           pnpm --filter @rigor/web dev >/tmp/launch-web.log 2>&1 &
           echo "$!" > /tmp/launch-web.pid
 
@@ -60,7 +64,9 @@ jobs:
 
       - name: Show development server log on failure
         if: failure()
-        run: cat /tmp/launch-web.log || true
+        run: |
+          cat /tmp/launch-web.log || true
+          cat /tmp/launch-api-stub.log || true
 
       - name: Stop web app
         if: always()
@@ -68,4 +74,7 @@ jobs:
         run: |
           if [ -f /tmp/launch-web.pid ]; then
             kill "$(cat /tmp/launch-web.pid)" 2>/dev/null || true
+          fi
+          if [ -f /tmp/launch-api-stub.pid ]; then
+            kill "$(cat /tmp/launch-api-stub.pid)" 2>/dev/null || true
           fi

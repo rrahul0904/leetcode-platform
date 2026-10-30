@@ -32,3 +32,15 @@ output "upload_bucket" {
 output "ecs_cluster" {
   value = module.application.cluster_name
 }
+
+output "web_domain" {
+  value = var.web_domain
+}
+
+output "web_service_name" {
+  value = module.web.service_name
+}
+
+output "web_alb_dns_name" {
+  value = module.web.alb_dns_name
+}

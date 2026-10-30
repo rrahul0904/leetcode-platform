@@ -17,7 +17,7 @@ This initial matrix covers direct dependencies selected for the first vertical s
 | alembic | 1.18.5 | Python 3.13 | MIT | migrations | clean upgrade/downgrade/upgrade passed |
 | psycopg | 3.3.4 | Python 3.13 | LGPL-3.0 | PostgreSQL driver | connection, migration, and seed passed |
 | pgvector | 0.5.0 | Python 3.13 | MIT | PostgreSQL vector type integration | resolver verified; migration test pending |
-| temporalio | 1.30.0 | Python 3.13 | MIT | durable workflows | resolver verified; import pending |
+| temporalio | deferred | Python 3.13 | MIT | durable workflows | No runtime import; removed from production API image until a workflow is implemented and security reviewed |
 | opentelemetry-sdk | 1.44.0 | Python 3.13 | Apache-2.0 | telemetry | resolver verified; import pending |
 | httpx2 | 2.7.0 | Python 3.13 | BSD-3-Clause | Starlette/FastAPI contract tests | required by installed TestClient; resolver verified |
 

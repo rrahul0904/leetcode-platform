@@ -10,6 +10,14 @@ CONTROLLER = ROOT / "infra" / "kubernetes" / "execution-controller.yaml"
 STAGING_DEPLOY_SCRIPT = ROOT / "scripts" / "deploy_execution_staging.sh"
 
 
+def test_staging_deploy_wires_separate_employer_queue_and_controller() -> None:
+    script = STAGING_DEPLOY_SCRIPT.read_text(encoding="utf-8")
+    assert "RIGOR_EMPLOYER_EXECUTION_QUEUE_URL" in script
+    assert 'employer-queue-url=${RIGOR_EMPLOYER_EXECUTION_QUEUE_URL}' in script
+    assert 'apply -f "${rendered_employer_controller}"' in script
+    assert "deployment/employer-code-controller --timeout=180s" in script
+
+
 def test_execution_boundary_declares_runsc_and_default_deny() -> None:
     manifest = BOUNDARY.read_text(encoding="utf-8")
 
@@ -61,6 +69,7 @@ def test_staging_deploy_rejects_namespace_without_managed_default_deny() -> None
             "AWS_REGION": "us-east-1",
             "RIGOR_STAGING_EKS_CLUSTER": "test-cluster",
             "RIGOR_EXECUTION_QUEUE_URL": "https://sqs.us-east-1.amazonaws.com/123456789012/test",
+            "RIGOR_EMPLOYER_EXECUTION_QUEUE_URL": "https://sqs.us-east-1.amazonaws.com/123456789012/employer",
             "RIGOR_STAGING_DATABASE_EXECUTOR_SECRET_ID": "test-secret",
             "RIGOR_EXECUTION_CONTROLLER_IMAGE": "controller@test@sha256:" + "a" * 64,
             "RIGOR_PYTHON_RUNNER_IMAGE": "python@test@sha256:" + "b" * 64,

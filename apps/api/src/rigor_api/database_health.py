@@ -13,7 +13,7 @@ from .execution_routes import (
 )
 from .schemas import ReadinessCheck, ReadinessResponse
 
-EXPECTED_MIGRATION_VERSION = "20260918_0021"
+EXPECTED_MIGRATION_VERSION = "20261029_0027"
 REQUIRED_TABLES = (
     "users",
     "user_roles",
@@ -70,6 +70,16 @@ REQUIRED_TABLES = (
     "ai_arena_rate_limits",
     "ai_arena_generations",
     "ai_arena_results",
+    "employer_assessment_versions",
+    "employer_assessment_private_keys",
+    "employer_assessment_invitations",
+    "employer_assessment_attempts",
+    "employer_assessment_responses",
+    "employer_assessment_reviews",
+    "employer_ai_interview_sessions",
+    "employer_ai_interview_messages",
+    "employer_code_executions",
+    "employer_code_execution_outbox",
 )
 EXECUTION_ADAPTERS = {
     "LOCAL_FUNCTIONAL",

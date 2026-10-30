@@ -1,5 +1,7 @@
 # Implementation Progress
 
+> **Current update, 2026-10-29:** The July table below is a historical local snapshot. The current draft employer implementation and AWS release status are tracked in [the master implementation status](docs/platform/SKILLFORGE_MASTER_IMPLEMENTATION_STATUS.md), [capability evidence matrix](docs/platform/FEATURE_PARITY_AND_EVIDENCE.md), [release blockers](docs/platform/RELEASE_BLOCKERS.md), and [AWS launch acceptance](docs/platform/SKILLFORGE_LAUNCH_ACCEPTANCE.md). PR #70 remains draft and all ten AWS gates remain blocked. Do not use the July counts or migration head as current production evidence.
+
 Verified: 2026-07-21
 
 This ledger reports executable behavior, not planned scope. The 1,350-item manifest is the launch-foundation benchmark; the platform has no final question-count ceiling.

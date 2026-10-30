@@ -119,6 +119,22 @@ resource "aws_iam_role_policy" "execution_controller_consume" {
   policy = module.execution_queue.consumer_policy_json
 }
 
+resource "aws_iam_role_policy" "employer_execution_publish" {
+  count = var.enable_execution_staging_infrastructure ? 1 : 0
+
+  name   = "employer-execution-publish"
+  role   = aws_iam_role.execution_controller[0].id
+  policy = module.employer_execution_queue.publisher_policy_json
+}
+
+resource "aws_iam_role_policy" "employer_execution_consume" {
+  count = var.enable_execution_staging_infrastructure ? 1 : 0
+
+  name   = "employer-execution-consume"
+  role   = aws_iam_role.execution_controller[0].id
+  policy = module.employer_execution_queue.consumer_policy_json
+}
+
 resource "aws_eks_pod_identity_association" "execution_controller" {
   count = var.enable_execution_staging_infrastructure ? 1 : 0
 
@@ -130,5 +146,7 @@ resource "aws_eks_pod_identity_association" "execution_controller" {
   depends_on = [
     aws_iam_role_policy.execution_controller_publish,
     aws_iam_role_policy.execution_controller_consume,
+    aws_iam_role_policy.employer_execution_publish,
+    aws_iam_role_policy.employer_execution_consume,
   ]
 }

@@ -178,6 +178,8 @@ jobs:
           cache: pnpm
       - name: Install locked JavaScript workspace
         run: pnpm install --frozen-lockfile
+      - name: Verify Expo CLI still parses the mobile app after Zod security override
+        run: pnpm --filter @rigor/mobile exec expo config --json > /tmp/skillforge-expo-config.json
       - name: Lint
         run: pnpm --filter @rigor/web lint
       - name: Typecheck
@@ -217,7 +219,11 @@ jobs:
         run: uv run alembic upgrade head
       - name: Verify execution, knowledge, SaaS, tutor, mock interview, PR review, and AI Arena schemas
         run: |
-          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "20260918_0021"
+          test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT version_num FROM alembic_version")" = "$(uv run alembic heads | awk 'NR == 1 {print $1}')"
+          for employer_table in employer_code_executions employer_code_execution_outbox; do
+            test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.$employer_table') IS NOT NULL")" = "t"
+            test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='$employer_table'::regclass")" = "t"
+          done
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_outbox') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_payloads') IS NOT NULL")" = "t"
           test "$(docker compose exec -T postgres psql -U rigor -d rigor -tAc "SELECT to_regclass('public.execution_public_results') IS NOT NULL")" = "t"

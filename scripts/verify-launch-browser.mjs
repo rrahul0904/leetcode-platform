@@ -9,6 +9,7 @@ const webdriverElementKey = "element-6066-11e4-a52e-4f735466cecf";
 
 const launchRoutes = [
   "/question-bank",
+  "/assessments",
   "/companies",
   "/design-lab",
   "/pr-review",
@@ -17,6 +18,9 @@ const launchRoutes = [
   "/learning-paths",
   "/attempts",
   "/progress",
+  "/employer",
+  "/employer/assessments",
+  "/employer/reviews",
 ];
 
 function sleep(milliseconds) {
@@ -62,6 +66,10 @@ function chromeDriverCommand() {
 
 const browserApiStub = String.raw`
 (() => {
+  // Test-only deterministic session bootstrap before React hydration.
+  // Rehydration across full-page WebDriver navigations must not depend on
+  // whether a previous page finished asynchronously validating its token.
+  window.localStorage.setItem('rigor.auth.access-token', 'launch-smoke-token');
   const originalFetch = window.fetch.bind(window);
   const json = (value, status = 200) =>
     new Response(JSON.stringify(value), {
@@ -70,7 +78,12 @@ const browserApiStub = String.raw`
     });
 
   window.fetch = async (input, init = {}) => {
-    const url = typeof input === "string" ? input : input.url;
+    const url = typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : input?.url;
+    if (typeof url !== "string") return originalFetch(input, init);
 
     if (url.endsWith("/api/v1/auth/me")) {
       return json({

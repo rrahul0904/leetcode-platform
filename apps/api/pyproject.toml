@@ -17,7 +17,6 @@ dependencies = [
   "rigor-question-schema",
   "sqlalchemy==2.0.51",
   "structlog==26.1.0",
-  "temporalio==1.30.0",
   "uvicorn==0.51.0",
   "python-multipart==0.0.30",
 ]

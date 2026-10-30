@@ -1,0 +1,66 @@
+name: Verify Non-Vercel Web Container
+
+on:
+  pull_request:
+    paths:
+      - "infra/docker/web.Dockerfile"
+      - "apps/web/**"
+      - "packages/api-client/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/deploy-ecs-web.yml"
+      - ".github/workflows/verify-self-hosted-web.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build standalone web image and scan for critical vulnerabilities
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build self-hosted web image
+        run: |
+          set -euo pipefail
+          docker build --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt \
+            --build-arg NEXT_PUBLIC_RIGOR_AUTH_MODE=clerk \
+            --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k \
+            --build-arg NEXT_PUBLIC_RIGOR_API_URL=/api/backend \
+            -f infra/docker/web.Dockerfile -t skillforge-selfhosted-web:verify .
+
+      - name: Boot nonroot production runtime and verify public routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach --rm --read-only --name skillforge-web-smoke \
+            --publish 127.0.0.1:3001:3001 \
+            --env RIGOR_BACKEND_ORIGIN=https://api.example.invalid \
+            --env NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k \
+            --env CLERK_SECRET_KEY=sk_test_dummy_ci_runtime_only_not_valid_credentials \
+            skillforge-selfhosted-web:verify
+          trap 'docker logs skillforge-web-smoke || true; docker rm --force skillforge-web-smoke || true' EXIT
+          ready=0
+          for _ in $(seq 1 45); do
+            if curl --fail --silent --show-error --max-time 3 \
+              http://127.0.0.1:3001/ >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1
+          curl --fail --silent --show-error --max-time 10 \
+            http://127.0.0.1:3001/sign-in >/dev/null
+
+      - name: Scan immutable image for HIGH and CRITICAL findings
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: skillforge-selfhosted-web:verify
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: false

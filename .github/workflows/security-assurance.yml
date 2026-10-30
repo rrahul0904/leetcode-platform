@@ -107,7 +107,9 @@ jobs:
             apps/api/tests/test_readiness_isolation.py \
             apps/api/tests/test_sandbox_jobs.py \
             apps/api/tests/test_execution_network_policy_source.py \
-            apps/api/tests/test_execution_contract_regressions.py
+            apps/api/tests/test_execution_contract_regressions.py \
+            apps/api/tests/test_employer_assessments.py \
+            apps/api/tests/test_employer_organizations.py
 
       - name: Retain security regression evidence
         if: always()

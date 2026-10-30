@@ -208,6 +208,13 @@ def sandbox_request(package: DispatchPackage) -> dict[str, object]:
     }
     if package.language == "python":
         request_payload["entrypoint"] = str(package.input_payload.get("entrypoint") or "solve")
+        mode = package.input_payload.get("invocation_mode", "auto")
+        if mode not in {
+            "auto", "keyword_arguments", "positional_arguments",
+            "single_payload", "no_arguments",
+        }:
+            raise TrustedResultError("Unsupported trusted Python invocation mode.")
+        request_payload["invocation_mode"] = mode
         return request_payload
     if package.language == "sql":
         schema_sql = package.input_payload.get("schema_sql")

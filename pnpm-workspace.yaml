@@ -15,6 +15,7 @@ onlyBuiltDependencies:
   - "unrs-resolver"
 
 overrides:
+  "decode-uri-component@<0.5.1": 0.5.1
   "nanoid@<3.3.18": 3.3.19
   "brace-expansion@1.1.16": 1.1.20
   "brace-expansion@2.1.2": 2.1.6
@@ -26,3 +27,5 @@ overrides:
   "sharp@0.35.4": 0.35.5
   "shell-quote@1.10.0": 1.11.0
   "source-map-js@1.2.1": 1.2.2
+  "eslint-plugin-react-hooks>zod": 4.6.7
+  "@expo/cli>zod": 4.6.7
