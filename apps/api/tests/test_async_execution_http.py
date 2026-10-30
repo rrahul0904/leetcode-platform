@@ -472,6 +472,7 @@ def test_cross_candidate_execution_is_hidden_by_app_role_rls(monkeypatch) -> Non
         )
         assert submission.status_code == 202
         execution_id = submission.json()["execution_id"]
+        submission_id = submission.json()["submission_id"]
 
         with fixture_engine.begin() as admin:
             admin.execute(
@@ -546,15 +547,21 @@ def test_cross_candidate_execution_is_hidden_by_app_role_rls(monkeypatch) -> Non
                         {"id": execution_id},
                     ).scalar_one(),
                 }
-                assert connection.execute(
+                submission_select_granted = connection.execute(
                     text("SELECT has_table_privilege(current_user, 'submissions', 'SELECT')")
-                ).scalar_one() is False
+                ).scalar_one()
+                if submission_select_granted:
+                    counts["submission"] = connection.execute(
+                        text("SELECT count(*) FROM submissions WHERE id=:id"),
+                        {"id": submission_id},
+                    ).scalar_one()
             assert counts == {
                 "execution": 0,
                 "payload": 0,
                 "events": 0,
                 "outbox": 0,
                 "result": 0,
+                **({"submission": 0} if submission_select_granted else {}),
             }
         finally:
             app_role_engine.dispose()
