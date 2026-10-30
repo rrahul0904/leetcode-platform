@@ -43,6 +43,8 @@ Typed Python and SQL bundle validation, private version-bound fixtures, candidat
 
 The candidate Run endpoint and page now require a default-off server capability; hosted enablement requires the isolated adapter and employer queue configuration. The selected employer organization ID is kept in browser tab memory and any older local-storage copy is removed. The fixed `decode-uri-component` override addresses the high-severity repository scan finding, while the production migration contract now names `20261029_0027`. On a clean, seeded local PostgreSQL 18 fixture, the full Python suite passed 346 tests with one skip; web tests passed 133 tests. These are local checks, pending exact-head GitHub CI and live AWS replay.
 
+The execution-controller image scan later found fixed Rust `zip` vulnerabilities inside the bundled `temporalio` wheel. No application or worker imports Temporal, so the unused package and its transitive Rust wheel were removed from the API runtime lockfile. The next exact-head image scan must confirm remediation before claiming CI success.
+
 ## Open architectural and security findings
 
 - `organizations` and `organization_memberships` were created without forced RLS. Application routes check memberships, but a dedicated database policy and role/transaction test across those two tables is still needed before tenant security can be certified. The worker role has broad cross-tenant read policies by design; its credential, network and audit boundaries need independent review.
